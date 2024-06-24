@@ -5,10 +5,10 @@ import copy
 
 logger = logging.getLogger(__name__)
 
-year_patterns = ["!YYYY", "!yyyy"]
-month_patterns = ["!MM", "!mm"]
+year_patterns = ["!YYYY!", "!yyyy!"]
+month_patterns = ["!MM!", "!mm!"]
 # Order is important, don't change
-date_patterns = ["!ddd", "!DDD", "!dd", "!DD", "!d", "!D"]
+date_patterns = ["!ddd!", "!DDD!", "!dd!", "!DD!", "!d!", "!D!"]
 
 
 def resolve_pattern(pattern, dates):
@@ -43,7 +43,7 @@ def resolve_pattern(pattern, dates):
     return pl
 
 
-def resolve_date_range(pattern, date_range):
+def resolve_time_filters(pattern, date_range):
     # print (pattern, date_range)
     if not (date_range and len(date_range) == 2):
         return [pattern]
