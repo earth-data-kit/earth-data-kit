@@ -15,7 +15,7 @@ def sync(
 ):
     """Syncs data from a remote rasters set to filesystem"""
     if engine not in engines_supported:
-        raise Exception("only s3 is supported")
+        raise Exception("only s3 engine is supported")
 
     if not pattern:
         raise Exception("pattern in required")
