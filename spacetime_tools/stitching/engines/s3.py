@@ -5,6 +5,7 @@ import spacetime_tools.stitching.helpers as helpers
 
 logger = logging.getLogger(__name__)
 
+
 def create_inventory(pattern_list, engine_opts):
     # Creating commands.txt file for s5cmd
     cmds_fp = f"{os.getcwd()}/.tmp/ls_commands.txt"
@@ -20,6 +21,7 @@ def create_inventory(pattern_list, engine_opts):
     s5_cmd = f"AWS_REGION={engine_opts['region']} s5cmd run {cmds_fp} > {inventory_fp}"
     os.system(s5_cmd)
     return inventory_fp
+
 
 def sync_inventory(pattern_list, engine_opts):
     # Deleting /raw dir where data will be synced
