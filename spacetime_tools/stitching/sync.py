@@ -1,14 +1,19 @@
 import stitching.wildcard_utils as wildcard_utils
-
+import logging
+logger = logging.getLogger(__name__)
 engines_supported = ["s3"]
 
-def resolve_time(pattern, date_range):
-    print (pattern, date_range)
-    pass
 
-def sync(engine="s3", pattern=None, grid_fp=None, matcher=None, options={}, bbox=None, date_range=None):
-    """Syncs data from a remote rasters set to filesystem
-    """
+def sync(
+    engine="s3",
+    pattern=None,
+    grid_fp=None,
+    matcher=None,
+    options={},
+    bbox=None,
+    date_range=None,
+):
+    """Syncs data from a remote rasters set to filesystem"""
     if engine not in engines_supported:
         raise Exception("only s3 is supported")
 
@@ -16,7 +21,7 @@ def sync(engine="s3", pattern=None, grid_fp=None, matcher=None, options={}, bbox
         raise Exception("pattern in required")
 
     pattern_list = wildcard_utils.resolve_date_range(pattern, date_range)
-
+    logger.info(pattern_list)
     # First gets the pattern and creates the pattern list to search
     # It's basically custom time wildcards resolution, eg: ddd, DD, etc.
     # Once that is done we get the entire list based on time dimension

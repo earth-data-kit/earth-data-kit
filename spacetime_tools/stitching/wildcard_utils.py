@@ -1,38 +1,50 @@
 from dateutil.relativedelta import relativedelta
 import logging
+from dateutil.rrule import rrule, MONTHLY
+import copy
 
 logger = logging.getLogger(__name__)
 
-year_patterns = ["YYYY", "yyyy"]
-month_patterns = ["MM", "mm"]
-day = ["d", "dd", "ddd", "D", "DD", "DDD"]
+year_patterns = ["!YYYY", "!yyyy"]
+month_patterns = ["!MM", "!mm"]
+# Order is important, don't change
+date_patterns = ["!ddd", "!DDD", "!dd", "!DD", "!d", "!D"]
 
 
-def resolve_month(pattern, start, end):
+def resolve_pattern(pattern, dates):
     pl = []
-    for m in month_patterns:
-        if f"!{m}" in pattern:
-            diff_in_months = relativedelta(end, start).months
-            logger.info (diff_in_months)
+    for dt in dates:
+        pat = copy.copy(pattern)
+        year = dt.year
+        month = dt.month
 
-    return pl
-def resolve_year(pattern, start, end):
-    pl = []
-    for y in year_patterns:
-        if f"!{y}" in pattern:
-            diff_in_years = relativedelta(end, start).years
-            if diff_in_years < 0:
-                raise Exception("end can't be less than start")
-            cur_year = start.year
-            end_year = end.year
-            for i in range(cur_year, end_year+1):
-                # TODO: Add code to handle trailing zeroes
-                pl = pl + resolve_month(pattern.replace(f"!{y}", str(i)), start, end)
+        # Iterates over all dates and replaces year and month patterns with all values
+        for yp in year_patterns:
+            if yp in pat:
+                if yp.upper() == yp:
+                    # Add trailing zeros
+                    pat = pat.replace(yp, f"{year:04d}")
+                else:
+                    pat = pat.replace(yp, f"{year}")
 
+        for mp in month_patterns:
+            if mp in pat:
+                if mp.upper() == mp:
+                    # Add trailing zeros
+                    pat = pat.replace(mp, f"{month:02d}")
+                else:
+                    pat = pat.replace(mp, f"{month}")
+
+        for dp in date_patterns:
+            if dp in pat:
+                # Replacing date with * as we can sync parallely based on month
+                pat = pat.replace(dp, "*")
+        pl.append(pat)
     return pl
+
 
 def resolve_date_range(pattern, date_range):
-    print (pattern, date_range)
+    # print (pattern, date_range)
     if not (date_range and len(date_range) == 2):
         return [pattern]
 
@@ -41,5 +53,7 @@ def resolve_date_range(pattern, date_range):
 
     pl = []
 
-    pl = resolve_year(pattern, start, end)
-    print (pl)
+    # Starts iterating monthly and gets all possible dates
+    dates = [dt for dt in rrule(MONTHLY, dtstart=start, until=end)]
+    pl = resolve_pattern(pattern, dates)
+    return list(set(pl))
