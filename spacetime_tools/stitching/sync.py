@@ -1,4 +1,4 @@
-import stitching.wildcard_utils as wildcard_utils
+import spacetime_tools.stitching.wildcard_utils as wildcard_utils
 import logging
 logger = logging.getLogger(__name__)
 engines_supported = ["s3"]

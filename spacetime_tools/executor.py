@@ -1,6 +1,6 @@
-from stitching import sync
+from spacetime_tools.stitching import sync
 import datetime
-from stitching.sample_data.country_bboxes import country_bounding_boxes
+from spacetime_tools.stitching.sample_data.country_bboxes import country_bounding_boxes
 
 if __name__ == "__main__":
     pattern = "s3://modis-pds/MCD43A4.006/00/08/!YYYY!DDD/*_B07.TIF"
