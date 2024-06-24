@@ -2,6 +2,9 @@ import spacetime_tools.stitching.time_filters as time_filters
 import spacetime_tools.stitching.space_filters as space_filters
 import logging
 import fiona
+from spacetime_tools.stitching.engines import s3
+import os
+import spacetime_tools.stitching.helpers as helpers
 
 fiona.drvsupport.supported_drivers['kml'] = 'rw' # enable KML support which is disabled by default
 fiona.drvsupport.supported_drivers['KML'] = 'rw' # enable KML support which is disabled by default
@@ -14,9 +17,9 @@ def sync(
     pattern=None,
     grid_fp=None,
     matcher=None,
-    options={},
     bbox=None,
     date_range=None,
+    engine_opts={}
 ):
     """Syncs data from a remote rasters set to filesystem"""
     if engine not in engines_supported:
@@ -31,12 +34,13 @@ def sync(
     # Resolving space filtering
     pattern_list = space_filters.resolve_space_filters(pattern_list, grid_fp, matcher, bbox)
     logger.info(f"{len(pattern_list)} patterns to search")
-    # First gets the pattern and creates the pattern list to search
-    # It's basically custom time wildcards resolution, eg: ddd, DD, etc.
-    # Once that is done we get the entire list based on time dimension
-    # Then we resolve spatial wildcards or other variables,
-    # that is done only if user supplies grid_fp and matcher function, if not we go ahead and
-    # apply the wildcard search and list all objects we want to download
+
+    # Making sure .tmp dir exists
+    helpers.make_sure_dir_exists(f"{os.getcwd()}/.tmp")
+
+    # Apply the wildcard search and list all objects we want to download
+    if engine == "s3":
+        s3.create_inventory(pattern_list, engine_opts)
+        s3.sync_inventory(pattern_list, engine_opts)
+
     # Once that is done we perform get metadata and projection details of all the files matched using gdal.Open
-    # if method == "wildcard":
-    #     inventory_file = s3.list_objects(pattern, options)

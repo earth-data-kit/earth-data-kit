@@ -56,4 +56,5 @@ def resolve_time_filters(pattern, date_range):
     # Starts iterating monthly and gets all possible dates
     dates = [dt for dt in rrule(MONTHLY, dtstart=start, until=end)]
     pl = resolve_pattern(pattern, dates)
+    logger.info(pl)
     return list(set(pl))

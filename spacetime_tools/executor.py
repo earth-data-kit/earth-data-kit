@@ -11,15 +11,17 @@ def fn(x):
     if match and match.groups():
         vars = match.groups()
         return {
-            "horizontal_grid": vars[0],
-            "vertical_grid": vars[1]
+            "horizontal_grid": f"{int(vars[0]):02d}",
+            "vertical_grid": f"{int(vars[1]):02d}"
         }
 
 if __name__ == "__main__":
     pattern = "s3://modis-pds/MCD43A4.006/!horizontal_grid!/!vertical_grid!/!YYYY!!DDD!/*_B07.TIF"
     grid_fp = "stitching/sample_data/sample_kmls/modis.kml"
-
+    region = "us-west-2"
     bbox = country_bounding_boxes["IN"]
-    date_range = (datetime.datetime(2010, 2, 1), datetime.datetime(2013, 4, 1))
+    date_range = (datetime.datetime(2015, 1, 1), datetime.datetime(2017, 1, 1))
 
-    sync.sync(pattern=pattern, date_range=date_range, grid_fp=grid_fp, matcher=fn)
+    sync.sync(pattern=pattern, date_range=date_range, grid_fp=grid_fp, matcher=fn, bbox=bbox[1], engine_opts={
+        "region": region,
+    })
