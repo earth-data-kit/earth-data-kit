@@ -9,6 +9,7 @@ readme = "README.md"
 python = "^3.12"
 dateutils = "^0.6.12"
 geopandas = "^0.14.4"
+python-dotenv = "^1.0.1"
 
 
 [build-system]

@@ -3,7 +3,10 @@ import datetime
 from spacetime_tools.stitching.sample_data.country_bboxes import country_bounding_boxes
 import re
 import logging
-
+from dotenv import load_dotenv
+import os
+from spacetime_tools.stitching.helpers import get_tmp_dir
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +25,7 @@ if __name__ == "__main__":
     grid_fp = "stitching/sample_data/sample_kmls/modis.kml"
     region = "us-west-2"
     bbox = country_bounding_boxes["IN"]
-    date_range = (datetime.datetime(2015, 1, 1), datetime.datetime(2017, 1, 1))
+    date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 12, 31))
 
     sync.sync(
         pattern=pattern,

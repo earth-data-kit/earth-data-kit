@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 def create_inventory(pattern_list, engine_opts):
     # Creating commands.txt file for s5cmd
-    cmds_fp = f"{os.getcwd()}/.tmp/ls_commands.txt"
-    inventory_fp = f"{os.getcwd()}/.tmp/inventory.tsv"
+    cmds_fp = f"{helpers.get_tmp_dir()}/ls_commands.txt"
+    inventory_fp = f"{helpers.get_tmp_dir()}/inventory.tsv"
     fp = open(cmds_fp, mode="w")
     cmds = []
     for pl in pattern_list:
@@ -25,13 +25,13 @@ def create_inventory(pattern_list, engine_opts):
 
 def sync_inventory(pattern_list, engine_opts):
     # Deleting /raw dir where data will be synced
-    helpers.delete_dir(f"{os.getcwd()}/.tmp/raw/")
+    helpers.delete_dir(f"{helpers.get_tmp_dir()}/raw/")
 
-    cmds_fp = f"{os.getcwd()}/.tmp/sync_commands.txt"
+    cmds_fp = f"{helpers.get_tmp_dir()}/sync_commands.txt"
     fp = open(cmds_fp, mode="w")
     cmds = []
     for pl in pattern_list:
-        cmd = f"sync {pl} {os.getcwd()}/.tmp/raw/\n"
+        cmd = f"sync {pl} {helpers.get_tmp_dir()}/raw/\n"
         cmds.append(cmd)
     fp.writelines(cmds)
     fp.close()
