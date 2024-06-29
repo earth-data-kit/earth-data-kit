@@ -49,5 +49,3 @@ def sync(
     if engine == "s3":
         s3.create_inventory(pattern_list, engine_opts)
         s3.sync_inventory(pattern_list, engine_opts)
-
-    # Once that is done we perform get metadata and projection details of all the files matched using gdal.Open

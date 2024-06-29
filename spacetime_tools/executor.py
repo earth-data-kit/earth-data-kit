@@ -1,4 +1,4 @@
-from spacetime_tools.stitching import sync
+from spacetime_tools.stitching import sync, discover
 import datetime
 from spacetime_tools.stitching.sample_data.country_bboxes import country_bounding_boxes
 import re
@@ -27,13 +27,17 @@ if __name__ == "__main__":
     bbox = country_bounding_boxes["IN"]
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 12, 31))
 
-    sync.sync(
-        pattern=pattern,
-        date_range=date_range,
-        grid_fp=grid_fp,
-        matcher=fn,
-        bbox=bbox[1],
-        engine_opts={
-            "region": region,
-        },
-    )
+    fp = "/Volumes/Data/spacetime-tools/tmp/raw/2017*/*_B07.TIF"
+    discover.discover(fp)
+
+
+    # sync.sync(
+    #     pattern=pattern,
+    #     date_range=date_range,
+    #     grid_fp=grid_fp,
+    #     matcher=fn,
+    #     bbox=bbox[1],
+    #     engine_opts={
+    #         "region": region,
+    #     },
+    # )
