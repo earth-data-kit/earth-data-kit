@@ -6,6 +6,7 @@ import logging
 from dotenv import load_dotenv
 import os
 from spacetime_tools.stitching.helpers import get_tmp_dir
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,6 @@ if __name__ == "__main__":
 
     fp = "/Volumes/Data/spacetime-tools/tmp/raw/2017*/*_B07.TIF"
     discover.discover(fp)
-
 
     # sync.sync(
     #     pattern=pattern,
