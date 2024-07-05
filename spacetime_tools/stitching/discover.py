@@ -45,7 +45,7 @@ def discover(fp):
             .size()
             .reset_index(name="tile_count")
         )
-        logger.info("\n%s", uniq_bands)
+        return i_df
 
 
 def discover_tile(file_path):

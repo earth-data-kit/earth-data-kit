@@ -5,6 +5,9 @@ import spacetime_tools.stitching.helpers as helpers
 
 logger = logging.getLogger(__name__)
 
+def discover_minimal():
+    """Tries to list down all the files
+    """
 
 def create_inventory(pattern_list, engine_opts):
     # Creating commands.txt file for s5cmd

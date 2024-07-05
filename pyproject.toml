@@ -11,7 +11,11 @@ dateutils = "^0.6.12"
 geopandas = "^0.14.4"
 python-dotenv = "^1.0.1"
 gdal = "3.9.1"
+pydeck = "^0.9.1"
 
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.4"
 
 [build-system]
 requires = ["poetry-core"]

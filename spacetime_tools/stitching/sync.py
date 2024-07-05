@@ -42,8 +42,8 @@ def sync(
     )
     logger.info(f"{len(pattern_list)} patterns to search")
 
-    # Making sure .tmp dir exists
-    helpers.make_sure_dir_exists(f"{os.getcwd()}/.tmp")
+    # Making sure tmp dir exists
+    helpers.make_sure_dir_exists(f"{os.getcwd()}/tmp")
 
     # Apply the wildcard search and list all objects we want to download
     if engine == "s3":
