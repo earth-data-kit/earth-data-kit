@@ -2,10 +2,12 @@ import spacetime_tools.stitching.filters as filters
 import logging
 import spacetime_tools.stitching.discover as discover
 import spacetime_tools.stitching.sync as sync
+import spacetime_tools.stitching.decorators as decorators
 
 logger = logging.getLogger(__name__)
 
 
+@decorators.timed
 def sync_and_stitch(
     engine="s3",
     source="s3://modis-pds",
