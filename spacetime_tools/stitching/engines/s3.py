@@ -24,20 +24,22 @@ def create_inventory(patterns):
     return inventory_fp
 
 
-def sync_inventory(pattern_list, engine_opts):
+def sync_inventory(df):
     # Deleting /raw dir where data will be synced
-    helpers.delete_dir(f"{helpers.get_tmp_dir()}/raw/")
-
+    base_path = f"{helpers.get_tmp_dir()}/raw"
+    helpers.delete_dir(f"{base_path}/")
+    cmds = (
+        "cp"
+        + " "
+        + df["engine_path"].map(str)
+        + " "
+        + f"{base_path}/"
+        + df["engine_path"].map(lambda x: x.replace("s3://", ""))
+    )
     cmds_fp = f"{helpers.get_tmp_dir()}/sync_commands.txt"
-    fp = open(cmds_fp, mode="w")
-    cmds = []
-    for pl in pattern_list:
-        cmd = f"sync {pl} {helpers.get_tmp_dir()}/raw/\n"
-        cmds.append(cmd)
-    fp.writelines(cmds)
-    fp.close()
 
-    logger.info(f"Will sync {len(cmds)} patterns")
-    s5_cmd = f"AWS_REGION={engine_opts['region']} s5cmd run {cmds_fp}"
+    cmds.to_csv(cmds_fp, header=False, index=False)
+    logger.info(f"Will sync {len(cmds)} files")
+    s5_cmd = f"s5cmd run {cmds_fp}"
 
     os.system(s5_cmd)

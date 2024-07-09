@@ -39,7 +39,7 @@ def sync_and_stitch(
     logger.info(filtered_inventory_file)
 
     # This will download all the data
-    sync.sync(filtered_inventory_file)
+    sync.sync(engine, filtered_inventory_file)
 
     # # After the above if condition data is downloaded locally and is ready to be stitched
     # spacetime_tools.stitch()

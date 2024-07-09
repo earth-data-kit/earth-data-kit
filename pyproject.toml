@@ -13,6 +13,7 @@ python-dotenv = "^1.0.1"
 gdal = "3.9.1"
 pydeck = "^0.9.1"
 rasterio = "^1.3.10"
+rioxarray = "^0.16.0"
 
 
 [tool.poetry.group.dev.dependencies]

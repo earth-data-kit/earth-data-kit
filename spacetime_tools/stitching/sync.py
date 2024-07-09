@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 engines_supported = ["s3"]
 
 
-def sync(filtered_inventory_file):
+def sync(engine, filtered_inventory_file):
     df = pd.read_csv(filtered_inventory_file)
-    logger.info(df)
-    # Apply the wildcard search and list all objects we want to download
-    # if engine == "s3":
-    #     s3.create_inventory(pattern_list, engine_opts)
-    #     s3.sync_inventory(pattern_list, engine_opts)
+    if engine == "s3":
+        s3.sync_inventory(df)
+        return
+
+    raise Exception(f"{engine} engine not supported")
