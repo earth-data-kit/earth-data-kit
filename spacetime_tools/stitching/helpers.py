@@ -7,6 +7,13 @@ def make_sure_dir_exists(dir):
         os.makedirs(dir)
 
 
+def make_list(ele):
+    if type(ele) != list:
+        return [ele]
+    else:
+        return ele
+
+
 def get_max_workers():
     cpu_count = 1
     if os.cpu_count() != None:

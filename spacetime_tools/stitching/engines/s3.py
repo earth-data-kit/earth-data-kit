@@ -5,23 +5,21 @@ import spacetime_tools.stitching.helpers as helpers
 
 logger = logging.getLogger(__name__)
 
-def discover_minimal():
-    """Tries to list down all the files
-    """
 
-def create_inventory(pattern_list, engine_opts):
-    # Creating commands.txt file for s5cmd
-    cmds_fp = f"{helpers.get_tmp_dir()}/ls_commands.txt"
-    inventory_fp = f"{helpers.get_tmp_dir()}/inventory.tsv"
-    fp = open(cmds_fp, mode="w")
+def create_inventory(patterns):
+    ls_cmds_fp = f"{helpers.get_tmp_dir()}/ls_commands.txt"
+    inventory_fp = f"{helpers.get_tmp_dir()}/inventory.json"
+    logger.info(ls_cmds_fp)
+
+    fp = open(ls_cmds_fp, mode="w")
     cmds = []
-    for pl in pattern_list:
+    for pl in patterns:
         cmd = f"ls {pl}\n"
         cmds.append(cmd)
     fp.writelines(cmds)
     fp.close()
 
-    s5_cmd = f"AWS_REGION={engine_opts['region']} s5cmd run {cmds_fp} > {inventory_fp}"
+    s5_cmd = f"s5cmd --json run {ls_cmds_fp} > {inventory_fp}"
     os.system(s5_cmd)
     return inventory_fp
 

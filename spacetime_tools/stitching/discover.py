@@ -8,28 +8,32 @@ import logging
 import glob
 import concurrent.futures
 import spacetime_tools.stitching.helpers as helpers
+import spacetime_tools.stitching.engines.s3 as s3
 
 logger = logging.getLogger(__name__)
 
 
-def discover(fp):
-    """Capable of discovering the dataset by analysing the files metadata.
-    Things it extracts from the metadata -
-    1. CRS/Projection
-    2. Extent of each file
-    3. Resolution of each file
-    4. Band details
-    """
-    st = time.time()
+def file_discovery(engine, patterns):
+    if engine == "s3":
+        return s3.create_inventory(patterns)
+    raise Exception(f"{engine} engine not supported")
 
-    tiles = glob.glob(fp)
-    logger.info("Discovering %s tiles", len(tiles))
+
+def spatial_discovery(engine, inventory_file):
+    if engine not in ["s3"]:
+        raise Exception(f"{engine} engine not supported")
+
+    if engine == "s3":
+        df = pd.read_json(inventory_file, lines=True)
+        df["remote_path"] = df["key"].str.replace("s3://", "/vsis3/")
+
     futures = []
+    st = time.time()
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=helpers.get_max_workers()
     ) as executor:
-        for tile_fp in tiles:
-            futures.append(executor.submit(discover_tile, tile_fp))
+        for row in df.itertuples():
+            futures.append(executor.submit(read_metadata, row.remote_path, row.Index))
         executor.shutdown(wait=True)
 
         results = []
@@ -38,20 +42,26 @@ def discover(fp):
             results = results + result
 
         logger.info("Time taken %s", time.time() - st)
-        # i == inventory
-        i_df = pd.DataFrame(results)
-        uniq_bands = (
-            i_df.groupby(by=["description", "x_res", "y_res", "dtype"])
-            .size()
-            .reset_index(name="tile_count")
-        )
-        return i_df
+
+        inventory = pd.DataFrame(results)
+        inventory["engine_path"] = df["key"]
+        inventory["size"] = df["size"]
+        inventory["last_modified"] = df["last_modified"]
+
+        full_inventory = f"{helpers.get_tmp_dir()}/full-inventory.csv"
+        inventory.to_csv(full_inventory, header=True, index=False)
+        return full_inventory
 
 
-def discover_tile(file_path):
+def read_metadata(file_path, index):
     st = time.time()
     ds = gdal.Open(file_path)
-    geotransform = ds.GetGeoTransform()
+    geo_transform = ds.GetGeoTransform()
+    x_min = geo_transform[0]
+    y_max = geo_transform[3]
+    x_max = x_min + geo_transform[1] * ds.RasterXSize
+    y_min = y_max + geo_transform[5] * ds.RasterYSize
+    projection = ds.GetProjection()
 
     bands = []
     band_count = ds.RasterCount
@@ -60,15 +70,20 @@ def discover_tile(file_path):
         bands.append(
             {
                 "description": band.GetDescription(),
-                "geotransform": geotransform,
+                "geo_transform": geo_transform,
                 "file_path": file_path,
                 "dtype": band.DataType,
                 "x_size": band.XSize,
                 "y_size": band.YSize,
                 # TODO: Round so that random floating point errors don't come
-                "x_res": int(geotransform[1]),
-                "y_res": int(geotransform[5]),
+                "x_res": int(geo_transform[1]),
+                "y_res": int(geo_transform[5]),
+                "x_min": x_min,
+                "y_min": y_min,
+                "x_max": x_max,
+                "y_max": y_max,
+                "projection": projection,
             }
         )
-
+    logger.info(f"Time taken to read metadata {index} {time.time() - st}")
     return bands
