@@ -81,8 +81,9 @@ def filter_inventory(file_path, source, bbox, date_range):
     df = pd.read_csv(file_path)
 
     if date_range:
-        # Filter temporally
+        # Not filtering based on date_range as we are already pin-pointing the files to download
         pass
+
     if bbox:
         # * Below function assumes the projection is gonna be same which can be
         # * usually true for a single set of tiles

@@ -1,6 +1,7 @@
 import spacetime_tools.stitching.filters as filters
 import logging
 import spacetime_tools.stitching.discover as discover
+import spacetime_tools.stitching.sync as sync
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +29,17 @@ def sync_and_stitch(
 
     # # Runs on remote and gets gdal-info of all files in the inventory, inventory filepath is required
     # expanded_inventory_file = discover.spatial_discovery(engine, inventory_file)
-    expanded_inventory_file = "/Volumes/Data/spacetime-tools/tmp/full-inventory.csv"
+    # expanded_inventory_file = "/Volumes/Data/spacetime-tools/tmp/full-inventory.csv"
 
     # # Then we filter files which we need, this is done spatially and time-based if possible
-    filtered_inventory_file = filters.filter_inventory(
-        expanded_inventory_file, source, bbox, date_range
-    )
+    # filtered_inventory_file = filters.filter_inventory(
+    #     expanded_inventory_file, source, bbox, date_range
+    # )
+    filtered_inventory_file = "/Volumes/Data/spacetime-tools/tmp/filtered-inventory.csv"
     logger.info(filtered_inventory_file)
 
-    # # This will download all the data
-    # spacetime_tools.sync()
+    # This will download all the data
+    sync.sync(filtered_inventory_file)
 
     # # After the above if condition data is downloaded locally and is ready to be stitched
     # spacetime_tools.stitch()

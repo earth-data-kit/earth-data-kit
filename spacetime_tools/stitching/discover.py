@@ -25,7 +25,7 @@ def spatial_discovery(engine, inventory_file):
 
     if engine == "s3":
         df = pd.read_json(inventory_file, lines=True)
-        df["remote_path"] = df["key"].str.replace("s3://", "/vsis3/")
+        df["gdal_path"] = df["key"].str.replace("s3://", "/vsis3/")
 
     futures = []
     st = time.time()
@@ -33,7 +33,7 @@ def spatial_discovery(engine, inventory_file):
         max_workers=helpers.get_max_workers()
     ) as executor:
         for row in df.itertuples():
-            futures.append(executor.submit(read_metadata, row.remote_path, row.Index))
+            futures.append(executor.submit(read_metadata, row.gdal_path, row.Index))
         executor.shutdown(wait=True)
 
         results = []
@@ -53,9 +53,9 @@ def spatial_discovery(engine, inventory_file):
         return full_inventory
 
 
-def read_metadata(file_path, index):
+def read_metadata(gdal_path, index):
     st = time.time()
-    ds = gdal.Open(file_path)
+    ds = gdal.Open(gdal_path)
     geo_transform = ds.GetGeoTransform()
     x_min = geo_transform[0]
     y_max = geo_transform[3]
@@ -71,7 +71,7 @@ def read_metadata(file_path, index):
             {
                 "description": band.GetDescription(),
                 "geo_transform": geo_transform,
-                "file_path": file_path,
+                "gdal_path": gdal_path,
                 "dtype": band.DataType,
                 "x_size": band.XSize,
                 "y_size": band.YSize,
