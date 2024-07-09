@@ -42,4 +42,4 @@ def sync_inventory(df):
     logger.info(f"Will sync {len(cmds)} files")
     s5_cmd = f"s5cmd run {cmds_fp}"
 
-    # os.system(s5_cmd)
+    os.system(s5_cmd)
