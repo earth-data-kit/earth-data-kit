@@ -18,7 +18,6 @@ engines_supported = ["s3"]
 def sync(engine, filtered_inventory_file):
     df = pd.read_csv(filtered_inventory_file)
     if engine == "s3":
-        s3.sync_inventory(df)
-        return
+        return s3.sync_inventory(df)
 
     raise Exception(f"{engine} engine not supported")

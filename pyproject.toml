@@ -14,6 +14,7 @@ gdal = "3.9.1"
 pydeck = "^0.9.1"
 rasterio = "^1.3.10"
 rioxarray = "^0.16.0"
+python-levenshtein = "^0.25.1"
 
 
 [tool.poetry.group.dev.dependencies]

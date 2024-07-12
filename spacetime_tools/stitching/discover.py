@@ -41,8 +41,6 @@ def spatial_discovery(engine, inventory_file):
             result = future.result()
             results = results + result
 
-        logger.info("Time taken %s", time.time() - st)
-
         inventory = pd.DataFrame(results)
         inventory["engine_path"] = df["key"]
         inventory["size"] = df["size"]
@@ -69,6 +67,7 @@ def read_metadata(gdal_path, index):
         band = ds.GetRasterBand(i)
         bands.append(
             {
+                "band_idx": i,
                 "description": band.GetDescription(),
                 "geo_transform": geo_transform,
                 "gdal_path": gdal_path,
@@ -85,5 +84,4 @@ def read_metadata(gdal_path, index):
                 "projection": projection,
             }
         )
-    logger.info(f"Time taken to read metadata {index} {time.time() - st}")
     return bands
