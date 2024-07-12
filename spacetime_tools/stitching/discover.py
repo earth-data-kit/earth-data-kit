@@ -9,16 +9,19 @@ import glob
 import concurrent.futures
 import spacetime_tools.stitching.helpers as helpers
 import spacetime_tools.stitching.engines.s3 as s3
+import spacetime_tools.stitching.decorators as decorators
 
 logger = logging.getLogger(__name__)
 
 
+@decorators.timed
 def file_discovery(engine, patterns):
     if engine == "s3":
         return s3.create_inventory(patterns)
     raise Exception(f"{engine} engine not supported")
 
 
+@decorators.timed
 def spatial_discovery(engine, inventory_file):
     if engine not in ["s3"]:
         raise Exception(f"{engine} engine not supported")

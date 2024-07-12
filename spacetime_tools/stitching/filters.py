@@ -14,6 +14,7 @@ from shapely.affinity import affine_transform
 import shapely.geometry
 import pyproj
 import spacetime_tools.stitching.helpers as helpers
+import spacetime_tools.stitching.decorators as decorators
 
 pd.set_option("display.max_columns", None)
 
@@ -27,6 +28,7 @@ fiona.drvsupport.supported_drivers[
 logger = logging.getLogger(__name__)
 
 
+@decorators.timed
 def resolve_time_filters(source, date_range):
     # * Handles the below time format codes. For formats without trailing zeros check the stackoverflow link
     # https://docs.python.org/3/library/datetime.html#strftime-strptime-behavior
@@ -42,6 +44,7 @@ def resolve_time_filters(source, date_range):
     )
 
 
+@decorators.timed
 def resolve_space_filters(patterns, grid_fp, matcher, bbox):
     if (not grid_fp) or (not matcher):
         # Won't be able to filter so simply return patterns
@@ -77,6 +80,7 @@ def polygonise_2Dcells(df_row):
     )
 
 
+@decorators.timed
 def filter_inventory(file_path, source, bbox, date_range):
     df = pd.read_csv(file_path)
 

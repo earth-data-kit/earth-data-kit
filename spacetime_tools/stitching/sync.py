@@ -1,5 +1,6 @@
 import logging
 import fiona
+from spacetime_tools.stitching import decorators
 from spacetime_tools.stitching.engines import s3
 import pandas as pd
 import spacetime_tools.stitching.helpers as helpers
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 engines_supported = ["s3"]
 
 
+@decorators.timed
 def sync(engine, filtered_inventory_file):
     df = pd.read_csv(filtered_inventory_file)
     if engine == "s3":

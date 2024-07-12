@@ -8,7 +8,6 @@ import spacetime_tools.stitching.stitch as stitch
 logger = logging.getLogger(__name__)
 
 
-@decorators.timed
 def sync_and_stitch(
     engine="s3",
     source="s3://modis-pds",

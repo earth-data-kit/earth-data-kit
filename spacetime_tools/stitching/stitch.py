@@ -4,6 +4,7 @@ import logging
 import datetime
 import Levenshtein as levenshtein
 import os
+from spacetime_tools.stitching import decorators
 import spacetime_tools.stitching.helpers as helpers
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ def convert_to_zarr():
     pass
 
 
+@decorators.timed
 def stitch(local_inventory_file, source, date_range, dest):
     # Creates the processing directory of intermediary files
     helpers.make_sure_dir_exists(f"{helpers.get_tmp_dir()}/processing/")
