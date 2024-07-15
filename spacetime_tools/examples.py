@@ -38,3 +38,22 @@ if __name__ == "__main__":
         matcher=fn,
         dest="/Volumes/Data/modis-pds-no-space-filtering/%d-%m-%Y.tif",
     )
+
+
+    engine = "s3/earth_engine"
+    source = "s3://modis-pds/MCD43A4.006/{x}/{y}/%Y%j/*_B07.TIF"
+    destination = "/Volumes/Data/modis-pds/"
+    date_range = ()
+    bbox = []
+
+    class Tile:
+        pass
+
+    class Band:
+        pass
+
+    sync(engine, source, destination, date_range, bbox, grid_file, matching_function, engine_parameters={})
+
+    stitch(local_source, destination, date_range, bbox, band_arrangement={
+
+    }, output_parameters={}, gdal_options={})

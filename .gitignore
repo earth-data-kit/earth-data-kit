@@ -5,3 +5,4 @@ sample_kmls
 .env
 tmp
 .DS_Store
+docs/_build
