@@ -6,6 +6,7 @@ import logging
 from dotenv import load_dotenv
 import os
 from spacetime_tools.stitching.sync_and_stitch import sync_and_stitch
+from spacetime_tools.stitching.classes import dataset
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -22,38 +23,19 @@ def fn(x):
 
 
 if __name__ == "__main__":
-    pattern = "s3://modis-pds/MCD43A4.006/{x}/{y}/%Y%j/*_B07.TIF"
+    source = "s3://modis-pds/MCD43A4.006/{x}/{y}/%Y%j/*_B07.TIF"
     # output = "/Volumes/Data/spacetime-tools/tmp/modis-pds/%d-%m-%Y/{band}.TIF"
     grid_fp = "stitching/sample_data/sample_kmls/modis.kml"
     region = "us-west-2"
     bbox = country_bounding_boxes["AL"]
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 10))
 
-    sync_and_stitch(
-        engine="s3",
-        source=pattern,
-        bbox=bbox[1],
-        date_range=date_range,
-        grid_fp=grid_fp,
-        matcher=fn,
-        dest="/Volumes/Data/modis-pds-no-space-filtering/%d-%m-%Y.tif",
-    )
+    # Creating a dataset
+    ds = dataset.DataSet("s3", source)
 
-
-    engine = "s3/earth_engine"
-    source = "s3://modis-pds/MCD43A4.006/{x}/{y}/%Y%j/*_B07.TIF"
-    destination = "/Volumes/Data/modis-pds/"
-    date_range = ()
-    bbox = []
-
-    class Tile:
-        pass
-
-    class Band:
-        pass
-
-    sync(engine, source, destination, date_range, bbox, grid_file, matching_function, engine_parameters={})
-
-    stitch(local_source, destination, date_range, bbox, band_arrangement={
-
-    }, output_parameters={}, gdal_options={})
+    # Setting time bounds
+    ds.set_timebounds(date_range[0], date_range[1])
+    print(len(ds.patterns))
+    # Setting spatial extent
+    ds.set_spacebounds(bbox[1], grid_fp, fn)
+    print(len(ds.patterns))

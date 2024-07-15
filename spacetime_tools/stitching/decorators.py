@@ -18,6 +18,7 @@ def timed(func):
 
     return wrapper
 
+
 def log_init(func):
     """This decorator prints that the function has started executing"""
 
