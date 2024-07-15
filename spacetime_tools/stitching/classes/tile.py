@@ -1,5 +1,6 @@
 from osgeo import gdal
 import logging
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -9,6 +10,43 @@ class Tile:
         self.engine_path = engine_path
         self.gdal_path = gdal_path
         self.size = size
+
+    @staticmethod
+    def to_df(tiles):
+        df = pd.DataFrame([t.__dict__ for t in tiles])
+        return df
+
+    @staticmethod
+    def as_tiles(df):
+        tiles = [Tile.from_dict(**kwargs) for kwargs in df.to_dict(orient="records")]
+        return tiles
+
+    @staticmethod
+    def from_dict(
+        engine_path,
+        gdal_path,
+        size,
+        geo_transform,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+        projection,
+        local_path,
+    ):
+        t = Tile(engine_path, gdal_path, size)
+        t.set_metadata(
+            {
+                "x_min": x_min,
+                "x_max": x_max,
+                "y_min": y_min,
+                "y_max": y_max,
+                "geo_transform": geo_transform,
+                "projection": projection,
+            }
+        )
+        t.set_local_path(local_path)
+        return t
 
     def get_metadata(self):
         # Figure out aws options

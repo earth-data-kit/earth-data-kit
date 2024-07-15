@@ -67,48 +67,7 @@ def resolve_space_filters(patterns, grid_fp, matcher, bbox):
     return pl
 
 
-def polygonise_2Dcells(df_row):
-    return Polygon(
-        [
-            (df_row.x_min, df_row.y_min),
-            (df_row.x_max, df_row.y_min),
-            (df_row.x_max, df_row.y_max),
-            (df_row.x_min, df_row.y_max),
-        ]
-    )
-
-
 @decorators.timed
 @decorators.log_init
 def filter_inventory(file_path, source, bbox, date_range):
     df = pd.read_csv(file_path)
-
-    if date_range:
-        # Not filtering based on date_range as we are already pin-pointing the files to download
-        pass
-
-    if bbox:
-        # * Below function assumes the projection is gonna be same which can be
-        # * usually true for a single set of tiles
-        # Filter spatially
-
-        # Getting the projection from first row
-        projection = df["projection"].iloc[0]
-        # Add the extent geo-series and set projection
-        extent = gpd.GeoSeries(
-            df.apply(polygonise_2Dcells, axis=1),
-            crs=pyproj.CRS.from_user_input(projection),
-        )
-        reprojected_extent = extent.to_crs(epsg=4326)
-
-        # Get polygon from user's bbox
-        bbox = shapely.geometry.box(*bbox, ccw=True)
-
-        # Perform intersection and filtering
-        intersects = reprojected_extent.intersects(bbox)
-        df = df[intersects == True]
-
-    filtered_inventory = f"{helpers.get_tmp_dir()}/filtered-inventory.csv"
-    df.to_csv(filtered_inventory, index=False, header=True)
-
-    return filtered_inventory

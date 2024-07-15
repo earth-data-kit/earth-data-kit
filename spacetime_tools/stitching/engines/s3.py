@@ -48,7 +48,4 @@ def sync_inventory(df, tmp_base_dir):
     os.system(s5_cmd)
 
     df["local_path"] = local_path
-    local_inventory_file = f"{tmp_base_dir}/local-inventory.csv"
-
-    df.to_csv(local_inventory_file, header=True, index=False)
-    return local_inventory_file
+    return df

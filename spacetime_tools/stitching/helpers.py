@@ -1,10 +1,15 @@
 import os
 import shutil
+from shapely import Polygon
 
 
 def make_sure_dir_exists(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
+
+
+def empty_dir(path):
+    shutil.rmtree(path)
 
 
 def make_list(ele):
@@ -29,3 +34,14 @@ def get_tmp_dir():
 
 def delete_dir(dir):
     shutil.rmtree(dir, ignore_errors=True)
+
+
+def polygonise_2Dcells(df_row):
+    return Polygon(
+        [
+            (df_row.x_min, df_row.y_min),
+            (df_row.x_max, df_row.y_min),
+            (df_row.x_max, df_row.y_max),
+            (df_row.x_min, df_row.y_max),
+        ]
+    )
