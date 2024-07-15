@@ -16,14 +16,6 @@ logger = logging.getLogger(__name__)
 
 @decorators.timed
 @decorators.log_init
-def file_discovery(engine, patterns):
-    if engine == "s3":
-        return s3.create_inventory(patterns)
-    raise Exception(f"{engine} engine not supported")
-
-
-@decorators.timed
-@decorators.log_init
 def spatial_discovery(engine, inventory_file):
     if engine not in ["s3"]:
         raise Exception(f"{engine} engine not supported")
@@ -54,40 +46,3 @@ def spatial_discovery(engine, inventory_file):
         full_inventory = f"{helpers.get_tmp_dir()}/full-inventory.csv"
         inventory.to_csv(full_inventory, header=True, index=False)
         return full_inventory
-
-
-def read_metadata(gdal_path, index):
-    # Figure out aws options
-    st = time.time()
-    ds = gdal.Open(gdal_path)
-    geo_transform = ds.GetGeoTransform()
-    x_min = geo_transform[0]
-    y_max = geo_transform[3]
-    x_max = x_min + geo_transform[1] * ds.RasterXSize
-    y_min = y_max + geo_transform[5] * ds.RasterYSize
-    projection = ds.GetProjection()
-
-    bands = []
-    band_count = ds.RasterCount
-    for i in range(1, band_count + 1):
-        band = ds.GetRasterBand(i)
-        bands.append(
-            {
-                "band_idx": i,
-                "description": band.GetDescription(),
-                "geo_transform": geo_transform,
-                "gdal_path": gdal_path,
-                "dtype": band.DataType,
-                "x_size": band.XSize,
-                "y_size": band.YSize,
-                # TODO: Round so that random floating point errors don't come
-                "x_res": int(geo_transform[1]),
-                "y_res": int(geo_transform[5]),
-                "x_min": x_min,
-                "y_min": y_min,
-                "x_max": x_max,
-                "y_max": y_max,
-                "projection": projection,
-            }
-        )
-    return bands

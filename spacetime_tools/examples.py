@@ -31,11 +31,12 @@ if __name__ == "__main__":
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 10))
 
     # Creating a dataset
-    ds = dataset.DataSet("s3", source)
+    ds = dataset.DataSet("modis-pds", "s3", source)
 
     # Setting time bounds
     ds.set_timebounds(date_range[0], date_range[1])
-    print(len(ds.patterns))
+
     # Setting spatial extent
     ds.set_spacebounds(bbox[1], grid_fp, fn)
-    print(len(ds.patterns))
+
+    ds.sync()
