@@ -17,3 +17,14 @@ def timed(func):
         return result
 
     return wrapper
+
+def log_init(func):
+    """This decorator prints that the function has started executing"""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.debug("Running function {}".format(func.__name__))
+        result = func(*args, **kwargs)
+        return result
+
+    return wrapper

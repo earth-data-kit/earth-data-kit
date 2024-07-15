@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 @decorators.timed
+@decorators.log_init
 def resolve_time_filters(source, date_range):
     # * Handles the below time format codes. For formats without trailing zeros check the stackoverflow link
     # https://docs.python.org/3/library/datetime.html#strftime-strptime-behavior
@@ -45,11 +46,8 @@ def resolve_time_filters(source, date_range):
 
 
 @decorators.timed
+@decorators.log_init
 def resolve_space_filters(patterns, grid_fp, matcher, bbox):
-    if (not grid_fp) or (not matcher):
-        # Won't be able to filter so simply return patterns
-        return patterns
-
     # TODO: Add stuff about other file types and driver
     grid_df = gpd.read_file(grid_fp, driver="kml", bbox=bbox)
     space_vars = []
@@ -81,6 +79,7 @@ def polygonise_2Dcells(df_row):
 
 
 @decorators.timed
+@decorators.log_init
 def filter_inventory(file_path, source, bbox, date_range):
     df = pd.read_csv(file_path)
 

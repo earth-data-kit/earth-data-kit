@@ -74,6 +74,7 @@ def convert_to_zarr():
 
 
 @decorators.timed
+@decorators.log_init
 def stitch(local_inventory_file, source, date_range, dest):
     # Creates the processing directory of intermediary files
     helpers.make_sure_dir_exists(f"{helpers.get_tmp_dir()}/processing/")

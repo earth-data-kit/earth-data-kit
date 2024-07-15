@@ -23,7 +23,7 @@ def fn(x):
 
 if __name__ == "__main__":
     pattern = "s3://modis-pds/MCD43A4.006/{x}/{y}/%Y%j/*_B07.TIF"
-    output = "/Volumes/Data/spacetime-tools/tmp/modis-pds/%d-%m-%Y/{band}.TIF"
+    # output = "/Volumes/Data/spacetime-tools/tmp/modis-pds/%d-%m-%Y/{band}.TIF"
     grid_fp = "stitching/sample_data/sample_kmls/modis.kml"
     region = "us-west-2"
     bbox = country_bounding_boxes["AL"]
@@ -36,5 +36,5 @@ if __name__ == "__main__":
         date_range=date_range,
         grid_fp=grid_fp,
         matcher=fn,
-        dest="/Volumes/Data/modis-pds/%d-%m-%Y.tif",
+        dest="/Volumes/Data/modis-pds-no-space-filtering/%d-%m-%Y.tif",
     )

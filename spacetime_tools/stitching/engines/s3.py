@@ -7,6 +7,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_inventory(patterns):
+    # TODO: Add optimization to search till common first wildcard and filter them later
+    # This is done because sometimes space dimension is before time and s5cmd lists all files till first wildcard and then filters them in memory
     ls_cmds_fp = f"{helpers.get_tmp_dir()}/ls_commands.txt"
     inventory_fp = f"{helpers.get_tmp_dir()}/inventory.json"
 
@@ -18,7 +20,7 @@ def create_inventory(patterns):
     fp.writelines(cmds)
     fp.close()
 
-    s5_cmd = f"s5cmd --json run {ls_cmds_fp} > {inventory_fp}"
+    s5_cmd = f"s5cmd --no-sign-request --json run {ls_cmds_fp} > {inventory_fp}"
     os.system(s5_cmd)
     return inventory_fp
 
@@ -34,7 +36,7 @@ def sync_inventory(df):
     cmds_fp = f"{helpers.get_tmp_dir()}/sync_commands.txt"
 
     cmds.to_csv(cmds_fp, header=False, index=False)
-    s5_cmd = f"s5cmd run {cmds_fp}"
+    s5_cmd = f"s5cmd --no-sign-request run {cmds_fp}"
 
     os.system(s5_cmd)
 

@@ -17,6 +17,7 @@ engines_supported = ["s3"]
 
 
 @decorators.timed
+@decorators.log_init
 def sync(engine, filtered_inventory_file):
     df = pd.read_csv(filtered_inventory_file)
     if engine == "s3":

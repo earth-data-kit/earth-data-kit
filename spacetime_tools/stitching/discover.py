@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @decorators.timed
+@decorators.log_init
 def file_discovery(engine, patterns):
     if engine == "s3":
         return s3.create_inventory(patterns)
@@ -22,6 +23,7 @@ def file_discovery(engine, patterns):
 
 
 @decorators.timed
+@decorators.log_init
 def spatial_discovery(engine, inventory_file):
     if engine not in ["s3"]:
         raise Exception(f"{engine} engine not supported")
@@ -55,6 +57,7 @@ def spatial_discovery(engine, inventory_file):
 
 
 def read_metadata(gdal_path, index):
+    # Figure out aws options
     st = time.time()
     ds = gdal.Open(gdal_path)
     geo_transform = ds.GetGeoTransform()
