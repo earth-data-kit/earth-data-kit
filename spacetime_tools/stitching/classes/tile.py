@@ -2,6 +2,8 @@ from osgeo import gdal
 import logging
 import pandas as pd
 
+gdal.UseExceptions()
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,8 +33,11 @@ class Tile:
         x_max,
         y_min,
         y_max,
+        x_res,
+        y_res,
         projection,
         local_path,
+        bands,
     ):
         t = Tile(engine_path, gdal_path, size)
         t.set_metadata(
@@ -41,8 +46,11 @@ class Tile:
                 "x_max": x_max,
                 "y_min": y_min,
                 "y_max": y_max,
+                "x_res": x_res,
+                "y_res": y_res,
                 "geo_transform": geo_transform,
                 "projection": projection,
+                "bands": bands,
             }
         )
         t.set_local_path(local_path)
@@ -58,37 +66,19 @@ class Tile:
         y_min = y_max + geo_transform[5] * ds.RasterYSize
         projection = ds.GetProjection()
 
-        return {
+        bands = self.get_bands(ds)
+        o = {
             "geo_transform": geo_transform,
             "x_min": x_min,
             "y_max": y_max,
             "x_max": x_max,
             "y_min": y_min,
+            "x_res": geo_transform[1],
+            "y_res": geo_transform[5],
             "projection": projection,
+            "bands": bands,
         }
-        # bands = []
-        # band_count = ds.RasterCount
-        # for i in range(1, band_count + 1):
-        #     band = ds.GetRasterBand(i)
-        #     bands.append(
-        #         {
-        #             "band_idx": i,
-        #             "description": band.GetDescription(),
-        #             "geo_transform": geo_transform,
-        #             "dtype": band.DataType,
-        #             "x_size": band.XSize,
-        #             "y_size": band.YSize,
-        #             # TODO: Round so that random floating point errors don't come
-        #             "x_res": geo_transform[1],
-        #             "y_res": geo_transform[5],
-        #             "x_min": x_min,
-        #             "y_min": y_min,
-        #             "x_max": x_max,
-        #             "y_max": y_max,
-        #             "projection": projection,
-        #         }
-        #     )
-        # return bands
+        return o
 
     def set_metadata(self, metadata):
         self.geo_transform = metadata["geo_transform"]
@@ -96,7 +86,29 @@ class Tile:
         self.x_max = metadata["x_max"]
         self.y_min = metadata["y_min"]
         self.y_max = metadata["y_max"]
+        self.x_res = metadata["x_res"]
+        self.y_res = metadata["y_res"]
         self.projection = metadata["projection"]
+        self.bands = metadata["bands"]
+
+    def get_local_path(self):
+        return self.local_path
 
     def set_local_path(self, local_path):
         self.local_path = local_path
+
+    def get_bands(self, ds):
+        bands = []
+        band_count = ds.RasterCount
+        for i in range(1, band_count + 1):
+            band = ds.GetRasterBand(i)
+            bands.append(
+                {
+                    "band_idx": i,
+                    "description": band.GetDescription(),
+                    "dtype": band.DataType,
+                    "x_size": band.XSize,
+                    "y_size": band.YSize,
+                }
+            )
+        return bands

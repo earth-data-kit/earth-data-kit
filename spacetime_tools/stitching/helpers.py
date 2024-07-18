@@ -1,6 +1,10 @@
 import os
 import shutil
 from shapely import Polygon
+import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def make_sure_dir_exists(dir):
@@ -9,7 +13,10 @@ def make_sure_dir_exists(dir):
 
 
 def empty_dir(path):
-    shutil.rmtree(path)
+    try:
+        shutil.rmtree(path)
+    except Exception as e:
+        logger.error(e)
 
 
 def make_list(ele):
@@ -45,3 +52,7 @@ def polygonise_2Dcells(df_row):
             (df_row.x_min, df_row.y_max),
         ]
     )
+
+
+def cheap_hash(input):
+    return hashlib.md5(input.encode("utf-8")).hexdigest()[:6]

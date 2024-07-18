@@ -5,7 +5,8 @@ import pandas as pd
 import logging
 from dotenv import load_dotenv
 import os
-from spacetime_tools.stitching.sync_and_stitch import sync_and_stitch
+
+# from spacetime_tools.stitching.sync_and_stitch import sync_and_stitch
 from spacetime_tools.stitching.classes import dataset
 
 load_dotenv()
@@ -24,7 +25,7 @@ def fn(x):
 
 if __name__ == "__main__":
     source = "s3://modis-pds/MCD43A4.006/{x}/{y}/%Y%j/*_B07.TIF"
-    # output = "/Volumes/Data/spacetime-tools/tmp/modis-pds/%d-%m-%Y/{band}.TIF"
+    destination = "/Volumes/Data/spacetime-tools/final/modis-pds/%d-%m-%Y-b07.TIF"
     grid_fp = "stitching/sample_data/sample_kmls/modis.kml"
     region = "us-west-2"
     bbox = country_bounding_boxes["AL"]
@@ -39,5 +40,14 @@ if __name__ == "__main__":
     # Setting spatial extent
     ds.set_spacebounds(bbox[1], grid_fp, fn)
 
-    # ds.sync()
-    ds.stitch()
+    bands = ds.get_distinct_bands()
+
+    ds.sync()
+
+    # Stitching bands together
+    ds.to_cog(destination, bands=["Nadir_Reflectance_Band7"])
+    # # 1 degree target res
+    # ds.stitch("COG", destination, bands=["Nadir_Reflectance_Band7"], gdal_options={
+    #     "te_srs": "EPSG:4326",
+    #     "tr": "463 463",
+    # })

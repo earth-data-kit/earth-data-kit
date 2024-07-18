@@ -10,28 +10,6 @@ import spacetime_tools.stitching.helpers as helpers
 logger = logging.getLogger(__name__)
 
 
-def add_date_to_raw_files(i_df, source, date_range):
-    # Creates the date_range patterns again for matching purposes
-    dates = pd.date_range(start=date_range[0], end=date_range[1], inclusive="both")
-    o_df = pd.DataFrame()
-    o_df["date"] = dates
-    o_df["source_pattern"] = o_df["date"].dt.strftime(source)
-
-    # Joining using string matching so that every tile has a date associated with it
-    for in_row in i_df.itertuples():
-        max_score = -99
-        max_score_idx = -1
-        for out_row in o_df.itertuples():
-            s = levenshtein.ratio(in_row.engine_path, out_row.source_pattern)
-            if s > max_score:
-                max_score = s
-                max_score_idx = out_row.Index
-
-        i_df.at[in_row.Index, "date"] = o_df["date"][max_score_idx]
-
-    return i_df
-
-
 def create_vrts_per_raw_tile(file):
     vrt_files = []
     for tile in file.tiles:

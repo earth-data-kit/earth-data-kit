@@ -1,15 +1,27 @@
+from sys import executable
 import pandas as pd
+import ast
 import geopandas as gpd
 import logging
 import re
 import copy
+import os
+from shapely.geometry.polygon import orient
 from spacetime_tools.stitching import helpers
 import spacetime_tools.stitching.constants as constants
+import spacetime_tools.stitching.decorators as decorators
 import spacetime_tools.stitching.engines.s3 as s3
 import concurrent.futures
 import spacetime_tools.stitching.classes.tile as tile
 import shapely.geometry
 import pyproj
+import fiona
+import Levenshtein as levenshtein
+import json
+
+fiona.drvsupport.supported_drivers["kml"] = "rw"
+fiona.drvsupport.supported_drivers["KML"] = "rw"
+
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +81,8 @@ class DataSet:
         else:
             raise Exception("drivers other than kml are not supported")
 
+    @decorators.timed
+    @decorators.log_init
     def find_tiles(self):
         df = pd.DataFrame()
 
@@ -95,6 +109,8 @@ class DataSet:
             df = tile.Tile.to_df(tiles)
             df.to_csv(f"{self.complete_inventory}", header=True, index=False)
 
+    @decorators.timed
+    @decorators.log_init
     def filter_tiles(self):
         df = pd.read_csv(f"{self.complete_inventory}")
 
@@ -126,10 +142,9 @@ class DataSet:
         filtered_inventory = f"{self.filtered_inventory}"
         df.to_csv(filtered_inventory, index=False, header=True)
 
+    @decorators.timed
+    @decorators.log_init
     def sync(self):
-        self.find_tiles()
-        self.filter_tiles()
-
         # Reading the filtered inventory
         df = pd.read_csv(self.filtered_inventory)
 
@@ -143,6 +158,155 @@ class DataSet:
         helpers.make_sure_dir_exists(path)
         return path
 
-    def stitch(self):
+    @decorators.timed
+    def get_distinct_bands(self):
+        self.find_tiles()
+        self.filter_tiles()
+        bands_df = self.get_all_bands()
+        by = ["band_idx", "description", "dtype"]
+        distinct_bands = bands_df.groupby(by=by).size().reset_index()
+        return distinct_bands[by]
+
+    def get_all_bands(self):
+        df = pd.read_csv(self.filtered_inventory)
+        bands_df = pd.DataFrame()
+
+        for df_row in df.itertuples():
+            tile_bands = ast.literal_eval(df_row.bands)
+            tile_bands_df = pd.DataFrame(tile_bands)
+            tile_bands_df["engine_path"] = df_row.engine_path
+            bands_df = pd.concat([bands_df, tile_bands_df])
+
+        bands_df.reset_index(drop=True, inplace=True)
+
+        # Creates the date_range patterns again for matching purposes
+        dates = pd.date_range(start=self.start, end=self.end, inclusive="both")
+        o_df = pd.DataFrame()
+        o_df["date"] = dates
+        o_df["source_pattern"] = o_df["date"].dt.strftime(self.source)
+
+        # Joining using string matching so that every tile has a date associated with it
+        for in_row in bands_df.itertuples():
+            max_score = -99
+            max_score_idx = -1
+            for out_row in o_df.itertuples():
+                s = levenshtein.ratio(in_row.engine_path, out_row.source_pattern)
+                if s > max_score:
+                    max_score = s
+                    max_score_idx = out_row.Index
+
+            bands_df.at[in_row.Index, "date"] = o_df["date"][max_score_idx]
+
+        return bands_df
+
+    def extract_band(self, tile):
+        vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{'.'.join(tile.local_path.split('/')[-1].split('.')[:-1])}-band-{tile.band_idx}.vrt"
+        # Creating vrt for every tile extracting the correct band required and in the correct order
+        buildvrt_cmd = f"gdalbuildvrt -b {tile.band_idx} {vrt_path} {tile.local_path}"
+        os.system(buildvrt_cmd)
+        return vrt_path
+
+    def create_band_mosaic(self, op, op_hash, bands):
+        band_mosaics = []
+        for idx in range(len(bands)):
+            current_bands_df = op[op["description"] == bands[idx]]
+            band_mosaic_path = (
+                f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}-{bands[idx]}.gti"
+            )
+            band_mosaic_index_path = (
+                f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}-{bands[idx]}.fgb"
+            )
+            band_mosaic_file_list = (
+                f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}-{bands[idx]}.txt"
+            )
+
+            current_bands_df[["vrt_path"]].to_csv(
+                band_mosaic_file_list, index=False, header=False
+            )
+
+            buildgti_cmd = f"gdaltindex -f FlatgeoBuf {band_mosaic_index_path} -gti_filename {band_mosaic_path} -lyr_name {bands[idx]} -write_absolute_path -overwrite --optfile {band_mosaic_file_list}"
+
+            os.system(buildgti_cmd)
+
+            band_mosaics.append(band_mosaic_path)
+        return band_mosaics
+
+    def stack_band_mosaics(self, band_mosaics, op_hash):
+        output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}.vrt"
+        output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}.txt"
+        pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
+            output_vrt_file_list, index=False, header=False
+        )
+
+        build_mosaiced_stacked_vrt_cmd = f"gdalbuildvrt -separate {output_vrt} -input_file_list {output_vrt_file_list}"
+        os.system(build_mosaiced_stacked_vrt_cmd)
+
+        return output_vrt
+
+    def convert_to_cog(self, src, dest):
+        helpers.make_sure_dir_exists("/".join(dest.split("/")[:-1]))
+        convert_to_cog_cmd = f"gdal_translate -of COG {src} {dest}"
+        os.system(convert_to_cog_cmd)
+
+    @decorators.timed
+    @decorators.log_init
+    def to_cog(self, destination, bands, **kwargs):
+        # Making sure pre-processing directory exists and is empty
+        helpers.empty_dir(f"{self.get_ds_tmp_path()}/pre-processing")
+        helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
+
+        # df contains all the tiles along with local paths
         df = pd.read_csv(self.local_inventory)
-        tiles = tile.Tile.as_tiles(df)
+
+        # bands_df contains all the bands of all the tiles along with dates
+        bands_df = self.get_all_bands()
+
+        # We add local_path to bands_df. Also len(bands_df) >= len(df) so number of rows after the below statement will remain same
+        bands_df = bands_df.merge(
+            df[["engine_path", "local_path"]],
+            how="left",
+            left_on="engine_path",
+            right_on="engine_path",
+        )
+
+        # Now we filter bands based on user supplied bands
+        bands_df = bands_df[bands_df["description"].isin(bands)]
+
+        # Then we add output file paths to bands_df
+        bands_df["output_path"] = pd.to_datetime(bands_df["date"]).dt.strftime(
+            destination
+        )
+
+        bands_df["output_hash"] = bands_df.apply(
+            lambda df_row: helpers.cheap_hash(df_row.output_path), axis=1
+        )
+
+        # Then we group by output_path as these are ideally the unique output files created
+        # We also group by output_hash so that we can have unique names for intermediary vrt/gti files per output file easily
+        outputs = bands_df.groupby(by=["output_hash", "output_path"])
+
+        executor = concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_max_workers()
+        )
+        futures = []
+        # Then we iterate over every output, create vrt and gti index for that output
+        for grp_key, op in outputs:
+            op_hash = grp_key[0]
+            op_path = grp_key[1]
+
+            # First we extract all the required bands using a vrt which will be in that op
+            for tile in op.itertuples():
+                vrt_path = self.extract_band(tile)
+                op.at[tile.Index, "vrt_path"] = vrt_path
+
+            # At this stage we have single band vrts, now we combine the same bands together create one gti per mosaic. GDAL Raster Tile is done as number of tiles can be a lot more than number of bands
+            # We also store all the band level mosaics we are creating to be later stacked together in a vrt
+            band_mosaics = self.create_band_mosaic(op, op_hash, bands)
+
+            # Then we line up the bands in a single vrt file, this is stacking
+            output_vrt = self.stack_band_mosaics(band_mosaics, op_hash)
+
+            # Then we create the output COGs
+            executor.submit(self.convert_to_cog, output_vrt, op_path)
+
+        executor.shutdown(wait=True)
