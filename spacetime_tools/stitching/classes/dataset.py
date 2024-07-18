@@ -40,7 +40,7 @@ class DataSet:
         self.filtered_inventory = f"{self.get_ds_tmp_path()}/filtered-inventory.csv"
         self.local_inventory = f"{self.get_ds_tmp_path()}/local-inventory.csv"
         if overwrite:
-            helpers.empty_dir(self.get_ds_tmp_path())
+            helpers.delete_dir(self.get_ds_tmp_path())
 
     def set_timebounds(self, start, end):
         self.start = start
@@ -81,7 +81,7 @@ class DataSet:
         else:
             raise Exception("drivers other than kml are not supported")
 
-    @decorators.timed
+    @decorators.log_time
     @decorators.log_init
     def find_tiles(self):
         df = pd.DataFrame()
@@ -109,7 +109,7 @@ class DataSet:
             df = tile.Tile.to_df(tiles)
             df.to_csv(f"{self.complete_inventory}", header=True, index=False)
 
-    @decorators.timed
+    @decorators.log_time
     @decorators.log_init
     def filter_tiles(self):
         df = pd.read_csv(f"{self.complete_inventory}")
@@ -142,7 +142,7 @@ class DataSet:
         filtered_inventory = f"{self.filtered_inventory}"
         df.to_csv(filtered_inventory, index=False, header=True)
 
-    @decorators.timed
+    @decorators.log_time
     @decorators.log_init
     def sync(self):
         # Reading the filtered inventory
@@ -158,7 +158,7 @@ class DataSet:
         helpers.make_sure_dir_exists(path)
         return path
 
-    @decorators.timed
+    @decorators.log_time
     def get_distinct_bands(self):
         self.find_tiles()
         self.filter_tiles()
@@ -248,11 +248,11 @@ class DataSet:
         convert_to_cog_cmd = f"gdal_translate -of COG {src} {dest}"
         os.system(convert_to_cog_cmd)
 
-    @decorators.timed
+    @decorators.log_time
     @decorators.log_init
     def to_cog(self, destination, bands, **kwargs):
         # Making sure pre-processing directory exists and is empty
-        helpers.empty_dir(f"{self.get_ds_tmp_path()}/pre-processing")
+        helpers.delete_dir(f"{self.get_ds_tmp_path()}/pre-processing")
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
 
         # df contains all the tiles along with local paths

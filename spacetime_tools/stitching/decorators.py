@@ -5,7 +5,7 @@ from functools import wraps
 logger = logging.getLogger(__name__)
 
 
-def timed(func):
+def log_time(func):
     """This decorator prints the execution time for the decorated function."""
 
     @wraps(func)
