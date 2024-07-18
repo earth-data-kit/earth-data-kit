@@ -40,14 +40,11 @@ if __name__ == "__main__":
     # Setting spatial extent
     ds.set_spacebounds(bbox[1], grid_fp, fn)
 
+    # Getting distinct bands
     bands = ds.get_distinct_bands()
 
+    # Syncing data
     ds.sync()
 
-    # Stitching bands together
+    # Stitching data together as COGs
     ds.to_cog(destination, bands=["Nadir_Reflectance_Band7"])
-    # # 1 degree target res
-    # ds.stitch("COG", destination, bands=["Nadir_Reflectance_Band7"], gdal_options={
-    #     "te_srs": "EPSG:4326",
-    #     "tr": "463 463",
-    # })
