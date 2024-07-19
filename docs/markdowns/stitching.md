@@ -1,8 +1,8 @@
 ## Stitching
 
-Earth Observation data is usually distributed in small scene files, with different projections, resolutions across data providers. eg: s3://modis-pds/, s3://sentinel-s2-l1c/. 
+Earth Observation data is usually distributed in small scene files, with different projections, resolutions across data providers. eg: s3://modis-pds/, s3://sentinel-s2-l1c/.
 
-Before using this data it's important to combine different scene files together, re-arrange or combine bands from different files or change the projection or resolution of the dataset. 
+Before using this data it's important to combine different scene files together, re-arrange or combine bands from different files or change the projection or resolution of the dataset.
 
 This module aims to make it easy for anyone to download and combine EO scene files, re-arrange bands, change projection or resolution.
 
@@ -45,8 +45,8 @@ The main class implemented in `dataset`.
   # Downloads data to local filesystem
   ds.sync()
 
-  # Stitching data together as COGs. 
-  # An ordered list of bands can be provided which will arrange the bands in final output files.
+  # Stitching data together as COGs.
+  # An ordered list of bands should be provided to decide the arrangement of bands in output file(s).
   ds.to_cog(
       destination,
       bands=[
