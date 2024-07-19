@@ -6,3 +6,4 @@ sample_kmls
 tmp
 .DS_Store
 docs/_build
+.zed
