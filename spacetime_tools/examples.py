@@ -43,7 +43,7 @@ if __name__ == "__main__":
     # Getting distinct bands
     bands = ds.get_distinct_bands()
 
-    # # Syncing data
+    # Syncing data
     ds.sync()
 
     # # Stitching data together as COGs
