@@ -147,7 +147,6 @@ class DataSet:
     def sync(self):
         # Reading the filtered inventory
         df = pd.read_csv(self.filtered_inventory)
-
         if self.engine == "s3":
             # Syncing files to local
             df = s3.sync_inventory(df, self.get_ds_tmp_path())

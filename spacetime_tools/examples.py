@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     # Getting distinct bands
     bands = ds.get_distinct_bands()
-    print(bands)
+
     # # Syncing data
     ds.sync()
 
