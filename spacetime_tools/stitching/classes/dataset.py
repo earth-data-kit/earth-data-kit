@@ -7,7 +7,7 @@ import re
 import copy
 import os
 from shapely.geometry.polygon import orient
-from spacetime_tools.stitching import helpers
+from spacetime_tools.stitching import geo, helpers
 import spacetime_tools.stitching.constants as constants
 import spacetime_tools.stitching.decorators as decorators
 import spacetime_tools.stitching.engines.s3 as s3
@@ -305,6 +305,9 @@ class DataSet:
 
             # Then we line up the bands in a single vrt file, this is stacking
             output_vrt = self.stack_band_mosaics(band_mosaics, op_hash)
+
+            # Setting output band descriptions
+            geo.set_band_descriptions(output_vrt, bands)
 
             # Then we create the output COGs
             executor.submit(self.convert_to_cog, output_vrt, op_path)
