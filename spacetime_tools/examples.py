@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # Syncing data
     ds.sync()
 
-    # # Stitching data together as COGs
+    # Stitching data together as COGs
     ds.to_cog(
         destination,
         bands=[
