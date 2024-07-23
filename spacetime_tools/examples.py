@@ -32,7 +32,7 @@ if __name__ == "__main__":
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 10))
 
     # Creating a dataset
-    ds = dataset.DataSet("modis-pds", "s3", source, overwrite=False)
+    ds = dataset.DataSet("modis-pds", source, "s3", engine_opts={})
 
     # Setting time bounds
     ds.set_timebounds(date_range[0], date_range[1])
@@ -42,16 +42,16 @@ if __name__ == "__main__":
 
     # Getting distinct bands
     bands = ds.get_distinct_bands()
+    print (bands)
+    # # Syncing data
+    # ds.sync()
 
-    # Syncing data
-    ds.sync()
-
-    # Stitching data together as COGs
-    ds.to_cog(
-        destination,
-        bands=[
-            "Nadir_Reflectance_Band1",
-            "Nadir_Reflectance_Band3",
-            "Nadir_Reflectance_Band7",
-        ],
-    )
+    # # Stitching data together as COGs
+    # ds.to_cog(
+    #     destination,
+    #     bands=[
+    #         "Nadir_Reflectance_Band1",
+    #         "Nadir_Reflectance_Band3",
+    #         "Nadir_Reflectance_Band7",
+    #     ],
+    # )

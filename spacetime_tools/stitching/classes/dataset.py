@@ -27,20 +27,19 @@ logger = logging.getLogger(__name__)
 
 
 class DataSet:
-    def __init__(self, id, engine, source, overwrite) -> None:
+    def __init__(self, id, source, engine, engine_opts) -> None:
         if engine not in constants.engines_supported:
             raise Exception(f"{engine} not supported")
 
         self.id = id
-        self.engine = engine
+        if engine == "s3":
+            self.engine = s3.S3(engine_opts)
         self.source = source
         self.patterns = []
         self.tiles = []
         self.complete_inventory = f"{self.get_ds_tmp_path()}/complete-inventory.csv"
         self.filtered_inventory = f"{self.get_ds_tmp_path()}/filtered-inventory.csv"
         self.local_inventory = f"{self.get_ds_tmp_path()}/local-inventory.csv"
-        if overwrite:
-            helpers.delete_dir(self.get_ds_tmp_path())
 
     def set_timebounds(self, start, end):
         self.start = start
@@ -86,8 +85,7 @@ class DataSet:
     def find_tiles(self):
         df = pd.DataFrame()
 
-        if self.engine == "s3":
-            df = s3.create_inventory(self.patterns, self.get_ds_tmp_path())
+        df = self.engine.create_inventory(self.patterns, self.get_ds_tmp_path())
 
         futures = []
         tiles = []
@@ -147,10 +145,10 @@ class DataSet:
     def sync(self):
         # Reading the filtered inventory
         df = pd.read_csv(self.filtered_inventory)
-        if self.engine == "s3":
-            # Syncing files to local
-            df = s3.sync_inventory(df, self.get_ds_tmp_path())
-            df.to_csv(f"{self.local_inventory}", index=False, header=True)
+
+        # Syncing files to local
+        df = self.engine.sync_inventory(df, self.get_ds_tmp_path())
+        df.to_csv(f"{self.local_inventory}", index=False, header=True)
 
     def get_ds_tmp_path(self):
         path = f"{helpers.get_tmp_dir()}/{self.id}"
