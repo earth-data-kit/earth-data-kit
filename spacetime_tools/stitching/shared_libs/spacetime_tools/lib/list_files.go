@@ -2,25 +2,18 @@ package lib
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"path"
-	"strings"
 	"sync"
-	"time"
 )
 
 //export list_files_recursively
 func list_files_recursively(in_paths []string, tmp_base_path string) []string {
-	log.Println(tmp_base_path)
 	// in_paths are in unix style, eg: /a/b/c.tif
-	fmt.Println("Searching paths", len(in_paths))
 
 	// Creates custom file objects so that we don't have to calculate parts and first_wildcard_idx everytime
 	custom_in_paths := create_file_paths(in_paths)
 
 	// Listing single level from s3 till first wildcard
-	start := time.Now()
 	var s3_wg sync.WaitGroup
 
 	s3_wg.Add(len(custom_in_paths))
@@ -37,10 +30,8 @@ func list_files_recursively(in_paths []string, tmp_base_path string) []string {
 		go run_s5cmd(s, d, &s3_wg)
 	}
 	s3_wg.Wait()
-	log.Println("Time taken to get all the data from s3", time.Since(start))
 
 	// Reading all the keys from results of s3
-	start = time.Now()
 	var matched_paths []custom_file_path
 	for i := range custom_in_paths {
 		s := fmt.Sprintf("%s%d.json", tmp_base_path, i)
@@ -74,9 +65,6 @@ func list_files_recursively(in_paths []string, tmp_base_path string) []string {
 		}
 	}
 
-	log.Println("Time taken to run double loop", time.Since(start))
-	log.Println("Matching paths found", len(matched_paths))
-
 	var wildcard_patterns []string
 	var file_list []string
 	for _, mp := range matched_paths {
@@ -86,8 +74,6 @@ func list_files_recursively(in_paths []string, tmp_base_path string) []string {
 			file_list = append(file_list, mp.Key)
 		}
 	}
-	log.Println("Patterns with wildcards", len(wildcard_patterns))
-	log.Println("File paths found", len(file_list))
 
 	if len(wildcard_patterns) > 0 {
 		return append(file_list, list_files_recursively(wildcard_patterns, tmp_base_path)...)
@@ -99,16 +85,4 @@ func list_files_recursively(in_paths []string, tmp_base_path string) []string {
 func ListFiles(in_paths []string, tmp_base_path string) []string {
 	file_list := list_files_recursively(in_paths, tmp_base_path)
 	return file_list
-}
-
-func SaveInventory(file_list []string, out_file string) {
-	outfile, err := os.OpenFile(out_file, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer outfile.Close()
-
-	str := strings.Join(file_list, "\n")
-
-	outfile.WriteString(str)
 }

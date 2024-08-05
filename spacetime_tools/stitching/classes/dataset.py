@@ -42,6 +42,7 @@ class DataSet:
         self.local_inventory = f"{self.get_ds_tmp_path()}/local-inventory.csv"
         if clean:
             helpers.delete_dir(f"{self.get_ds_tmp_path()}")
+
     def set_timebounds(self, start, end):
         self.start = start
         self.end = end
@@ -85,19 +86,19 @@ class DataSet:
     @decorators.log_init
     def find_tiles(self):
         df = self.engine.create_inventory(self.patterns, self.get_ds_tmp_path())
-        
+
         futures = []
         tiles = []
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_max_workers()
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
         ) as executor:
             for row in df.itertuples():
                 t = tile.Tile(row.engine_path, row.gdal_path)
                 tiles.append(t)
                 futures.append(executor.submit(t.get_metadata))
-            executor.shutdown(wait=True)
 
             for idx in range(len(futures)):
+                logger.info(f"returned {idx}")
                 future = futures[idx]
                 result = future.result()
                 tiles[idx].set_metadata(result)
@@ -156,11 +157,11 @@ class DataSet:
     @decorators.log_time
     def get_distinct_bands(self):
         self.find_tiles()
-        # self.filter_tiles()
-        # bands_df = self.get_all_bands()
-        # by = ["band_idx", "description", "dtype"]
-        # distinct_bands = bands_df.groupby(by=by).size().reset_index()
-        # return distinct_bands[by]
+        self.filter_tiles()
+        bands_df = self.get_all_bands()
+        by = ["band_idx", "description", "dtype"]
+        distinct_bands = bands_df.groupby(by=by).size().reset_index()
+        return distinct_bands[by]
 
     def get_all_bands(self):
         df = pd.read_csv(self.filtered_inventory)
@@ -281,7 +282,7 @@ class DataSet:
         outputs = bands_df.groupby(by=["output_hash", "output_path"])
 
         executor = concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_max_workers()
+            max_workers=helpers.get_processpool_workers()
         )
         futures = []
         # Then we iterate over every output, create vrt and gti index for that output

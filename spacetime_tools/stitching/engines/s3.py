@@ -36,22 +36,24 @@ class S3:
         first_wildcard_pats = []
         for i in range(len(patterns)):
             idx = patterns[i].find("*")
-            first_wildcard_pats.append(patterns[i][:idx+1])
+            first_wildcard_pats.append(patterns[i][: idx + 1])
         return list(set(first_wildcard_pats))
 
     def create_inventory(self, patterns, tmp_base_dir):
         # TODO: Add optimization to search till common first wildcard and filter them later
         # This is done because sometimes space dimension is before time and s5cmd lists all files till first wildcard and then filters them in memory
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
-        inventory_file_path = f"{tmp_base_dir}/s3-inventory.csv"
+        inventory_file_path = f"{tmp_base_dir}/inventory.csv"
         df = pd.DataFrame(patterns, columns=["path"])
-        
+
         # go-lib expects paths in unix style
         df["path"] = df["path"].str.replace("s3://", "/")
 
         df.to_csv(ls_cmds_fp, index=False, header=False)
 
-        ls_cmd = f"stitching/shared_libs/builds/go-lib {ls_cmds_fp} {inventory_file_path}"
+        ls_cmd = (
+            f"stitching/shared_libs/builds/go-lib {ls_cmds_fp} {inventory_file_path}"
+        )
         os.system(ls_cmd)
 
         df = pd.read_csv(inventory_file_path, names=["key"])

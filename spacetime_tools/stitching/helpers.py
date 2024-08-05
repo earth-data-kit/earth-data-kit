@@ -12,11 +12,12 @@ def make_sure_dir_exists(dir):
         os.makedirs(dir)
 
 
-def get_max_workers():
-    cpu_count = 1
-    if os.cpu_count() != None:
-        cpu_count = os.cpu_count()
-    return cpu_count - 2
+def get_processpool_workers():
+    return (os.cpu_count() != None) if (os.cpu_count() - 2) else 1
+
+
+def get_threadpool_workers():
+    return (2 * os.cpu_count()) - 1
 
 
 def get_tmp_dir():

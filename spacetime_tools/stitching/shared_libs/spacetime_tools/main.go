@@ -19,7 +19,7 @@ func main() {
 	output_file := args[1]
 	file, err := os.OpenFile(input_file, os.O_RDONLY, 0777)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	defer file.Close()
 
@@ -30,10 +30,8 @@ func main() {
 		lines = append(lines, line)
 	}
 
-	log.Println(lines)
-	// output_file := args[1]
-
 	file_list := lib.ListFiles(lines, tmp_base_path)
+
 	lib.SaveInventory(file_list, output_file)
 	os.RemoveAll(tmp_base_path)
 }
