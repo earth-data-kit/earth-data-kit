@@ -8,10 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 class Tile:
-    def __init__(self, engine_path, gdal_path, size) -> None:
+    def __init__(self, engine_path, gdal_path) -> None:
         self.engine_path = engine_path
         self.gdal_path = gdal_path
-        self.size = size
 
     @staticmethod
     def to_df(tiles):
@@ -27,7 +26,6 @@ class Tile:
     def from_dict(
         engine_path,
         gdal_path,
-        size,
         geo_transform,
         x_min,
         x_max,
@@ -39,7 +37,7 @@ class Tile:
         local_path,
         bands,
     ):
-        t = Tile(engine_path, gdal_path, size)
+        t = Tile(engine_path, gdal_path)
         t.set_metadata(
             {
                 "x_min": x_min,

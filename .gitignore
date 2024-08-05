@@ -7,3 +7,5 @@ tmp
 .DS_Store
 docs/_build
 .zed
+
+spacetime_tools/stitching/shared_libs/builds/

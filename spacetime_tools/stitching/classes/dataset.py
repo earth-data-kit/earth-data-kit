@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class DataSet:
-    def __init__(self, id, source, engine, engine_opts) -> None:
+    def __init__(self, id, source, engine, engine_opts, clean=False) -> None:
         if engine not in constants.engines_supported:
             raise Exception(f"{engine} not supported")
 
@@ -40,7 +40,8 @@ class DataSet:
         self.complete_inventory = f"{self.get_ds_tmp_path()}/complete-inventory.csv"
         self.filtered_inventory = f"{self.get_ds_tmp_path()}/filtered-inventory.csv"
         self.local_inventory = f"{self.get_ds_tmp_path()}/local-inventory.csv"
-
+        if clean:
+            helpers.delete_dir(f"{self.get_ds_tmp_path()}")
     def set_timebounds(self, start, end):
         self.start = start
         self.end = end
@@ -83,22 +84,19 @@ class DataSet:
     @decorators.log_time
     @decorators.log_init
     def find_tiles(self):
-        df = pd.DataFrame()
-
         df = self.engine.create_inventory(self.patterns, self.get_ds_tmp_path())
-
+        
         futures = []
         tiles = []
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=helpers.get_max_workers()
         ) as executor:
             for row in df.itertuples():
-                t = tile.Tile(row.engine_path, row.gdal_path, row.size)
+                t = tile.Tile(row.engine_path, row.gdal_path)
                 tiles.append(t)
                 futures.append(executor.submit(t.get_metadata))
             executor.shutdown(wait=True)
 
-            results = []
             for idx in range(len(futures)):
                 future = futures[idx]
                 result = future.result()
@@ -158,11 +156,11 @@ class DataSet:
     @decorators.log_time
     def get_distinct_bands(self):
         self.find_tiles()
-        self.filter_tiles()
-        bands_df = self.get_all_bands()
-        by = ["band_idx", "description", "dtype"]
-        distinct_bands = bands_df.groupby(by=by).size().reset_index()
-        return distinct_bands[by]
+        # self.filter_tiles()
+        # bands_df = self.get_all_bands()
+        # by = ["band_idx", "description", "dtype"]
+        # distinct_bands = bands_df.groupby(by=by).size().reset_index()
+        # return distinct_bands[by]
 
     def get_all_bands(self):
         df = pd.read_csv(self.filtered_inventory)

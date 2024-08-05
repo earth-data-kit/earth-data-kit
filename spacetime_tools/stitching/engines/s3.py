@@ -28,30 +28,42 @@ class S3:
             f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
         )
 
+    def optimize_pattern_search(self, patterns):
+        """
+        Reduces the number of patterns to search by finding the first wildcard in every pattern.
+        Once we have patterns till first wild-card we simply remove the duplicates and return
+        """
+        first_wildcard_pats = []
+        for i in range(len(patterns)):
+            idx = patterns[i].find("*")
+            first_wildcard_pats.append(patterns[i][:idx+1])
+        return list(set(first_wildcard_pats))
+
     def create_inventory(self, patterns, tmp_base_dir):
         # TODO: Add optimization to search till common first wildcard and filter them later
         # This is done because sometimes space dimension is before time and s5cmd lists all files till first wildcard and then filters them in memory
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
-        inventory_fp = f"{tmp_base_dir}/inventory.json"
+        inventory_file_path = f"{tmp_base_dir}/s3-inventory.csv"
+        df = pd.DataFrame(patterns, columns=["path"])
+        
+        # go-lib expects paths in unix style
+        df["path"] = df["path"].str.replace("s3://", "/")
 
-        fp = open(ls_cmds_fp, mode="w")
-        cmds = []
-        for pl in patterns:
-            cmd = f"ls {pl}\n"
-            cmds.append(cmd)
-        fp.writelines(cmds)
-        fp.close()
+        df.to_csv(ls_cmds_fp, index=False, header=False)
 
-        s5_cmd = f"{self.base_cmd} run {ls_cmds_fp} > {inventory_fp}"
-        os.system(s5_cmd)
+        ls_cmd = f"stitching/shared_libs/builds/go-lib {ls_cmds_fp} {inventory_file_path}"
+        os.system(ls_cmd)
 
-        df = pd.read_json(inventory_fp, lines=True)
+        df = pd.read_csv(inventory_file_path, names=["key"])
+
+        # Fixing output from go-lib
+        df["key"] = "s3://" + df["key"].str[1:]
 
         # Adding gdal_path
         df["gdal_path"] = df["key"].str.replace("s3://", "/vsis3/")
         df["engine_path"] = df["key"]
 
-        return df[["engine_path", "gdal_path", "size"]]
+        return df[["engine_path", "gdal_path"]]
 
     def sync_inventory(self, df, tmp_base_dir):
         # Deleting /raw dir where data will be synced
