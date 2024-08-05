@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import logging
 import spacetime_tools.stitching.helpers as helpers
+import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,15 @@ class S3:
         df["path"] = df["path"].str.replace("s3://", "/")
 
         df.to_csv(ls_cmds_fp, index=False, header=False)
-
-        ls_cmd = (
-            f"stitching/shared_libs/builds/go-lib {ls_cmds_fp} {inventory_file_path}"
+        lib_path = os.path.join(
+            pathlib.Path(__file__).parent.resolve(),
+            "..",
+            "shared_libs",
+            "builds",
+            "go-lib",
         )
+
+        ls_cmd = f"{lib_path} {ls_cmds_fp} {inventory_file_path}"
         os.system(ls_cmd)
 
         df = pd.read_csv(inventory_file_path, names=["key"])
