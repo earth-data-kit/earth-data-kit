@@ -37,9 +37,6 @@ def test_grid_file():
         "modis-pds",
         source,
         "s3",
-        engine_opts={
-            "no_sign_request": True,
-        },
         clean=True,
     )
 

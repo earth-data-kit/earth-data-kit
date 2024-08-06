@@ -8,41 +8,33 @@ logger = logging.getLogger(__name__)
 
 
 class S3:
-    def __init__(self, options) -> None:
-        no_sign_flag = ""
-        request_payer_flag = ""
-        profile_flag = ""
+    def __init__(self) -> None:
+        no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
+        request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
+        profile_flag = os.getenv("AWS_PROFILE")
         json_flag = "--json"
-
-        self.options = options
-
-        if ("no_sign_request" in self.options) and (self.options["no_sign_request"]):
+        if no_sign_flag and ((no_sign_flag).upper() == "YES"):
             no_sign_flag = "--no-sign-request"
+        else:
+            no_sign_flag = ""
 
-        if ("request_payer" in self.options) and (self.options["request_payer"]):
-            request_payer_flag = f"--request-payer {self.options['request_payer']}"
+        if (request_payer_flag) and (request_payer_flag.upper() == "requester"):
+            request_payer_flag = f"--request-payer requester"
+        else:
+            request_payer_flag = ""
 
-        if "profile" in self.options:
-            profile_flag = f"--profile {self.options['profile']}"
+        if profile_flag:
+            profile_flag = f"--profile {profile_flag}"
+        else:
+            profile_flag = ""
 
         self.base_cmd = (
             f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
         )
 
-    def optimize_pattern_search(self, patterns):
-        """
-        Reduces the number of patterns to search by finding the first wildcard in every pattern.
-        Once we have patterns till first wild-card we simply remove the duplicates and return
-        """
-        first_wildcard_pats = []
-        for i in range(len(patterns)):
-            idx = patterns[i].find("*")
-            first_wildcard_pats.append(patterns[i][: idx + 1])
-        return list(set(first_wildcard_pats))
+        print(self.base_cmd)
 
     def create_inventory(self, patterns, tmp_base_dir):
-        # TODO: Add optimization to search till common first wildcard and filter them later
-        # This is done because sometimes space dimension is before time and s5cmd lists all files till first wildcard and then filters them in memory
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
         df = pd.DataFrame(patterns, columns=["path"])

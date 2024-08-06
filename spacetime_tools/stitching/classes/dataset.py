@@ -27,13 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 class DataSet:
-    def __init__(self, id, source, engine, engine_opts, clean=False) -> None:
+    def __init__(self, id, source, engine, clean=False) -> None:
         if engine not in constants.engines_supported:
             raise Exception(f"{engine} not supported")
 
         self.id = id
         if engine == "s3":
-            self.engine = s3.S3(engine_opts)
+            self.engine = s3.S3()
         self.source = source
         self.patterns = []
         self.tiles = []
@@ -98,7 +98,6 @@ class DataSet:
                 futures.append(executor.submit(t.get_metadata))
 
             for idx in range(len(futures)):
-                logger.info(f"returned {idx}")
                 future = futures[idx]
                 result = future.result()
                 tiles[idx].set_metadata(result)
