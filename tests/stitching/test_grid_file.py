@@ -8,6 +8,7 @@ import geopandas as gpd
 import datetime
 from dotenv import load_dotenv
 from osgeo import gdal
+import pathlib
 
 CONFIG_FILE_PATH = "tests/config.env"
 load_dotenv(CONFIG_FILE_PATH)
@@ -54,7 +55,10 @@ def test_grid_file():
 
     # Getting distinct bands
     bands = ds.get_distinct_bands()
-    df = pd.DataFrame([[1, "Nadir_Reflectance_Band7", 3]], columns=["band_idx", "description", "dtype"])
+    df = pd.DataFrame(
+        [[1, "Nadir_Reflectance_Band7", 3]],
+        columns=["band_idx", "description", "dtype"],
+    )
 
     pd.testing.assert_frame_equal(bands, df)
 
@@ -80,7 +84,25 @@ def test_grid_file():
     # Asserting all file sizes to be greater than 10 MB
     for f in out_files:
         stats = os.stat(f)
-        assert (stats.st_size/(1024 * 1024)) > 10
+        assert (stats.st_size / (1024 * 1024)) > 10
+
+    # Asserting filtered inventory
+    left_df = pd.read_csv(
+        os.path.join(os.getenv("TMP_DIR"), "tmp", "modis-pds", "filtered-inventory.csv")
+    )
+    right_df = pd.read_csv(
+        os.path.join(
+            pathlib.Path(__file__).parent.resolve(),
+            "..",
+            "fixtures",
+            "outputs",
+            "stitching-with-grid-file.csv",
+        )
+    )
+    pd.testing.assert_frame_equal(
+        left_df.sort_values(by=["engine_path"]).reset_index(drop=True),
+        right_df.sort_values(by=["engine_path"]).reset_index(drop=True),
+    )
 
     # Asserting projection and resolution
     out_geo_transform = (
