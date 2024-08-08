@@ -27,19 +27,21 @@ logger = logging.getLogger(__name__)
 
 
 class DataSet:
-    def __init__(self, id, source, engine, engine_opts) -> None:
+    def __init__(self, id, source, engine, clean=False) -> None:
         if engine not in constants.engines_supported:
             raise Exception(f"{engine} not supported")
 
         self.id = id
         if engine == "s3":
-            self.engine = s3.S3(engine_opts)
+            self.engine = s3.S3()
         self.source = source
         self.patterns = []
         self.tiles = []
         self.complete_inventory = f"{self.get_ds_tmp_path()}/complete-inventory.csv"
         self.filtered_inventory = f"{self.get_ds_tmp_path()}/filtered-inventory.csv"
         self.local_inventory = f"{self.get_ds_tmp_path()}/local-inventory.csv"
+        if clean:
+            helpers.delete_dir(f"{self.get_ds_tmp_path()}")
 
     def set_timebounds(self, start, end):
         self.start = start
@@ -53,8 +55,11 @@ class DataSet:
             )
         )
 
-    def set_spacebounds(self, bbox, grid_file, matcher):
+    def set_spacebounds(self, bbox, grid_file=None, matcher=None):
         self.bbox = bbox
+        if not grid_file:
+            # Doing nothing if grid_file is not passed
+            return 1
 
         if grid_file.endswith(".kml") or grid_file.endswith(".KML"):
             grid_df = gpd.read_file(grid_file, driver="kml", bbox=bbox)
@@ -83,22 +88,18 @@ class DataSet:
     @decorators.log_time
     @decorators.log_init
     def find_tiles(self):
-        df = pd.DataFrame()
-
         df = self.engine.create_inventory(self.patterns, self.get_ds_tmp_path())
 
         futures = []
         tiles = []
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_max_workers()
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
         ) as executor:
             for row in df.itertuples():
-                t = tile.Tile(row.engine_path, row.gdal_path, row.size)
+                t = tile.Tile(row.engine_path, row.gdal_path)
                 tiles.append(t)
                 futures.append(executor.submit(t.get_metadata))
-            executor.shutdown(wait=True)
 
-            results = []
             for idx in range(len(futures)):
                 future = futures[idx]
                 result = future.result()
@@ -283,7 +284,7 @@ class DataSet:
         outputs = bands_df.groupby(by=["output_hash", "output_path"])
 
         executor = concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_max_workers()
+            max_workers=helpers.get_processpool_workers()
         )
         futures = []
         # Then we iterate over every output, create vrt and gti index for that output

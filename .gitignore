@@ -1,4 +1,5 @@
 __pycache__
+.pytest_cache
 .tmp
 .venv
 sample_kmls
@@ -7,3 +8,5 @@ tmp
 .DS_Store
 docs/_build
 .zed
+
+spacetime_tools/stitching/shared_libs/builds/
