@@ -13,11 +13,8 @@ Modules Implemented/Planned
 ### Input sources
 
 * S3 - *Implemented*
-
 * Earth Engine - *Planned*
-
 * HTTP(s) servers - *Planned*
-
 * ESGF - https://esgf.llnl.gov/ - *Planned*
 
 
