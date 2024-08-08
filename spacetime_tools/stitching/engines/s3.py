@@ -13,7 +13,7 @@ class S3:
         request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
         profile_flag = os.getenv("AWS_PROFILE")
         json_flag = "--json"
-        if no_sign_flag and ((no_sign_flag).upper() == "YES"):
+        if no_sign_flag and (no_sign_flag.upper() == "YES"):
             no_sign_flag = "--no-sign-request"
         else:
             no_sign_flag = ""
@@ -31,8 +31,6 @@ class S3:
         self.base_cmd = (
             f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
         )
-
-        print(self.base_cmd)
 
     def create_inventory(self, patterns, tmp_base_dir):
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"

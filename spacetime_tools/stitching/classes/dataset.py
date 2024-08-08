@@ -55,8 +55,11 @@ class DataSet:
             )
         )
 
-    def set_spacebounds(self, bbox, grid_file, matcher):
+    def set_spacebounds(self, bbox, grid_file=None, matcher=None):
         self.bbox = bbox
+        if not grid_file:
+            # Doing nothing if grid_file is not passed
+            return 1
 
         if grid_file.endswith(".kml") or grid_file.endswith(".KML"):
             grid_df = gpd.read_file(grid_file, driver="kml", bbox=bbox)

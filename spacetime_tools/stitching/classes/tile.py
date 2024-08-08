@@ -1,6 +1,7 @@
 from osgeo import gdal
 import logging
 import pandas as pd
+import spacetime_tools.stitching.decorators as decorators
 
 gdal.UseExceptions()
 
@@ -54,6 +55,8 @@ class Tile:
         t.set_local_path(local_path)
         return t
 
+    @decorators.log_time
+    @decorators.log_init
     def get_metadata(self):
         # Figure out aws options
         ds = gdal.Open(self.gdal_path)
