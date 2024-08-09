@@ -2,11 +2,16 @@ __pycache__
 .pytest_cache
 .tmp
 .venv
-sample_kmls
 .env
 tmp
 .DS_Store
 docs/_build
 .zed
 
+# Python packaging related
+*.egg-info
+build
+dist
+
+# Golang builds
 spacetime_tools/stitching/shared_libs/builds/
