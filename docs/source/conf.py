@@ -2,28 +2,22 @@
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
-#
-# -- Path Setup --------------------------------------------------------------
-import os
-import sys
-
-sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "spacetime-tools"
-copyright = "2024, Siddhant Gupta <siddhantgupta3@gmail.com>"
-author = "Siddhant Gupta <siddhantgupta3@gmail.com>"
-release = "0.0.1"
+project = "Spacetime Tools"
+copyright = "2024, Siddhant Gupta"
+author = "Siddhant Gupta"
+release = "1.0.0-alpha"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["sphinx.ext.autodoc", "sphinx.ext.viewcode", "sphinx.ext.napoleon"]
+extensions = ["sphinx.ext.autosectionlabel"]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = []
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -31,6 +25,3 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
 html_static_path = ["_static"]
-
-# Custom options
-pygments_style = "sphinx"
