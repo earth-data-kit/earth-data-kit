@@ -157,6 +157,7 @@ class DataSet:
         return path
 
     @decorators.log_time
+    @decorators.log_init
     def get_distinct_bands(self):
         self.find_tiles()
         self.filter_tiles()
