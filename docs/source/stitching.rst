@@ -15,6 +15,7 @@ so that they can be visualized or analyzed easily.
 The main class implemented is **Dataset**.
 
 .. code-block:: python
+    
     import earth_data_kit as edk
     ds = edk.stitching.DataSet(id, source, engine)
 
