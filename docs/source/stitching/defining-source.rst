@@ -23,4 +23,4 @@ So for our example
 
 So the source becomes
 
-``s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B07.TIF```
+``s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B07.TIF``
