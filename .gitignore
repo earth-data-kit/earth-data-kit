@@ -14,4 +14,4 @@ build
 dist
 
 # Golang builds
-spacetime_tools/stitching/shared_libs/builds/
+earth_data_kit/stitching/shared_libs/builds/

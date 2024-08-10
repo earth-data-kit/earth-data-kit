@@ -4,8 +4,8 @@ Getting Started
 Installation
 ------------
 
-To use Spacetime Tools, first install it using tarball:
+To use Earth Data Kit, first install it using tarball:
 
 .. code-block:: console
 
-   (.venv) $ pip3 install spacetime_tools.tar.gz
+   (.venv) $ pip3 install earth_data_kit.tar.gz

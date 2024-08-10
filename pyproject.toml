@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "spacetime-tools"
-version = "0.1.0"
-description = ""
+name = "earth-data-kit"
+version = "1.0.0-alpha"
+description = "Making GIS data analysis cheap and easy"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
 readme = "README.md"
 

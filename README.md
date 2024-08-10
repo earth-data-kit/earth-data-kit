@@ -1,4 +1,4 @@
-## Spacetime-Tools
+## Earth Data Kit
 
 Contains modules to ease working with Geospatial Data.
 

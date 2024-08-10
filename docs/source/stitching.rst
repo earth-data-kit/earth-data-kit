@@ -15,8 +15,8 @@ so that they can be visualized or analyzed easily.
 The main class implemented is **Dataset**.
 
 .. code-block:: python
-
-    ds = spacetime_tools.DataSet(id, source, engine)
+    import earth_data_kit as edk
+    ds = edk.stitching.DataSet(id, source, engine)
 
 * ``id`` - string, used to create temporary directory for raw scene files and other intermediary files
 * ``source`` - string, engine dependent. Read more at - :ref:`Defining source`

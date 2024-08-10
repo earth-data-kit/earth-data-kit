@@ -7,8 +7,8 @@ Aims to fill the gaps integrating different open-source modules"""
 
 # Setting up
 setup(
-    # the name must match the folder name 'spacetime_tools'
-    name="spacetime_tools",
+    # the name must match the folder name 'earth_data_kit'
+    name="earth_data_kit",
     version=VERSION,
     author="Siddhant Gupta",
     author_email="<siddhantgupta3@gmail.com>",

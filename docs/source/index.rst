@@ -1,9 +1,9 @@
-.. Spacetime Tools documentation master file, created by
+.. Earth Data Kit documentation master file, created by
    sphinx-quickstart on Fri Aug  9 16:16:39 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Spacetime Tools
+Earth Data Kit
 =============================
 
 Tools to make Geospatial Analysis easy and cheap
