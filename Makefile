@@ -1,5 +1,5 @@
 build-shared-libs:
-	cd spacetime_tools/stitching/shared_libs/spacetime_tools; go build -o ../builds/go-lib ./main.go
+	cd earth_data_kit/stitching/shared_libs/earth_data_kit; go build -o ../builds/go-lib ./main.go
 
 run-tests:
 	python3 -m pytest . -rx

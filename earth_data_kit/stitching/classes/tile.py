@@ -1,7 +1,7 @@
 from osgeo import gdal
 import logging
 import pandas as pd
-import spacetime_tools.stitching.decorators as decorators
+import earth_data_kit.stitching.decorators as decorators
 
 gdal.UseExceptions()
 

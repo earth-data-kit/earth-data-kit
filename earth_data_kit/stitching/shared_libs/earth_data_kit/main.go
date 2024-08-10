@@ -2,9 +2,9 @@ package main
 
 import (
 	"bufio"
+	"earth-data-kit/lib"
 	"log"
 	"os"
-	"spacetime-tools/lib"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-from spacetime_tools.stitching.classes.dataset import DataSet
+from earth_data_kit.stitching.classes.dataset import DataSet
 import glob
 import os
 import re
@@ -26,7 +26,7 @@ def fn(x):
 
 def test_grid_file():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B07.TIF"
-    destination = "/Volumes/Data/spacetime-tools/final/modis-pds/%d-%m-%Y-b07.TIF"
+    destination = "/Volumes/Data/earth-data-kit/final/modis-pds/%d-%m-%Y-b07.TIF"
     grid_fp = "tests/fixtures/modis.kml"
 
     bbox = country_bounding_boxes["AL"]
@@ -71,11 +71,11 @@ def test_grid_file():
     )
 
     out_ds = gdal.Open(
-        "/Volumes/Data/spacetime-tools/final/modis-pds/01-01-2017-b07.TIF"
+        "/Volumes/Data/earth-data-kit/final/modis-pds/01-01-2017-b07.TIF"
     )
 
     # Asserting number of files created
-    out_files = glob.glob("/Volumes/Data/spacetime-tools/final/modis-pds/*.TIF")
+    out_files = glob.glob("/Volumes/Data/earth-data-kit/final/modis-pds/*.TIF")
     assert len(out_files) == 10
 
     # Asserting all file sizes to be greater than 10 MB

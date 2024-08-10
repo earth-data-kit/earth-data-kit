@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "Spacetime Tools"
+project = "Earth Data Kit"
 copyright = "2024, Siddhant Gupta"
 author = "Siddhant Gupta"
 release = "1.0.0-alpha"

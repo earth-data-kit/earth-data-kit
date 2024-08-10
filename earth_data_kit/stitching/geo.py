@@ -2,7 +2,7 @@ import sys
 from osgeo import gdal
 import os
 import logging
-from spacetime_tools.stitching import decorators
+from earth_data_kit.stitching import decorators
 
 logger = logging.getLogger(__name__)
 

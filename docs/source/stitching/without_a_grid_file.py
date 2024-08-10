@@ -1,12 +1,12 @@
-import spacetime_tools
+import earth_data_kit as edk
 import datetime
 
 # Derived from path of a single scene file
 source = "s3://modis-pds/MCD43A4.006/*/*/%Y%j/*_B07.TIF"
-ds = spacetime_tools.DataSet("modis-pds", source, "s3")
+ds = edk.stitching.DataSet("modis-pds", source, "s3")
 
 # Modis Data is at a daily frequency so we create one COG per day
-destination = "/<local_path>/spacetime-tools/final/modis-pds/%d-%m-%Y-b07.TIF"
+destination = "/<local_path>/earth-data-kit/final/modis-pds/%d-%m-%Y-b07.TIF"
 
 # As an example we will use Albania's bounding box and get data for the month of January 2017 from s3://modis-pds/MCD43A4.006/
 bbox = (19.3044861183, 39.624997667, 21.0200403175, 42.6882473822)
