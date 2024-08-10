@@ -19,7 +19,7 @@ So for our example
 * ``horizontal_grid`` - 01 - h
 * ``vertical_grid`` - 08 - v
 * ``date`` - 2013160 - %Y%j according to python's standard format codes <https://docs.python.org/3/library/datetime.html#format-codes>
-* ``*_B07.TIF`` - For the file name. _You can use * or ? wildcards to select multiple files
+* ``*_B07.TIF`` - For the file name you can use * or ? wildcards to select multiple files
 
 So the source becomes
 
