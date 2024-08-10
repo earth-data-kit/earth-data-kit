@@ -6,3 +6,7 @@ run-tests:
 
 build-package:
 	python3 setup.py sdist bdist_wheel
+
+build-docs:
+	rm -rf docs/build/*
+	sphinx-build -M html docs/source/ docs/build/

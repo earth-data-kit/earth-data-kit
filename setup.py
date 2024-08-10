@@ -20,8 +20,7 @@ setup(
     keywords=["python", "gis", "earth data"],
     classifiers=[
         "Private :: Do Not Upload",
-        "Development Status :: 2 - Pre-Alpha"
-        "Intended Audience :: Education",
+        "Development Status :: 2 - Pre-Alpha" "Intended Audience :: Education",
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
         "Programming Language :: Python :: 3",
