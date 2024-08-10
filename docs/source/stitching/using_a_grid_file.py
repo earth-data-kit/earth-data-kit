@@ -5,7 +5,7 @@ import datetime
 # Derived from path of a single scene file
 source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B07.TIF"
 ds = edk.stitching.DataSet("modis-pds", source, "s3")
-
+grid_fp = "tests/fixtures/modis.kml"
 # Modis Data is at a daily frequency so we create one COG per day
 destination = "/<local_path>/earth-data-kit/final/modis-pds/%d-%m-%Y-b07.TIF"
 
