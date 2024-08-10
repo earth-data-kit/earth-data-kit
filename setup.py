@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-VERSION = "0.0.1"
+VERSION = "1.0.0-alpha"
 DESCRIPTION = "Making GIS data analysis cheap and easy"
 LONG_DESCRIPTION = """Contains a set of modules and tools to make geospatial data analysis easy and cheap. 
 Aims to fill the gaps integrating different open-source modules"""
