@@ -7,12 +7,12 @@ import re
 import copy
 import os
 from shapely.geometry.polygon import orient
-from spacetime_tools.stitching import geo, helpers
-import spacetime_tools.stitching.constants as constants
-import spacetime_tools.stitching.decorators as decorators
-import spacetime_tools.stitching.engines.s3 as s3
+from earth_data_kit.stitching import geo, helpers
+import earth_data_kit.stitching.constants as constants
+import earth_data_kit.stitching.decorators as decorators
+import earth_data_kit.stitching.engines.s3 as s3
 import concurrent.futures
-import spacetime_tools.stitching.classes.tile as tile
+import earth_data_kit.stitching.classes.tile as tile
 import shapely.geometry
 import pyproj
 import fiona

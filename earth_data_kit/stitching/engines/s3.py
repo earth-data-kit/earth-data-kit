@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import logging
-import spacetime_tools.stitching.helpers as helpers
+import earth_data_kit.stitching.helpers as helpers
 import pathlib
 
 logger = logging.getLogger(__name__)
