@@ -242,14 +242,47 @@ class DataSet:
 
         return output_vrt
 
-    def convert_to_cog(self, src, dest):
+    def get_gdal_option(self, opts, opt):
+        if opt in constants.gdalwarp_opts_supported and opt in opts:
+            return opts[opt]
+        return None
+
+    @decorators.log_time
+    @decorators.log_init
+    def convert_to_cog(self, src, dest, gdal_options={}):
+        """Important options
+            -te <xmin> <ymin> <xmax> <ymax> - Get from bounding box. Not given to user
+            -te_srs <srs_def> - Specifies the SRS in which to interpret the coordinates given with -te - EPSG:4326
+            -t_srs <srs_def> - Target SRS
+            -tr <xres> <yres> | -tr square - Set output file resolution (in target georeferenced units)
+            -r <resampling_method>
+        """
         helpers.make_sure_dir_exists("/".join(dest.split("/")[:-1]))
-        convert_to_cog_cmd = f"gdal_translate -of COG {src} {dest}"
+        # self.bbox = left, bottom, right, top
+        te = self.bbox
+        te_srs = "EPSG:4326"
+        t_srs = self.get_gdal_option(gdal_options, "t_srs")
+        tr = self.get_gdal_option(gdal_options, "tr")
+        r = self.get_gdal_option(gdal_options, "r")
+        # -t_srs {srs_def}  {src} {dest}
+        convert_to_cog_cmd = f"gdalwarp -of COG -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite"
+        
+        if t_srs:
+            convert_to_cog_cmd = f"{convert_to_cog_cmd} -t_srs {t_srs}"
+
+        if tr:
+            convert_to_cog_cmd = f"{convert_to_cog_cmd} -tr {tr}"
+
+        if r:
+            convert_to_cog_cmd = f"{convert_to_cog_cmd} -r {r}"
+
+
+        convert_to_cog_cmd = f"{convert_to_cog_cmd} {src} {dest}"
         os.system(convert_to_cog_cmd)
 
     @decorators.log_time
     @decorators.log_init
-    def to_cog(self, destination, bands, **kwargs):
+    def to_cog(self, destination, bands, gdal_options={}, **kwargs):
         # Making sure pre-processing directory exists and is empty
         helpers.delete_dir(f"{self.get_ds_tmp_path()}/pre-processing")
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
@@ -287,7 +320,7 @@ class DataSet:
         executor = concurrent.futures.ProcessPoolExecutor(
             max_workers=helpers.get_processpool_workers()
         )
-        futures = []
+
         # Then we iterate over every output, create vrt and gti index for that output
         for grp_key, op in outputs:
             op_hash = grp_key[0]
@@ -309,6 +342,6 @@ class DataSet:
             geo.set_band_descriptions(output_vrt, bands)
 
             # Then we create the output COGs
-            executor.submit(self.convert_to_cog, output_vrt, op_path)
+            executor.submit(self.convert_to_cog, output_vrt, op_path, gdal_options)
 
         executor.shutdown(wait=True)
