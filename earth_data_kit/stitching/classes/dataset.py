@@ -251,11 +251,11 @@ class DataSet:
     @decorators.log_init
     def convert_to_cog(self, src, dest, gdal_options={}):
         """Important options
-            -te <xmin> <ymin> <xmax> <ymax> - Get from bounding box. Not given to user
-            -te_srs <srs_def> - Specifies the SRS in which to interpret the coordinates given with -te - EPSG:4326
-            -t_srs <srs_def> - Target SRS
-            -tr <xres> <yres> | -tr square - Set output file resolution (in target georeferenced units)
-            -r <resampling_method>
+        -te <xmin> <ymin> <xmax> <ymax> - Get from bounding box. Not given to user
+        -te_srs <srs_def> - Specifies the SRS in which to interpret the coordinates given with -te - EPSG:4326
+        -t_srs <srs_def> - Target SRS
+        -tr <xres> <yres> | -tr square - Set output file resolution (in target georeferenced units)
+        -r <resampling_method>
         """
         helpers.make_sure_dir_exists("/".join(dest.split("/")[:-1]))
         # self.bbox = left, bottom, right, top
@@ -266,7 +266,7 @@ class DataSet:
         r = self.get_gdal_option(gdal_options, "r")
         # -t_srs {srs_def}  {src} {dest}
         convert_to_cog_cmd = f"gdalwarp -of COG -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite"
-        
+
         if t_srs:
             convert_to_cog_cmd = f"{convert_to_cog_cmd} -t_srs {t_srs}"
 
@@ -275,7 +275,6 @@ class DataSet:
 
         if r:
             convert_to_cog_cmd = f"{convert_to_cog_cmd} -r {r}"
-
 
         convert_to_cog_cmd = f"{convert_to_cog_cmd} {src} {dest}"
         os.system(convert_to_cog_cmd)
