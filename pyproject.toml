@@ -4,6 +4,7 @@ version = "1.0.0-alpha1"
 description = "Making GIS data analysis cheap and easy"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
 readme = "README.md"
+include = ["earth_data_kit/stitching/shared_libs/builds/*"]
 
 [tool.poetry.dependencies]
 python = "^3.12"

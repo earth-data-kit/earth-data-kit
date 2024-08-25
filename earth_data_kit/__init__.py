@@ -1,3 +1,5 @@
+from earth_data_kit.stitching import *
+
 import logging
 import os
 
