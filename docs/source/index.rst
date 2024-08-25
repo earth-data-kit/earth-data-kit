@@ -34,3 +34,4 @@ Contents
 
    getting-started
    stitching
+   api-reference
