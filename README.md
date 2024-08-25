@@ -3,7 +3,7 @@
 Contains modules to ease working with Geospatial Data.
 
 ## Warning
-This project is under active development. If you wish to contribute please reach out to siddhantgupta3@gmail.com
+This project is under active development. If you wish to contribute please reach out on siddhantgupta3@gmail.com
 
 Modules Implemented/Planned
 
