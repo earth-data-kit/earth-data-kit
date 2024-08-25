@@ -27,7 +27,18 @@ logger = logging.getLogger(__name__)
 
 
 class DataSet:
+    """
+    The main class implemented by stitching module. Acts as a wrapper above a single remote dataset
+    """
+
     def __init__(self, id, source, engine, clean=False) -> None:
+        """
+        Args:
+            id (string): User provided unique string
+            source (string): Source path, Read more :ref:`Defining source`
+            engine (string): Remote datasource engine, accepted values - ``s3``
+            clean (bool, optional): Whether to clean the tmp directory before stitching. Defaults to False.
+        """
         if engine not in constants.engines_supported:
             raise Exception(f"{engine} not supported")
 
@@ -44,6 +55,13 @@ class DataSet:
             helpers.delete_dir(f"{self.get_ds_tmp_path()}")
 
     def set_timebounds(self, start, end):
+        """
+        Sets time bounds for which we want to download the data for.
+
+        Args:
+            start (datetime): Start data
+            end (datetime): End date, inclusive
+        """
         self.start = start
         self.end = end
 
@@ -56,6 +74,18 @@ class DataSet:
         )
 
     def set_spacebounds(self, bbox, grid_file=None, matcher=None):
+        """
+        Sets spatial bounds using a bbox provided.
+        Optionally you can also provide a grid file and matching function which can then be used to pinpoint the exact scene files
+        to download.
+
+        Read more on :ref:`Using a grid file`
+
+        Args:
+            bbox (tuple[float, float, float, float]): Bounding box as a set of four coordinates in EPSG:4326
+            grid_file (string, optional): File path to grid file, currently only kml files are supported. Defaults to None.
+            matcher (function, optional): Lambda function to extract spatial parts for scene filepaths. Defaults to None.
+        """
         self.bbox = bbox
         if not grid_file:
             # Doing nothing if grid_file is not passed
@@ -143,22 +173,13 @@ class DataSet:
 
     @decorators.log_time
     @decorators.log_init
-    def sync(self):
-        # Reading the filtered inventory
-        df = pd.read_csv(self.filtered_inventory)
-
-        # Syncing files to local
-        df = self.engine.sync_inventory(df, self.get_ds_tmp_path())
-        df.to_csv(f"{self.local_inventory}", index=False, header=True)
-
-    def get_ds_tmp_path(self):
-        path = f"{helpers.get_tmp_dir()}/{self.id}"
-        helpers.make_sure_dir_exists(path)
-        return path
-
-    @decorators.log_time
-    @decorators.log_init
     def get_distinct_bands(self):
+        """
+        Reads the metadata from scene files and extract distinct bands available.
+
+        Returns:
+            pd.DataFrame: Dataframe with band indexes, name and datatype
+        """
         self.find_tiles()
         self.filter_tiles()
         bands_df = self.get_all_bands()
@@ -197,6 +218,24 @@ class DataSet:
             bands_df.at[in_row.Index, "date"] = o_df["date"][max_score_idx]
 
         return bands_df
+
+    @decorators.log_time
+    @decorators.log_init
+    def sync(self):
+        """
+        Downloads the relevant scene files, based on temporal and spatial bounds provided by ``set_timebounds`` and ``set_spacebounds`` methods
+        """
+        # Reading the filtered inventory
+        df = pd.read_csv(self.filtered_inventory)
+
+        # Syncing files to local
+        df = self.engine.sync_inventory(df, self.get_ds_tmp_path())
+        df.to_csv(f"{self.local_inventory}", index=False, header=True)
+
+    def get_ds_tmp_path(self):
+        path = f"{helpers.get_tmp_dir()}/{self.id}"
+        helpers.make_sure_dir_exists(path)
+        return path
 
     def extract_band(self, tile):
         vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{'.'.join(tile.local_path.split('/')[-1].split('.')[:-1])}-band-{tile.band_idx}.vrt"
@@ -282,6 +321,21 @@ class DataSet:
     @decorators.log_time
     @decorators.log_init
     def to_cog(self, destination, bands, gdal_options={}, **kwargs):
+        """
+        Stitches the scene files together according to the band arrangement provided by the user.
+        Internally uses gdalwarp. Currently supported gdalwarp options are
+
+        * t_srs - Set target spatial reference.
+        * tr - Set output file resolution (in target georeferenced units).
+        * r - Resampling method
+
+        Read more about supported options: `gdalwarp <https://gdal.org/programs/gdalwarp.html>`_.
+
+        Args:
+            destination (string): Output path for generated files
+            bands (list[string]): Ordered list of bands to output in COGs
+            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
+        """
         # Making sure pre-processing directory exists and is empty
         helpers.delete_dir(f"{self.get_ds_tmp_path()}/pre-processing")
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")

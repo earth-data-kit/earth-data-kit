@@ -5,8 +5,16 @@ run-tests:
 	python3 -m pytest . -rx
 
 build-package:
-	python3 setup.py sdist bdist_wheel
+	poetry build
+
+install-package:
+	pip3 install dist/earth_data_kit-1.0.0a1.tar.gz
 
 build-docs:
 	rm -rf docs/build/*
 	sphinx-build -M html docs/source/ docs/build/
+
+rebuild-docs:
+	make build-package
+	make install-package
+	make build-docs
