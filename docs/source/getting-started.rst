@@ -4,11 +4,12 @@ Getting Started
 Installation
 ------------
 
-To use Earth Data Kit, first install it using tarball:
+To use Earth Data Kit, first download the latest release from https://github.com/siddhantgupta3/earth-data-kit/releases/ and install it using tarball:
 
 .. code-block:: console
-
-   (.venv) $ pip3 install earth_data_kit.tar.gz
+   
+   (.venv) $ wget https://github.com/siddhantgupta3/earth-data-kit/releases/download/1.0.0a1/earth_data_kit-1.0.0a1.tar.gz 
+   (.venv) $ pip3 install earth_data_kit-1.0.0a1.tar.gz
 
 Environment Setup
 -----------------
