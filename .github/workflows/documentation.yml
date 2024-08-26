@@ -15,6 +15,7 @@ jobs:
           python-version: '3.12' 
       - name: Install dependencies
         run: |
+          apt-get install gdal-bin
           curl -sSL https://install.python-poetry.org | python3 -
           poetry install
       - name: Rebuild documentation
