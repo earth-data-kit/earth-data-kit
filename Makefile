@@ -18,3 +18,9 @@ rebuild-docs:
 	make build-package
 	make install-package
 	make build-docs
+
+release:
+	make build-shared-libs
+	make rebuild-docs
+	gh release create $(tag) --title $(tag) --generate-notes
+	gh release upload $(tag) dist/earth_data_kit-$(tag).tar.gz
