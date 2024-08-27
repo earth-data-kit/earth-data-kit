@@ -32,4 +32,5 @@ release-docs:
 	rm -rf tmp/earth-data-kit.github.io/docs
 	mkdir tmp/earth-data-kit.github.io/docs
 	cp -R docs/build/html/* tmp/earth-data-kit.github.io/docs/
+	touch tmp/earth-data-kit.github.io/docs/.nojekyll
 	cd tmp/earth-data-kit.github.io && git add . && git commit -m "$(tag)" && git push origin master
