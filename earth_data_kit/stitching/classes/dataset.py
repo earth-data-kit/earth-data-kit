@@ -321,7 +321,6 @@ class DataSet:
 
         convert_cmd = f"{convert_cmd} {src} {dest}"
 
-        print(convert_cmd)
         os.system(convert_cmd)
 
     def to_vrts(self, bands):
@@ -403,31 +402,32 @@ class DataSet:
         executor = concurrent.futures.ProcessPoolExecutor(
             max_workers=helpers.get_processpool_workers()
         )
-        date_wist_zarrs = []
+        date_wise_cogs = []
 
         for idx in range(len(output_vrts)):
             src = output_vrts[idx]
-            dest = src.replace(".vrt", ".zarr")
-            date_wist_zarrs.append(dest)
-            executor.submit(self.convert_vrt, src, dest, "Zarr", gdal_options)
+            dest = src.replace(".vrt", ".tif")
+            date_wise_cogs.append(dest)
+            executor.submit(self.convert_vrt, src, dest, "COG", gdal_options)
 
         executor.shutdown(wait=True)
 
         date_index = []
         for date, _ in outputs_by_dates:
             curr_date = date[0]
-            print(curr_date)
             date_index.append(curr_date)
 
         dses = []
-        for idx in range(len(date_wist_zarrs)):
-            ds = rio.open_rasterio(f"{date_wist_zarrs[idx]}")
+        for idx in range(len(date_wise_cogs)):
+            ds = rio.open_rasterio(f"{date_wise_cogs[idx]}")
             dses.append(ds)
 
         # Concat all date wise datasets
         ds = xr.concat(dses, pd.DatetimeIndex(date_index, name="time"))
 
-        ds.to_zarr(destination)
+        # Finally converting to zarr
+        # TODO: Fix the output format of zarr, it's coming as __xarray_data_variable__
+        ds.to_zarr(destination, mode="w")
 
     @decorators.log_time
     @decorators.log_init
