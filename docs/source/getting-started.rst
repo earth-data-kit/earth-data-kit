@@ -4,7 +4,7 @@ Getting Started
 Installation
 ------------
 
-To use Earth Data Kit, first download the latest release from https://github.com/siddhantgupta3/earth-data-kit/releases/ and install it using tarball:
+To use Earth Data Kit, first download the latest release from https://github.com/earth-data-kit/earth-data-kit/releases and install it using tarball:
 
 .. code-block:: console
    
