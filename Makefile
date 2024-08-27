@@ -24,3 +24,12 @@ release:
 	make rebuild-docs
 	gh release create $(tag) --title $(tag) --generate-notes
 	gh release upload $(tag) dist/earth_data_kit-$(tag).tar.gz
+
+release-docs:
+	rm -rf tmp/
+	make rebuild-docs
+	git clone git@github.com:earth-data-kit/earth-data-kit.github.io.git tmp/earth-data-kit.github.io/
+	rm -rf tmp/earth-data-kit.github.io/docs
+	mkdir tmp/earth-data-kit.github.io/docs
+	cp -R docs/build/html/* tmp/earth-data-kit.github.io/docs/
+	cd tmp/earth-data-kit.github.io && git add . && git commit -m "$(tag)" && git push origin master
