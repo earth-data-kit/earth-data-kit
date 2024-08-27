@@ -14,6 +14,7 @@ gdal = "3.9.1"
 python-levenshtein = "^0.25.1"
 rioxarray = "^0.17.0"
 zarr = "^2.18.2"
+netcdf4 = "^1.7.1.post2"
 
 
 [tool.poetry.group.dev.dependencies]

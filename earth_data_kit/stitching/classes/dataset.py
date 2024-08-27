@@ -4,6 +4,8 @@ import ast
 import geopandas as gpd
 import logging
 import re
+import rioxarray as rio
+import xarray as xr
 import copy
 import os
 from shapely.geometry.polygon import orient
@@ -244,18 +246,19 @@ class DataSet:
         os.system(buildvrt_cmd)
         return vrt_path
 
-    def create_band_mosaic(self, op, op_hash, bands):
+    def create_band_mosaic(self, tiles, date, bands):
+        date_str = date.strftime("%d-%b-%Y")
         band_mosaics = []
         for idx in range(len(bands)):
-            current_bands_df = op[op["description"] == bands[idx]]
+            current_bands_df = tiles[tiles["description"] == bands[idx]]
             band_mosaic_path = (
-                f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}-{bands[idx]}.gti"
+                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.gti"
             )
             band_mosaic_index_path = (
-                f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}-{bands[idx]}.fgb"
+                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.fgb"
             )
             band_mosaic_file_list = (
-                f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}-{bands[idx]}.txt"
+                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.txt"
             )
 
             current_bands_df[["vrt_path"]].to_csv(
@@ -269,9 +272,10 @@ class DataSet:
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
 
-    def stack_band_mosaics(self, band_mosaics, op_hash):
-        output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}.vrt"
-        output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{op_hash}.txt"
+    def stack_band_mosaics(self, band_mosaics, date):
+        date_str = date.strftime("%d-%b-%Y")
+        output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.vrt"
+        output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.txt"
         pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
             output_vrt_file_list, index=False, header=False
         )
@@ -288,7 +292,7 @@ class DataSet:
 
     @decorators.log_time
     @decorators.log_init
-    def convert_to_cog(self, src, dest, gdal_options={}):
+    def convert_vrt(self, src, dest, of, gdal_options={}):
         """Important options
         -te <xmin> <ymin> <xmax> <ymax> - Get from bounding box. Not given to user
         -te_srs <srs_def> - Specifies the SRS in which to interpret the coordinates given with -te - EPSG:4326
@@ -304,23 +308,23 @@ class DataSet:
         tr = self.get_gdal_option(gdal_options, "tr")
         r = self.get_gdal_option(gdal_options, "r")
         # -t_srs {srs_def}  {src} {dest}
-        convert_to_cog_cmd = f"gdalwarp -of COG -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite"
+        convert_cmd = f"gdalwarp -of {of} -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite"
 
         if t_srs:
-            convert_to_cog_cmd = f"{convert_to_cog_cmd} -t_srs {t_srs}"
+            convert_cmd = f"{convert_cmd} -t_srs {t_srs}"
 
         if tr:
-            convert_to_cog_cmd = f"{convert_to_cog_cmd} -tr {tr}"
+            convert_cmd = f"{convert_cmd} -tr {tr}"
 
         if r:
-            convert_to_cog_cmd = f"{convert_to_cog_cmd} -r {r}"
+            convert_cmd = f"{convert_cmd} -r {r}"
 
-        convert_to_cog_cmd = f"{convert_to_cog_cmd} {src} {dest}"
-        os.system(convert_to_cog_cmd)
+        convert_cmd = f"{convert_cmd} {src} {dest}"
 
-    @decorators.log_time
-    @decorators.log_init
-    def to_cog(self, destination, bands, gdal_options={}, **kwargs):
+        print(convert_cmd)
+        os.system(convert_cmd)
+
+    def to_vrts(self, bands):
         """
         Stitches the scene files together according to the band arrangement provided by the user.
         Internally uses gdalwarp. Currently supported gdalwarp options are
@@ -332,9 +336,12 @@ class DataSet:
         Read more about supported options: `gdalwarp <https://gdal.org/programs/gdalwarp.html>`_.
 
         Args:
-            destination (string): Output path for generated files
             bands (list[string]): Ordered list of bands to output in COGs
             gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
+
+        Returns:
+            pd.DataFrameGroupBy[tuple]: Dataframe with output vrt path, output hash and tuple of all the tile files to be combined
+            list[string]: Final mosaiced and stacked vrt paths
         """
         # Making sure pre-processing directory exists and is empty
         helpers.delete_dir(f"{self.get_ds_tmp_path()}/pre-processing")
@@ -357,44 +364,101 @@ class DataSet:
         # Now we filter bands based on user supplied bands
         bands_df = bands_df[bands_df["description"].isin(bands)]
 
-        # Then we add output file paths to bands_df
-        bands_df["output_path"] = pd.to_datetime(bands_df["date"]).dt.strftime(
-            destination
-        )
+        outputs_by_dates = bands_df.groupby(by=["date"])
+        output_vrts = []
+        # Then we iterate over every output, create vrt and gti index for that output
+        for date, tiles in outputs_by_dates:
+            curr_date = date[0]
+            # First we extract all the required bands using a vrt which will be in that op
+            for tile in tiles.itertuples():
+                vrt_path = self.extract_band(tile)
+                tiles.at[tile.Index, "vrt_path"] = vrt_path
 
-        bands_df["output_hash"] = bands_df.apply(
-            lambda df_row: helpers.cheap_hash(df_row.output_path), axis=1
-        )
+            # At this stage we have single band vrts, now we combine the same bands together create one gti per mosaic.
+            # GDAL Raster Tile is done as number of tiles can be a lot more than number of bands
+            # We also store all the band level mosaics we are creating to be later stacked together in a vrt
+            band_mosaics = self.create_band_mosaic(tiles, curr_date, bands)
 
-        # Then we group by output_path as these are ideally the unique output files created
-        # We also group by output_hash so that we can have unique names for intermediary vrt/gti files per output file easily
-        outputs = bands_df.groupby(by=["output_hash", "output_path"])
+            # Then we line up the bands in a single vrt file, this is stacking
+            output_vrt = self.stack_band_mosaics(band_mosaics, curr_date)
+
+            # Setting output band descriptions
+            geo.set_band_descriptions(output_vrt, bands)
+
+            output_vrts.append(output_vrt)
+
+        return outputs_by_dates, output_vrts
+
+    def to_zarr(self, destination, bands, gdal_options={}):
+        """
+        Calls self.to_vrts to create stitched and stacked output files (vrts) and converts them to Zarrs
+
+        Args:
+            destination (string): Output path for generated files
+            bands (list[string]): Ordered list of bands to output in COGs
+            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
+        """
+        outputs_by_dates, output_vrts = self.to_vrts(bands)
+
+        executor = concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        )
+        date_wist_zarrs = []
+
+        for idx in range(len(output_vrts)):
+            src = output_vrts[idx]
+            dest = src.replace(".vrt", ".zarr")
+            date_wist_zarrs.append(dest)
+            executor.submit(self.convert_vrt, src, dest, "Zarr", gdal_options)
+
+        executor.shutdown(wait=True)
+
+        date_index = []
+        for date, _ in outputs_by_dates:
+            curr_date = date[0]
+            print(curr_date)
+            date_index.append(curr_date)
+
+        dses = []
+        for idx in range(len(date_wist_zarrs)):
+            ds = rio.open_rasterio(f"{date_wist_zarrs[idx]}")
+            dses.append(ds)
+
+        # Concat all date wise datasets
+        ds = xr.concat(dses, pd.DatetimeIndex(date_index, name="time"))
+
+        ds.to_zarr(destination)
+
+    @decorators.log_time
+    @decorators.log_init
+    def to_cog(self, destination, bands, gdal_options={}):
+        """
+        Calls self.to_vrts to create stitched and stacked output files (vrts) and then converts them to COG
+
+        Args:
+            destination (string): Output path for generated files
+            bands (list[string]): Ordered list of bands to output in COGs
+            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
+        """
+        outputs_by_dates, output_vrts = self.to_vrts(bands)
+        idx = 0
+
+        dest_cogs = []
+        for date, _ in outputs_by_dates:
+            curr_date = date[0]
+            dest_cogs.append(curr_date.strftime(destination))
+
+        if len(list(set(dest_cogs))) != len(output_vrts):
+            raise Exception("Temporal frequency mismatch")
 
         executor = concurrent.futures.ProcessPoolExecutor(
             max_workers=helpers.get_processpool_workers()
         )
 
-        # Then we iterate over every output, create vrt and gti index for that output
-        for grp_key, op in outputs:
-            op_hash = grp_key[0]
-            op_path = grp_key[1]
+        for idx in range(len(dest_cogs)):
+            src = output_vrts[idx]
+            dest = dest_cogs[idx]
 
-            # First we extract all the required bands using a vrt which will be in that op
-            for tile in op.itertuples():
-                vrt_path = self.extract_band(tile)
-                op.at[tile.Index, "vrt_path"] = vrt_path
-
-            # At this stage we have single band vrts, now we combine the same bands together create one gti per mosaic. GDAL Raster Tile is done as number of tiles can be a lot more than number of bands
-            # We also store all the band level mosaics we are creating to be later stacked together in a vrt
-            band_mosaics = self.create_band_mosaic(op, op_hash, bands)
-
-            # Then we line up the bands in a single vrt file, this is stacking
-            output_vrt = self.stack_band_mosaics(band_mosaics, op_hash)
-
-            # Setting output band descriptions
-            geo.set_band_descriptions(output_vrt, bands)
-
-            # Then we create the output COGs
-            executor.submit(self.convert_to_cog, output_vrt, op_path, gdal_options)
+            executor.submit(self.convert_vrt, src, dest, "COG", gdal_options)
 
         executor.shutdown(wait=True)
