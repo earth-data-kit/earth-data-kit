@@ -12,6 +12,8 @@ geopandas = "^0.14.4"
 python-dotenv = "^1.0.1"
 gdal = "3.9.1"
 python-levenshtein = "^0.25.1"
+rioxarray = "^0.17.0"
+zarr = "^2.18.2"
 
 
 [tool.poetry.group.dev.dependencies]
