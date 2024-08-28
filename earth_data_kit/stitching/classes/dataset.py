@@ -417,16 +417,19 @@ class DataSet:
             curr_date = date[0]
             date_index.append(curr_date)
 
-        dses = []
+        das = []
         for idx in range(len(date_wise_cogs)):
-            ds = rio.open_rasterio(f"{date_wise_cogs[idx]}")
-            dses.append(ds)
+            da = rio.open_rasterio(f"{date_wise_cogs[idx]}")
+            das.append(da)
 
-        # Concat all date wise datasets
-        ds = xr.concat(dses, pd.DatetimeIndex(date_index, name="time"))
+        # Concat all date wise data-arrays
+        da = xr.concat(das, pd.DatetimeIndex(date_index, name="time"))
+
+        # Converting data array to data set
+        ds = da.to_dataset(name=self.id, promote_attrs=True)
 
         # Finally converting to zarr
-        # TODO: Fix the output format of zarr, it's coming as __xarray_data_variable__
+        # * Writes the dataset, meaning user will have to do ds[self.id] to get the data array
         ds.to_zarr(destination, mode="w")
 
     @decorators.log_time
