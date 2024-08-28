@@ -4,6 +4,7 @@ import os
 import re
 import pandas as pd
 from tests.fixtures.country_bboxes import country_bounding_boxes
+from tests.fixtures.constants import OUTPUT_BASE_PATH
 import geopandas as gpd
 import datetime
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ load_dotenv(CONFIG_FILE_PATH)
 
 def test_without_grid_file():
     source = "s3://modis-pds/MCD43A4.006/*/*/%Y%j/*_B07.TIF"
-    destination = "/Volumes/Data/earth-data-kit/final/modis-pds/%d-%m-%Y-b07.TIF"
+    destination = f"{OUTPUT_BASE_PATH}/modis-pds/%d-%m-%Y-b07.TIF"
 
     bbox = country_bounding_boxes["AL"]
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 10))
@@ -59,11 +60,11 @@ def test_without_grid_file():
     )
 
     out_ds = gdal.Open(
-        "/Volumes/Data/earth-data-kit/final/modis-pds/01-01-2017-b07.TIF"
+        f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017-b07.TIF"
     )
 
     # Asserting number of files created
-    out_files = glob.glob("/Volumes/Data/earth-data-kit/final/modis-pds/*.TIF")
+    out_files = glob.glob(f"{OUTPUT_BASE_PATH}/modis-pds/*.TIF")
     assert len(out_files) == 10
 
     # Asserting all file sizes to be greater than 100 KB
