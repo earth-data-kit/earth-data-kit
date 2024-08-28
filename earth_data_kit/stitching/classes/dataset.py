@@ -388,13 +388,50 @@ class DataSet:
 
         return outputs_by_dates, output_vrts
 
-    def to_zarr(self, destination, bands, gdal_options={}):
+    @decorators.log_time
+    @decorators.log_init
+    def to_cog(self, destination, bands, gdal_options={}):
         """
-        Calls self.to_vrts to create stitched and stacked output files (vrts) and converts them to Zarrs
+        Calls self.to_vrts to create stitched and stacked output files (vrts) and then converts them to COG
 
         Args:
             destination (string): Output path for generated files
             bands (list[string]): Ordered list of bands to output in COGs
+            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
+        """
+        outputs_by_dates, output_vrts = self.to_vrts(bands)
+        idx = 0
+
+        dest_cogs = []
+        for date, _ in outputs_by_dates:
+            curr_date = date[0]
+            dest_cogs.append(curr_date.strftime(destination))
+
+        if len(list(set(dest_cogs))) != len(output_vrts):
+            raise Exception("Temporal frequency mismatch")
+
+        executor = concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        )
+
+        for idx in range(len(dest_cogs)):
+            src = output_vrts[idx]
+            dest = dest_cogs[idx]
+
+            executor.submit(self.convert_vrt, src, dest, "COG", gdal_options)
+
+        executor.shutdown(wait=True)
+
+    @decorators.log_time
+    @decorators.log_init
+    def to_zarr(self, destination, bands, gdal_options={}):
+        """
+        Calls self.to_vrts to create stitched and stacked output files (vrts) and converts them to Zarrs.
+        First vrts are converted to COGs, then read and combined using rioxarray and xarray.
+
+        Args:
+            destination (string): Output path for generated files
+            bands (list[string]): Ordered list of bands to output in band dimension
             gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
         """
         outputs_by_dates, output_vrts = self.to_vrts(bands)
@@ -431,37 +468,3 @@ class DataSet:
         # Finally converting to zarr
         # * Writes the dataset, meaning user will have to do ds[self.id] to get the data array
         ds.to_zarr(destination, mode="w")
-
-    @decorators.log_time
-    @decorators.log_init
-    def to_cog(self, destination, bands, gdal_options={}):
-        """
-        Calls self.to_vrts to create stitched and stacked output files (vrts) and then converts them to COG
-
-        Args:
-            destination (string): Output path for generated files
-            bands (list[string]): Ordered list of bands to output in COGs
-            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
-        """
-        outputs_by_dates, output_vrts = self.to_vrts(bands)
-        idx = 0
-
-        dest_cogs = []
-        for date, _ in outputs_by_dates:
-            curr_date = date[0]
-            dest_cogs.append(curr_date.strftime(destination))
-
-        if len(list(set(dest_cogs))) != len(output_vrts):
-            raise Exception("Temporal frequency mismatch")
-
-        executor = concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_processpool_workers()
-        )
-
-        for idx in range(len(dest_cogs)):
-            src = output_vrts[idx]
-            dest = dest_cogs[idx]
-
-            executor.submit(self.convert_vrt, src, dest, "COG", gdal_options)
-
-        executor.shutdown(wait=True)
