@@ -64,22 +64,16 @@ class DataSet:
             start (datetime): Start data
             end (datetime): End date, inclusive
         """
-        self.start = start
-        self.end = end
+        self.time_opts = {
+            "start": start,
+            "end": end,
+        }
 
-        self.patterns = self.patterns + list(
-            set(
-                pd.date_range(start=start, end=end, inclusive="both").strftime(
-                    self.source
-                )
-            )
-        )
-
-    def set_spacebounds(self, bbox, grid_file=None, matcher=None):
+    def set_spacebounds(self, bbox, grid_file, matcher):
         """
         Sets spatial bounds using a bbox provided.
-        Optionally you can also provide a grid file and matching function which can then be used to pinpoint the exact scene files
-        to download.
+        Optionally you can also provide a grid file and matching function which can then be used to pinpoint the
+        exact scene files to download.
 
         Read more on :ref:`Using a grid file`
 
@@ -88,39 +82,17 @@ class DataSet:
             grid_file (string, optional): File path to grid file, currently only kml files are supported. Defaults to None.
             matcher (function, optional): Lambda function to extract spatial parts for scene filepaths. Defaults to None.
         """
-        self.bbox = bbox
-        if not grid_file:
-            # Doing nothing if grid_file is not passed
-            return 1
+        self.space_opts = {
+            "grid_file": grid_file,
+            "matcher": matcher,
+        }
+        self.space_opts["bbox"] = bbox
 
-        if grid_file.endswith(".kml") or grid_file.endswith(".KML"):
-            grid_df = gpd.read_file(grid_file, driver="kml", bbox=bbox)
-            space_vars = []
-            for grid in grid_df.itertuples():
-                space_vars.append(matcher(grid))
-
-            patterns = self.patterns
-
-            new_patterns = []
-            for p in patterns:
-                matches = re.findall(r"({.[^}]*})", p)
-                # Now we replace matches and with all space_variables
-                for var in space_vars:
-                    tmp_p = copy.copy(p)
-                    for m in matches:
-                        tmp_p = tmp_p.replace(
-                            m, var[m.replace("{", "").replace("}", "")]
-                        )
-                    new_patterns.append(tmp_p)
-
-            self.patterns = new_patterns
-        else:
-            raise Exception("drivers other than kml are not supported")
 
     @decorators.log_time
     @decorators.log_init
     def find_tiles(self):
-        df = self.engine.create_inventory(self.patterns, self.get_ds_tmp_path())
+        df = self.engine.create_inventory(self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path())
 
         futures = []
         tiles = []
@@ -144,31 +116,26 @@ class DataSet:
     @decorators.log_init
     def filter_tiles(self):
         df = pd.read_csv(f"{self.complete_inventory}")
+        # Not filtering for time dimension as we are already pin pointing files
 
-        if self.start and self.end:
-            # Not filtering based on date_range as we are already pin-pointing the files to download
-            pass
+        # Filter spatially
+        # * Below function assumes the projection is gonna be same which can be
+        # * usually true for a single set of tiles
+        # Getting the projection from first row
+        projection = df["projection"].iloc[0]
+        # Add the extent geo-series and set projection
+        extent = gpd.GeoSeries(
+            df.apply(helpers.polygonise_2Dcells, axis=1),
+            crs=pyproj.CRS.from_user_input(projection),
+        )
+        reprojected_extent = extent.to_crs(epsg=4326)
 
-        if self.bbox:
-            # * Below function assumes the projection is gonna be same which can be
-            # * usually true for a single set of tiles
-            # Filter spatially
+        # Get polygon from user's bbox
+        bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)
 
-            # Getting the projection from first row
-            projection = df["projection"].iloc[0]
-            # Add the extent geo-series and set projection
-            extent = gpd.GeoSeries(
-                df.apply(helpers.polygonise_2Dcells, axis=1),
-                crs=pyproj.CRS.from_user_input(projection),
-            )
-            reprojected_extent = extent.to_crs(epsg=4326)
-
-            # Get polygon from user's bbox
-            bbox = shapely.geometry.box(*self.bbox, ccw=True)
-
-            # Perform intersection and filtering
-            intersects = reprojected_extent.intersects(bbox)
-            df = df[intersects == True]
+        # Perform intersection and filtering
+        intersects = reprojected_extent.intersects(bbox)
+        df = df[intersects == True]
 
         filtered_inventory = f"{self.filtered_inventory}"
         df.to_csv(filtered_inventory, index=False, header=True)
@@ -202,7 +169,7 @@ class DataSet:
         bands_df.reset_index(drop=True, inplace=True)
 
         # Creates the date_range patterns again for matching purposes
-        dates = pd.date_range(start=self.start, end=self.end, inclusive="both")
+        dates = pd.date_range(start=self.time_opts["start"], end=self.time_opts["end"], inclusive="both")
         o_df = pd.DataFrame()
         o_df["date"] = dates
         o_df["source_pattern"] = o_df["date"].dt.strftime(self.source)
@@ -302,7 +269,7 @@ class DataSet:
         """
         helpers.make_sure_dir_exists("/".join(dest.split("/")[:-1]))
         # self.bbox = left, bottom, right, top
-        te = self.bbox
+        te = self.space_opts["bbox"]
         te_srs = "EPSG:4326"
         t_srs = self.get_gdal_option(gdal_options, "t_srs")
         tr = self.get_gdal_option(gdal_options, "tr")

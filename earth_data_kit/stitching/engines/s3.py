@@ -3,6 +3,9 @@ import pandas as pd
 import logging
 import earth_data_kit.stitching.helpers as helpers
 import pathlib
+import geopandas as gpd
+import re
+import copy
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,53 @@ class S3:
             f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
         )
 
-    def create_inventory(self, patterns, tmp_base_dir):
+    def get_patterns(self, source, time_opts, space_opts):
+        patterns = []
+        # Expanding for time dimension
+        start = time_opts["start"]
+        end = time_opts["end"]
+        patterns = patterns + list(
+            set(
+                pd.date_range(start=start, end=end, inclusive="both").strftime(
+                    source
+                )
+            )
+        )
+
+        # Expanding for space dimension
+        bbox = space_opts["bbox"]
+
+        if "grid_file" not in space_opts:
+            # Doing nothing if grid_file is not passed
+            return patterns
+
+        grid_file = space_opts["grid_file"]
+        matcher = space_opts["matcher"]
+        if grid_file.endswith(".kml") or grid_file.endswith(".KML"):
+            grid_df = gpd.read_file(grid_file, driver="kml", bbox=bbox)
+            space_vars = []
+            for grid in grid_df.itertuples():
+                space_vars.append(matcher(grid))
+
+            new_patterns = []
+            for p in patterns:
+                matches = re.findall(r"({.[^}]*})", p)
+                # Now we replace matches and with all space_variables
+                for var in space_vars:
+                    tmp_p = copy.copy(p)
+                    for m in matches:
+                        tmp_p = tmp_p.replace(
+                            m, var[m.replace("{", "").replace("}", "")]
+                        )
+                    new_patterns.append(tmp_p)
+
+            return new_patterns
+        else:
+            raise Exception("drivers other than kml are not supported")
+
+    def create_inventory(self, source, time_opts, space_opts, tmp_base_dir):
+        patterns = self.get_patterns(source, time_opts, space_opts)
+
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
         df = pd.DataFrame(patterns, columns=["path"])
