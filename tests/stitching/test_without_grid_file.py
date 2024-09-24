@@ -59,9 +59,7 @@ def test_without_grid_file():
         ],
     )
 
-    out_ds = gdal.Open(
-        f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017-b07.TIF"
-    )
+    out_ds = gdal.Open(f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017-b07.TIF")
 
     # Asserting number of files created
     out_files = glob.glob(f"{OUTPUT_BASE_PATH}/modis-pds/*.TIF")

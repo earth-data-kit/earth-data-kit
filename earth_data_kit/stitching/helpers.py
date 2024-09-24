@@ -13,7 +13,10 @@ def make_sure_dir_exists(dir):
 
 
 def get_processpool_workers():
-    return (os.cpu_count() != None) if (os.cpu_count() - 2) else 1
+    if os.cpu_count() - 2 < 1:
+        return 1
+    else:
+        return os.cpu_count() - 2
 
 
 def get_threadpool_workers():

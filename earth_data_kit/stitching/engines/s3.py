@@ -41,11 +41,7 @@ class S3:
         start = time_opts["start"]
         end = time_opts["end"]
         patterns = patterns + list(
-            set(
-                pd.date_range(start=start, end=end, inclusive="both").strftime(
-                    source
-                )
-            )
+            set(pd.date_range(start=start, end=end, inclusive="both").strftime(source))
         )
 
         # Expanding for space dimension
@@ -115,7 +111,6 @@ class S3:
     def sync_inventory(self, df, tmp_base_dir):
         # Deleting /raw dir where data will be synced
         base_path = f"{tmp_base_dir}/raw"
-        helpers.delete_dir(f"{base_path}/")
         local_path = f"{base_path}/" + df["engine_path"].map(
             lambda x: x.replace("s3://", "")
         )

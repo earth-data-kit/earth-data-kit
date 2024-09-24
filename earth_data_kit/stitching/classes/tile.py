@@ -2,6 +2,7 @@ from osgeo import gdal
 import logging
 import pandas as pd
 import earth_data_kit.stitching.decorators as decorators
+import json
 
 gdal.UseExceptions()
 
@@ -67,7 +68,7 @@ class Tile:
         y_min = y_max + geo_transform[5] * ds.RasterYSize
         projection = ds.GetProjection()
 
-        bands = self.get_bands(ds)
+        bands = json.dumps(self.get_bands(ds))
         o = {
             "geo_transform": geo_transform,
             "x_min": x_min,

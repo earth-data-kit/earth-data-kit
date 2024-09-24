@@ -12,6 +12,7 @@ from shapely.geometry.polygon import orient
 from earth_data_kit.stitching import geo, helpers
 import earth_data_kit.stitching.constants as constants
 import earth_data_kit.stitching.decorators as decorators
+import earth_data_kit.stitching.engines.earth_engine as earth_engine
 import earth_data_kit.stitching.engines.s3 as s3
 import concurrent.futures
 import earth_data_kit.stitching.classes.tile as tile
@@ -47,6 +48,8 @@ class DataSet:
         self.id = id
         if engine == "s3":
             self.engine = s3.S3()
+        if engine == "earth_engine":
+            self.engine = earth_engine.EarthEngine()
         self.source = source
         self.patterns = []
         self.tiles = []
@@ -69,7 +72,7 @@ class DataSet:
             "end": end,
         }
 
-    def set_spacebounds(self, bbox, grid_file, matcher):
+    def set_spacebounds(self, bbox, grid_file=None, matcher=None):
         """
         Sets spatial bounds using a bbox provided.
         Optionally you can also provide a grid file and matching function which can then be used to pinpoint the
@@ -88,11 +91,12 @@ class DataSet:
         }
         self.space_opts["bbox"] = bbox
 
-
     @decorators.log_time
     @decorators.log_init
     def find_tiles(self):
-        df = self.engine.create_inventory(self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path())
+        df = self.engine.create_inventory(
+            self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
+        )
 
         futures = []
         tiles = []
@@ -169,7 +173,9 @@ class DataSet:
         bands_df.reset_index(drop=True, inplace=True)
 
         # Creates the date_range patterns again for matching purposes
-        dates = pd.date_range(start=self.time_opts["start"], end=self.time_opts["end"], inclusive="both")
+        dates = pd.date_range(
+            start=self.time_opts["start"], end=self.time_opts["end"], inclusive="both"
+        )
         o_df = pd.DataFrame()
         o_df["date"] = dates
         o_df["source_pattern"] = o_df["date"].dt.strftime(self.source)
@@ -196,7 +202,6 @@ class DataSet:
         """
         # Reading the filtered inventory
         df = pd.read_csv(self.filtered_inventory)
-
         # Syncing files to local
         df = self.engine.sync_inventory(df, self.get_ds_tmp_path())
         df.to_csv(f"{self.local_inventory}", index=False, header=True)
@@ -309,8 +314,7 @@ class DataSet:
             pd.DataFrameGroupBy[tuple]: Dataframe with output vrt path, output hash and tuple of all the tile files to be combined
             list[string]: Final mosaiced and stacked vrt paths
         """
-        # Making sure pre-processing directory exists and is empty
-        helpers.delete_dir(f"{self.get_ds_tmp_path()}/pre-processing")
+        # Making sure pre-processing directory exists
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
 
         # df contains all the tiles along with local paths
