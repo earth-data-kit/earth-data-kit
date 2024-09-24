@@ -31,10 +31,10 @@ class EarthEngine:
         )
         tiles = []
         for feature in layer:
-            tiles.append([feature['gdal_dataset'], feature['id']])
+            tiles.append([feature["gdal_dataset"], feature["id"]])
 
-        df = pd.DataFrame(tiles, columns=['gdal_path', 'engine_path'])
-        return df[['gdal_path', 'engine_path']]
+        df = pd.DataFrame(tiles, columns=["gdal_path", "engine_path"])
+        return df[["gdal_path", "engine_path"]]
 
     def sync_inventory(self, df, tmp_base_dir):
         base_path = f"{tmp_base_dir}/raw"
@@ -42,12 +42,16 @@ class EarthEngine:
         # We create one file per band as EE can have different datatypes for bands.
         # Not exactly sure what format they are using
         # Using process pool as when using threads only one gdal_translate program was running
-        with concurrent.futures.ProcessPoolExecutor(max_workers=helpers.get_processpool_workers()) as executor:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        ) as executor:
             for row in df.itertuples():
                 bands = json.loads(row.bands)
                 single_band_fps = []
                 for b_idx in range(len(bands)):
-                    single_band_fp = f"{base_path}/{row.engine_path}-{bands[b_idx]["band_idx"]}.tif"
+                    single_band_fp = (
+                        f'{base_path}/{row.engine_path}-{bands[b_idx]["band_idx"]}.tif'
+                    )
 
                     cmd = f'GOOGLE_APPLICATION_CREDENTIALS={os.getenv("GOOGLE_APPLICATION_CREDENTIALS")} gdal_translate -b {bands[b_idx]["band_idx"]} {row.gdal_path} {single_band_fp} -co SPARSE_OK=TRUE -co BIGTIFF=YES -co NUM_THREADS=ALL_CPUS'
                     base_folder = "/".join(single_band_fp.split("/")[:-1])
@@ -60,7 +64,7 @@ class EarthEngine:
                 local_path = f"{base_path}/{row.engine_path}.vrt"
                 cmd = f"gdalbuildvrt -separate {local_path} {' '.join(single_band_fps)}"
                 os.system(cmd)
-                df.at[row.Index, 'local_path'] = local_path
+                df.at[row.Index, "local_path"] = local_path
             executor.shutdown(wait=True)
 
         return df
