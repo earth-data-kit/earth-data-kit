@@ -59,12 +59,22 @@ class EarthEngine:
 
                     single_band_fps.append(single_band_fp)
                     executor.submit(os.system, cmd)
-
-                # We combine all the single bands tif to a vrt as rest of the system is written considering files with multiple bands rather than single band tifs. Something to think later
-                local_path = f"{base_path}/{row.engine_path}.vrt"
-                cmd = f"gdalbuildvrt -separate {local_path} {' '.join(single_band_fps)}"
-                os.system(cmd)
-                df.at[row.Index, "local_path"] = local_path
             executor.shutdown(wait=True)
+
+        # Then we combine single band tif to vrts as rest of the system assuming a multi-band raster
+        for row in df.itertuples():
+            bands = json.loads(row.bands)
+            single_band_fps = []
+            for b_idx in range(len(bands)):
+                single_band_fp = (
+                    f'{base_path}/{row.engine_path}-{bands[b_idx]["band_idx"]}.tif'
+                )
+                single_band_fps.append(single_band_fp)
+
+            # We combine all the single bands tif to a vrt as rest of the system is written considering files with multiple bands rather than single band tifs. Something to think later
+            local_path = f"{base_path}/{row.engine_path}.vrt"
+            cmd = f"gdalbuildvrt -separate {local_path} {' '.join(single_band_fps)}"
+            os.system(cmd)
+            df.at[row.Index, "local_path"] = local_path
 
         return df
