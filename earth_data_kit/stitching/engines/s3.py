@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import earth_data_kit.stitching.helpers as helpers
 import pathlib
+import Levenshtein as levenshtein
 import geopandas as gpd
 import re
 import copy
@@ -36,20 +37,20 @@ class S3:
         )
 
     def get_patterns(self, source, time_opts, space_opts):
-        patterns = []
+        patterns_df = pd.DataFrame()
+
         # Expanding for time dimension
         start = time_opts["start"]
         end = time_opts["end"]
-        patterns = patterns + list(
-            set(pd.date_range(start=start, end=end, inclusive="both").strftime(source))
-        )
+        patterns_df["date"] = pd.date_range(start=start, end=end, inclusive="both")
+        patterns_df["search_path"] = patterns_df["date"].dt.strftime(source)
 
         # Expanding for space dimension
         bbox = space_opts["bbox"]
 
         if "grid_file" not in space_opts:
             # Doing nothing if grid_file is not passed
-            return patterns
+            return patterns_df
 
         grid_file = space_opts["grid_file"]
         matcher = space_opts["matcher"]
@@ -60,32 +61,31 @@ class S3:
                 space_vars.append(matcher(grid))
 
             new_patterns = []
-            for p in patterns:
-                matches = re.findall(r"({.[^}]*})", p)
+            for row in patterns_df.itertuples():
+                matches = re.findall(r"({.[^}]*})", row.search_path)
                 # Now we replace matches and with all space_variables
                 for var in space_vars:
-                    tmp_p = copy.copy(p)
+                    tmp_p = copy.copy(row.search_path)
                     for m in matches:
                         tmp_p = tmp_p.replace(
                             m, var[m.replace("{", "").replace("}", "")]
                         )
-                    new_patterns.append(tmp_p)
-
-            return new_patterns
+                    new_patterns.append([row.date, tmp_p])
+            new_patterns_df = pd.DataFrame(new_patterns, columns=["date", "search_path"])
+            return new_patterns_df
         else:
             raise Exception("drivers other than kml are not supported")
 
     def create_inventory(self, source, time_opts, space_opts, tmp_base_dir):
-        patterns = self.get_patterns(source, time_opts, space_opts)
+        patterns_df = self.get_patterns(source, time_opts, space_opts)
 
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
-        df = pd.DataFrame(patterns, columns=["path"])
 
         # go-lib expects paths in unix style
-        df["path"] = df["path"].str.replace("s3://", "/")
+        patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
 
-        df.to_csv(ls_cmds_fp, index=False, header=False)
+        patterns_df[["unix_path"]].to_csv(ls_cmds_fp, index=False, header=False)
         lib_path = os.path.join(
             pathlib.Path(__file__).parent.resolve(),
             "..",
@@ -97,16 +97,28 @@ class S3:
         ls_cmd = f"{lib_path} {ls_cmds_fp} {inventory_file_path}"
         os.system(ls_cmd)
 
-        df = pd.read_csv(inventory_file_path, names=["key"])
+        inv_df = pd.read_csv(inventory_file_path, names=["key"])
 
         # Fixing output from go-lib
-        df["key"] = "s3://" + df["key"].str[1:]
+        inv_df["key"] = "s3://" + inv_df["key"].str[1:]
+
+        for in_row in inv_df.itertuples():
+            max_score = -99
+            max_score_idx = -1
+            for out_row in patterns_df.itertuples():
+                s = levenshtein.ratio(in_row.key, out_row.search_path)
+                if s > max_score:
+                    max_score = s
+                    max_score_idx = out_row.Index
+
+            inv_df.at[in_row.Index, "date"] = patterns_df["date"][max_score_idx]
+            inv_df.at[in_row.Index, "search_path"] = patterns_df["search_path"][max_score_idx]
+            inv_df.at[in_row.Index, "unix_path"] = patterns_df["unix_path"][max_score_idx]
 
         # Adding gdal_path
-        df["gdal_path"] = df["key"].str.replace("s3://", "/vsis3/")
-        df["engine_path"] = df["key"]
-
-        return df[["engine_path", "gdal_path"]]
+        inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
+        inv_df["engine_path"] = inv_df["key"]
+        return inv_df[["date", "engine_path", "gdal_path"]]
 
     def sync_inventory(self, df, tmp_base_dir):
         # Deleting /raw dir where data will be synced

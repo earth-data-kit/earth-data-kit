@@ -104,7 +104,7 @@ class DataSet:
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
             for row in df.itertuples():
-                t = tile.Tile(row.engine_path, row.gdal_path)
+                t = tile.Tile(row.engine_path, row.gdal_path, row.date)
                 tiles.append(t)
                 futures.append(executor.submit(t.get_metadata))
 
@@ -162,36 +162,12 @@ class DataSet:
 
     def get_all_bands(self):
         df = pd.read_csv(self.filtered_inventory)
-        bands_df = pd.DataFrame()
 
-        for df_row in df.itertuples():
-            tile_bands = ast.literal_eval(df_row.bands)
-            tile_bands_df = pd.DataFrame(tile_bands)
-            tile_bands_df["engine_path"] = df_row.engine_path
-            bands_df = pd.concat([bands_df, tile_bands_df])
+        # Normalize the JSON column
+        bands_df = pd.concat([df, df['bands'].apply(helpers.json_to_series)], axis=1)
 
-        bands_df.reset_index(drop=True, inplace=True)
-
-        # Creates the date_range patterns again for matching purposes
-        dates = pd.date_range(
-            start=self.time_opts["start"], end=self.time_opts["end"], inclusive="both"
-        )
-        o_df = pd.DataFrame()
-        o_df["date"] = dates
-        o_df["source_pattern"] = o_df["date"].dt.strftime(self.source)
-
-        # Joining using string matching so that every tile has a date associated with it
-        for in_row in bands_df.itertuples():
-            max_score = -99
-            max_score_idx = -1
-            for out_row in o_df.itertuples():
-                s = levenshtein.ratio(in_row.engine_path, out_row.source_pattern)
-                if s > max_score:
-                    max_score = s
-                    max_score_idx = out_row.Index
-
-            bands_df.at[in_row.Index, "date"] = o_df["date"][max_score_idx]
-
+        bands_df.drop(columns=["bands"], inplace=True)
+        bands_df["date"] = pd.to_datetime(bands_df["date"])
         return bands_df
 
     @decorators.log_time
