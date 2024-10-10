@@ -1,4 +1,3 @@
-from sys import executable
 import pandas as pd
 import ast
 import geopandas as gpd
@@ -97,7 +96,6 @@ class DataSet:
         df = self.engine.create_inventory(
             self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
         )
-
         futures = []
         tiles = []
         with concurrent.futures.ThreadPoolExecutor(
@@ -163,10 +161,33 @@ class DataSet:
     def get_all_bands(self):
         df = pd.read_csv(self.filtered_inventory)
 
-        # Normalize the JSON column
-        bands_df = pd.concat([df, df['bands'].apply(helpers.json_to_series)], axis=1)
+        bands_df = pd.DataFrame()
 
-        bands_df.drop(columns=["bands"], inplace=True)
+        for df_row in df.itertuples():
+            _df = pd.DataFrame(ast.literal_eval(df_row.bands))
+            _df["tile_index"] = df_row.Index
+            bands_df = pd.concat([_df, bands_df], axis=0)
+
+        bands_df = bands_df.merge(
+            df[
+                [
+                    "engine_path",
+                    "gdal_path",
+                    "date",
+                    "geo_transform",
+                    "x_min",
+                    "x_max",
+                    "y_min",
+                    "y_max",
+                    "x_res",
+                    "y_res",
+                    "projection",
+                ]
+            ],
+            left_on="tile_index",
+            right_index=True,
+        )
+        bands_df.drop(columns=["tile_index"], inplace=True)
         bands_df["date"] = pd.to_datetime(bands_df["date"])
         return bands_df
 
@@ -353,8 +374,10 @@ class DataSet:
         for date, _ in outputs_by_dates:
             curr_date = date[0]
             dest_cogs.append(curr_date.strftime(destination))
+        dest_cogs = list(set(dest_cogs))
+        output_vrts = list(set(output_vrts))
 
-        if len(list(set(dest_cogs))) != len(output_vrts):
+        if len(dest_cogs) != len(output_vrts):
             raise Exception("Temporal frequency mismatch")
 
         executor = concurrent.futures.ProcessPoolExecutor(
@@ -387,6 +410,7 @@ class DataSet:
             max_workers=helpers.get_processpool_workers()
         )
         date_wise_cogs = []
+        output_vrts = list(set(output_vrts))
 
         for idx in range(len(output_vrts)):
             src = output_vrts[idx]
@@ -399,9 +423,15 @@ class DataSet:
         date_index = []
         for date, _ in outputs_by_dates:
             curr_date = date[0]
-            date_index.append(curr_date)
+            # TODO: Reducing date to dd-mm-yyyy by making time part as 0.
+            # This means we are loosing multiple images in a single day.
+            # This was found when running JAXA-ALOS project from google earth engine. It had three images for a single day.
+            # For now think it's okay, needs to be checked
+            date_index.append(curr_date.strftime("%d-%m-%Y"))
+        date_index = list(set(date_index))
 
         das = []
+        
         for idx in range(len(date_wise_cogs)):
             da = rio.open_rasterio(f"{date_wise_cogs[idx]}")
             das.append(da)

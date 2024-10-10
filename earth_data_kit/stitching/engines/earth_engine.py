@@ -5,6 +5,7 @@ from osgeo import ogr
 import pandas as pd
 import earth_data_kit.stitching.helpers as helpers
 import json
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,11 @@ class EarthEngine:
         )
         tiles = []
         for feature in layer:
-            tiles.append([feature["gdal_dataset"], feature["id"]])
+            tiles.append([feature["gdal_dataset"], feature["id"], feature["startTime"]])
 
-        df = pd.DataFrame(tiles, columns=["gdal_path", "engine_path"])
-        return df[["gdal_path", "engine_path"]]
+        df = pd.DataFrame(tiles, columns=["gdal_path", "engine_path", "date"])
+        df["date"] = pd.to_datetime(df["date"])
+        return df[["gdal_path", "engine_path", "date"]]
 
     def sync_inventory(self, df, tmp_base_dir):
         base_path = f"{tmp_base_dir}/raw"

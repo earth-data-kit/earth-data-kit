@@ -71,7 +71,9 @@ class S3:
                             m, var[m.replace("{", "").replace("}", "")]
                         )
                     new_patterns.append([row.date, tmp_p])
-            new_patterns_df = pd.DataFrame(new_patterns, columns=["date", "search_path"])
+            new_patterns_df = pd.DataFrame(
+                new_patterns, columns=["date", "search_path"]
+            )
             return new_patterns_df
         else:
             raise Exception("drivers other than kml are not supported")
@@ -112,8 +114,12 @@ class S3:
                     max_score_idx = out_row.Index
 
             inv_df.at[in_row.Index, "date"] = patterns_df["date"][max_score_idx]
-            inv_df.at[in_row.Index, "search_path"] = patterns_df["search_path"][max_score_idx]
-            inv_df.at[in_row.Index, "unix_path"] = patterns_df["unix_path"][max_score_idx]
+            inv_df.at[in_row.Index, "search_path"] = patterns_df["search_path"][
+                max_score_idx
+            ]
+            inv_df.at[in_row.Index, "unix_path"] = patterns_df["unix_path"][
+                max_score_idx
+            ]
 
         # Adding gdal_path
         inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
