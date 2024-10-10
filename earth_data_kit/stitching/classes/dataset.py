@@ -431,7 +431,7 @@ class DataSet:
         date_index = list(set(date_index))
 
         das = []
-        
+
         for idx in range(len(date_wise_cogs)):
             da = rio.open_rasterio(f"{date_wise_cogs[idx]}")
             das.append(da)
