@@ -10,6 +10,7 @@ import copy
 
 logger = logging.getLogger(__name__)
 
+
 class S3:
     def __init__(self) -> None:
         no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
@@ -46,7 +47,9 @@ class S3:
 
         # Expanding for space dimension
         bbox = space_opts["bbox"]
-        if ("grid_file" not in space_opts) or (("grid_file" in space_opts) and (space_opts["grid_file"] is None)):
+        if ("grid_file" not in space_opts) or (
+            ("grid_file" in space_opts) and (space_opts["grid_file"] is None)
+        ):
             # Doing nothing if grid_file is not passed
             return patterns_df
 

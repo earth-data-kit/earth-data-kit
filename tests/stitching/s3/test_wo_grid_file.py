@@ -15,6 +15,7 @@ from osgeo_utils import gdalcompare
 CONFIG_FILE_PATH = "tests/config.env"
 load_dotenv(CONFIG_FILE_PATH)
 
+
 def test_wo_grid_file():
     source = "s3://modis-pds/MCD43A4.006/*/*/%Y%j/*_B07.TIF"
     destination = f"{OUTPUT_BASE_PATH}/modis-pds/%d-%m.tif"
@@ -50,8 +51,17 @@ def test_wo_grid_file():
         ],
     )
 
-    golden_files = [f"tests/fixtures/outputs/stitching/s3/wo_grid_file/01-01.tif", f"tests/fixtures/outputs/stitching/s3/wo_grid_file/02-01.tif"]
-    new_files = [f"{OUTPUT_BASE_PATH}/modis-pds/01-01.tif", f"{OUTPUT_BASE_PATH}/modis-pds/02-01.tif"]
+    golden_files = [
+        f"tests/fixtures/outputs/stitching/s3/wo_grid_file/01-01.tif",
+        f"tests/fixtures/outputs/stitching/s3/wo_grid_file/02-01.tif",
+    ]
+    new_files = [
+        f"{OUTPUT_BASE_PATH}/modis-pds/01-01.tif",
+        f"{OUTPUT_BASE_PATH}/modis-pds/02-01.tif",
+    ]
 
     for i in range(len(golden_files)):
-        assert gdalcompare.compare_db(gdal.Open(golden_files[i]), gdal.Open(new_files[i])) == 0
+        assert (
+            gdalcompare.compare_db(gdal.Open(golden_files[i]), gdal.Open(new_files[i]))
+            == 0
+        )

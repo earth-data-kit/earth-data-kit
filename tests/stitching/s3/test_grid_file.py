@@ -63,8 +63,17 @@ def test_grid_file():
         ],
     )
 
-    golden_files = [f"tests/fixtures/outputs/stitching/s3/grid_file/01-01-2017-b03_7.tif", f"tests/fixtures/outputs/stitching/s3/grid_file/02-01-2017-b03_7.tif"]
-    new_files = [f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017-b03_7.tif", f"{OUTPUT_BASE_PATH}/modis-pds/02-01-2017-b03_7.tif"]
+    golden_files = [
+        f"tests/fixtures/outputs/stitching/s3/grid_file/01-01-2017-b03_7.tif",
+        f"tests/fixtures/outputs/stitching/s3/grid_file/02-01-2017-b03_7.tif",
+    ]
+    new_files = [
+        f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017-b03_7.tif",
+        f"{OUTPUT_BASE_PATH}/modis-pds/02-01-2017-b03_7.tif",
+    ]
 
     for i in range(len(golden_files)):
-        assert gdalcompare.compare_db(gdal.Open(golden_files[i]), gdal.Open(new_files[i])) == 0
+        assert (
+            gdalcompare.compare_db(gdal.Open(golden_files[i]), gdal.Open(new_files[i]))
+            == 0
+        )
