@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class Tile:
-    def __init__(self, engine_path, gdal_path, date) -> None:
+    def __init__(self, engine_path, gdal_path, date, tile_name) -> None:
         self.engine_path = engine_path
         self.gdal_path = gdal_path
         self.date = date
+        self.tile_name = tile_name
 
     @staticmethod
     def to_df(tiles):
@@ -40,8 +41,9 @@ class Tile:
         projection,
         local_path,
         bands,
+        tile_name,
     ):
-        t = Tile(engine_path, gdal_path, date)
+        t = Tile(engine_path, gdal_path, date, tile_name)
         t.set_metadata(
             {
                 "x_min": x_min,

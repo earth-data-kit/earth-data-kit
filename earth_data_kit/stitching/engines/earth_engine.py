@@ -35,8 +35,9 @@ class EarthEngine:
             tiles.append([feature["gdal_dataset"], feature["id"], feature["startTime"]])
 
         df = pd.DataFrame(tiles, columns=["gdal_path", "engine_path", "date"])
+        df["tile_name"] = df["gdal_path"].str.split("/").str[-1]
         df["date"] = pd.to_datetime(df["date"])
-        return df[["gdal_path", "engine_path", "date"]]
+        return df[["gdal_path", "engine_path", "date", "tile_name"]]
 
     def sync_inventory(self, df, tmp_base_dir):
         base_path = f"{tmp_base_dir}/raw"

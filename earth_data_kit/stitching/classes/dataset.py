@@ -115,7 +115,7 @@ class DataSet:
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
             for row in df.itertuples():
-                t = tile.Tile(row.engine_path, row.gdal_path, row.date)
+                t = tile.Tile(row.engine_path, row.gdal_path, row.date, row.tile_name)
                 tiles.append(t)
                 futures.append(executor.submit(t.get_metadata))
 
@@ -185,6 +185,7 @@ class DataSet:
                     "engine_path",
                     "gdal_path",
                     "date",
+                    "tile_name",
                     "geo_transform",
                     "x_min",
                     "x_max",
@@ -220,7 +221,7 @@ class DataSet:
         return path
 
     def extract_band(self, tile):
-        vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{'.'.join(tile.gdal_path.split('/')[-1].split('.')[:-1])}-band-{tile.band_idx}.vrt"
+        vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{tile.tile_name}-band-{tile.band_idx}.vrt"
         # Creating vrt for every tile extracting the correct band required and in the correct order
         buildvrt_cmd = f"gdalbuildvrt -b {tile.band_idx} {vrt_path} {tile.gdal_path}"
         os.system(buildvrt_cmd)

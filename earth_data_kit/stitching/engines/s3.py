@@ -121,11 +121,12 @@ class S3:
             inv_df.at[in_row.Index, "unix_path"] = patterns_df["unix_path"][
                 max_score_idx
             ]
+            inv_df.at[in_row.Index, "tile_name"] = ".".join(inv_df.at[in_row.Index, "key"].split("/")[-1].split(".")[:-1])
 
         # Adding gdal_path
         inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
         inv_df["engine_path"] = inv_df["key"]
-        return inv_df[["date", "engine_path", "gdal_path"]]
+        return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]
 
     def sync_inventory(self, df, tmp_base_dir):
         # Deleting /raw dir where data will be synced
