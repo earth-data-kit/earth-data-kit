@@ -92,6 +92,19 @@ class DataSet:
 
     @decorators.log_time
     @decorators.log_init
+    def discover(self):
+        # TODO: Add docstring
+        self.find_tiles()
+        self.filter_tiles()
+
+        bands_df = self.get_all_bands()
+        by = ["band_idx", "description", "dtype"]
+        distinct_bands = bands_df.groupby(by=by).size().reset_index()
+
+        self.bands = distinct_bands[by]
+
+    @decorators.log_time
+    @decorators.log_init
     def find_tiles(self):
         df = self.engine.create_inventory(
             self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
@@ -151,8 +164,6 @@ class DataSet:
         Returns:
             pd.DataFrame: Dataframe with band indexes, name and datatype
         """
-        self.find_tiles()
-        self.filter_tiles()
         bands_df = self.get_all_bands()
         by = ["band_idx", "description", "dtype"]
         distinct_bands = bands_df.groupby(by=by).size().reset_index()
@@ -209,9 +220,9 @@ class DataSet:
         return path
 
     def extract_band(self, tile):
-        vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{'.'.join(tile.local_path.split('/')[-1].split('.')[:-1])}-band-{tile.band_idx}.vrt"
+        vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{'.'.join(tile.gdal_path.split('/')[-1].split('.')[:-1])}-band-{tile.band_idx}.vrt"
         # Creating vrt for every tile extracting the correct band required and in the correct order
-        buildvrt_cmd = f"gdalbuildvrt -b {tile.band_idx} {vrt_path} {tile.local_path}"
+        buildvrt_cmd = f"gdalbuildvrt -b {tile.band_idx} {vrt_path} {tile.gdal_path}"
         os.system(buildvrt_cmd)
         return vrt_path
 
@@ -292,8 +303,9 @@ class DataSet:
 
         os.system(convert_cmd)
 
-    def to_vrts(self, bands):
+    def to_vrts(self, destination, bands):
         """
+        # TODO: Update docstrings
         Stitches the scene files together according to the band arrangement provided by the user.
         Internally uses gdalwarp. Currently supported gdalwarp options are
 
@@ -315,28 +327,25 @@ class DataSet:
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
 
         # df contains all the tiles along with local paths
-        df = pd.read_csv(self.local_inventory)
+        df = pd.read_csv(self.filtered_inventory)
 
         # bands_df contains all the bands of all the tiles along with dates
         bands_df = self.get_all_bands()
-
-        # We add local_path to bands_df. Also len(bands_df) >= len(df) so number of rows after the below statement will remain same
-        bands_df = bands_df.merge(
-            df[["engine_path", "local_path"]],
-            how="left",
-            left_on="engine_path",
-            right_on="engine_path",
-        )
 
         # Now we filter bands based on user supplied bands
         bands_df = bands_df[bands_df["description"].isin(bands)]
 
         outputs_by_dates = bands_df.groupby(by=["date"])
         output_vrts = []
+
+        # Makes sure final output destination exists
+        helpers.make_sure_dir_exists("/".join(destination.split("/")[:-1]))
+
         # Then we iterate over every output, create vrt and gti index for that output
         for date, tiles in outputs_by_dates:
+            # TODO: Add multiprocessing here to add give some performance boost
             curr_date = date[0]
-            # First we extract all the required bands using a vrt which will be in that op
+            # First we extract all the required bands using a vrt which will be in that output
             for tile in tiles.itertuples():
                 vrt_path = self.extract_band(tile)
                 tiles.at[tile.Index, "vrt_path"] = vrt_path
@@ -346,102 +355,13 @@ class DataSet:
             # We also store all the band level mosaics we are creating to be later stacked together in a vrt
             band_mosaics = self.create_band_mosaic(tiles, curr_date, bands)
 
-            # Then we line up the bands in a single vrt file, this is stacking
+            # Then we line up the bands in a single vrt file, this is stacking bands on top of each other
             output_vrt = self.stack_band_mosaics(band_mosaics, curr_date)
 
             # Setting output band descriptions
             geo.set_band_descriptions(output_vrt, bands)
 
-            output_vrts.append(output_vrt)
+            # Finally copying the file to destination
+            dest_vrt = curr_date.strftime(destination)
 
-        return outputs_by_dates, output_vrts
-
-    @decorators.log_time
-    @decorators.log_init
-    def to_cog(self, destination, bands, gdal_options={}):
-        """
-        Calls self.to_vrts to create stitched and stacked output files (vrts) and then converts them to COG
-
-        Args:
-            destination (string): Output path for generated files
-            bands (list[string]): Ordered list of bands to output in COGs
-            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
-        """
-        outputs_by_dates, output_vrts = self.to_vrts(bands)
-        idx = 0
-
-        dest_cogs = []
-        for date, _ in outputs_by_dates:
-            curr_date = date[0]
-            dest_cogs.append(curr_date.strftime(destination))
-        dest_cogs = list(set(dest_cogs))
-        output_vrts = list(set(output_vrts))
-
-        if len(dest_cogs) != len(output_vrts):
-            raise Exception("Temporal frequency mismatch")
-
-        executor = concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_processpool_workers()
-        )
-
-        for idx in range(len(dest_cogs)):
-            src = output_vrts[idx]
-            dest = dest_cogs[idx]
-
-            executor.submit(self.convert_vrt, src, dest, "COG", gdal_options)
-
-        executor.shutdown(wait=True)
-
-    @decorators.log_time
-    @decorators.log_init
-    def to_zarr(self, destination, bands, gdal_options={}):
-        """
-        Calls self.to_vrts to create stitched and stacked output files (vrts) and converts them to Zarrs.
-        First vrts are converted to COGs, then read and combined using rioxarray and xarray.
-
-        Args:
-            destination (string): Output path for generated files
-            bands (list[string]): Ordered list of bands to output in band dimension
-            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
-        """
-        outputs_by_dates, output_vrts = self.to_vrts(bands)
-
-        executor = concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_processpool_workers()
-        )
-        date_wise_cogs = []
-        output_vrts = list(set(output_vrts))
-
-        for idx in range(len(output_vrts)):
-            src = output_vrts[idx]
-            dest = src.replace(".vrt", ".tif")
-            date_wise_cogs.append(dest)
-            executor.submit(self.convert_vrt, src, dest, "COG", gdal_options)
-
-        executor.shutdown(wait=True)
-
-        date_index = []
-        for date, _ in outputs_by_dates:
-            curr_date = date[0]
-            # TODO: Reducing date to dd-mm-yyyy by making time part as 0.
-            # This means we are loosing multiple images in a single day.
-            # This was found when running JAXA-ALOS project from google earth engine. It had three images for a single day.
-            # For now think it's okay, needs to be checked
-            date_index.append(curr_date.strftime("%d-%m-%Y"))
-        date_index = list(set(date_index))
-
-        das = []
-
-        for idx in range(len(date_wise_cogs)):
-            da = rio.open_rasterio(f"{date_wise_cogs[idx]}")
-            das.append(da)
-
-        # Concat all date wise data-arrays
-        da = xr.concat(das, pd.DatetimeIndex(date_index, name="time"))
-
-        # Converting data array to data set
-        ds = da.to_dataset(name=self.id, promote_attrs=True)
-
-        # Finally converting to zarr
-        # * Writes the dataset, meaning user will have to do ds[self.id] to get the data array
-        ds.to_zarr(destination, mode="w")
+            os.system(f"cp {output_vrt} {dest_vrt}")
