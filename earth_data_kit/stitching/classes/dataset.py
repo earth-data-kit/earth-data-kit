@@ -16,8 +16,8 @@ import shapely.geometry
 import pyproj
 import fiona
 
-fiona.drvsupport.supported_drivers["kml"] = "rw"
-fiona.drvsupport.supported_drivers["KML"] = "rw"
+fiona.drvsupport.supported_drivers["kml"] = "rw" # type: ignore
+fiona.drvsupport.supported_drivers["KML"] = "rw" # type: ignore
 
 
 logger = logging.getLogger(__name__)
@@ -137,13 +137,13 @@ class DataSet:
         projection = df["projection"].iloc[0]
         # Add the extent geo-series and set projection
         extent = gpd.GeoSeries(
-            df.apply(helpers.polygonise_2Dcells, axis=1),
+            df.apply(helpers.polygonise_2Dcells, axis=1), # type: ignore
             crs=pyproj.CRS.from_user_input(projection),
         )
         reprojected_extent = extent.to_crs(epsg=4326)
 
         # Get polygon from user's bbox
-        bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)
+        bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True) # type: ignore
 
         # Perform intersection and filtering
         intersects = reprojected_extent.intersects(bbox)
@@ -172,7 +172,7 @@ class DataSet:
         bands_df = pd.DataFrame()
 
         for df_row in df.itertuples():
-            _df = pd.DataFrame(ast.literal_eval(df_row.bands))
+            _df = pd.DataFrame(ast.literal_eval(df_row.bands)) # type: ignore
             _df["tile_index"] = df_row.Index
             bands_df = pd.concat([_df, bands_df], axis=0)
 
@@ -287,7 +287,7 @@ class DataSet:
         r = self.get_gdal_option(gdal_options, "r")
         # -t_srs {srs_def}  {src} {dest}
         # TODO: Add more optimizations
-        convert_cmd = f"gdalwarp -of {of} -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite -multi -wo NUM_THREADS=ALL_CPUS"
+        convert_cmd = f"gdalwarp -of {of} -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite -multi -wo NUM_THREADS=ALL_CPUS" # type: ignore
 
         if t_srs:
             convert_cmd = f"{convert_cmd} -t_srs {t_srs}"
