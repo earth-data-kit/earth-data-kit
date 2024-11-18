@@ -1,2 +1,2 @@
-engines_supported = ["s3", "earth_engine"]
-gdalwarp_opts_supported = ["-t_srs", "-tr", "-r"]
+ENGINES_SUPPORTED = ["s3", "earth_engine"]
+GDALWARP_OPTS_SUPPORTED = ["-t_srs", "-tr", "-r"]

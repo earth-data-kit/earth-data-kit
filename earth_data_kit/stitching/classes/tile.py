@@ -112,7 +112,7 @@ class Tile:
                 {
                     "band_idx": i,
                     "description": band.GetDescription(),
-                    "dtype": band.DataType,
+                    "dtype": gdal.GetDataTypeName(band.DataType),
                     "x_size": band.XSize,
                     "y_size": band.YSize,
                 }

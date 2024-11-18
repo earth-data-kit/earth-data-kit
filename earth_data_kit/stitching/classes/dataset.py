@@ -18,8 +18,6 @@ import earth_data_kit.stitching.classes.tile as tile
 import shapely.geometry
 import pyproj
 import fiona
-import Levenshtein as levenshtein
-import json
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"
 fiona.drvsupport.supported_drivers["KML"] = "rw"
@@ -228,7 +226,7 @@ class DataSet:
         return vrt_path
 
     def create_band_mosaic(self, tiles, date, bands):
-        date_str = date.strftime("%d-%b-%Y")
+        date_str = date.strftime("%Y%m%d%H%M%S")
         band_mosaics = []
         for idx in range(len(bands)):
             current_bands_df = tiles[tiles["description"] == bands[idx]]
@@ -254,7 +252,7 @@ class DataSet:
         return band_mosaics
 
     def stack_band_mosaics(self, band_mosaics, date):
-        date_str = date.strftime("%d-%b-%Y")
+        date_str = date.strftime("%Y%m%d%H%M%S")
         output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.vrt"
         output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.txt"
         pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
@@ -289,7 +287,8 @@ class DataSet:
         tr = self.get_gdal_option(gdal_options, "tr")
         r = self.get_gdal_option(gdal_options, "r")
         # -t_srs {srs_def}  {src} {dest}
-        convert_cmd = f"gdalwarp -of {of} -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite"
+        # TODO: Add more optimizations
+        convert_cmd = f"gdalwarp -of {of} -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite -multi -wo NUM_THREADS=ALL_CPUS"
 
         if t_srs:
             convert_cmd = f"{convert_cmd} -t_srs {t_srs}"
@@ -304,7 +303,18 @@ class DataSet:
 
         os.system(convert_cmd)
 
-    def to_vrts(self, destination, bands):
+    def to_cogs(self):
+        # TODO: Add more params like gdal_options
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        ) as executor:
+            for ov in self.output_vrts:
+                executor.submit(
+                    self.convert_vrt, ov, ov.replace(".vrt", ".tif"), "COG", {}
+                )
+            executor.shutdown(wait=True)
+
+    def to_vrts(self, bands):
         """
         # TODO: Update docstrings
         Stitches the scene files together according to the band arrangement provided by the user.
@@ -324,11 +334,11 @@ class DataSet:
             pd.DataFrameGroupBy[tuple]: Dataframe with output vrt path, output hash and tuple of all the tile files to be combined
             list[string]: Final mosaiced and stacked vrt paths
         """
+
+        self.output_vrts = []
+
         # Making sure pre-processing directory exists
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
-
-        # df contains all the tiles along with local paths
-        df = pd.read_csv(self.filtered_inventory)
 
         # bands_df contains all the bands of all the tiles along with dates
         bands_df = self.get_all_bands()
@@ -337,11 +347,6 @@ class DataSet:
         bands_df = bands_df[bands_df["description"].isin(bands)]
 
         outputs_by_dates = bands_df.groupby(by=["date"])
-        output_vrts = []
-
-        # Makes sure final output destination exists
-        helpers.make_sure_dir_exists("/".join(destination.split("/")[:-1]))
-
         # Then we iterate over every output, create vrt and gti index for that output
         for date, tiles in outputs_by_dates:
             # TODO: Add multiprocessing here to add give some performance boost
@@ -362,7 +367,4 @@ class DataSet:
             # Setting output band descriptions
             geo.set_band_descriptions(output_vrt, bands)
 
-            # Finally copying the file to destination
-            dest_vrt = curr_date.strftime(destination)
-
-            os.system(f"cp {output_vrt} {dest_vrt}")
+            self.output_vrts.append(output_vrt)

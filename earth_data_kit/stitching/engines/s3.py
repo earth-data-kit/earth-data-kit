@@ -121,7 +121,9 @@ class S3:
             inv_df.at[in_row.Index, "unix_path"] = patterns_df["unix_path"][
                 max_score_idx
             ]
-            inv_df.at[in_row.Index, "tile_name"] = ".".join(inv_df.at[in_row.Index, "key"].split("/")[-1].split(".")[:-1])
+            inv_df.at[in_row.Index, "tile_name"] = ".".join(
+                inv_df.at[in_row.Index, "key"].split("/")[-1].split(".")[:-1]
+            )
 
         # Adding gdal_path
         inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")

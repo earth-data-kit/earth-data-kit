@@ -10,6 +10,8 @@
         * This fills ds.bands with band configuration of the dataset
       - ds.to_vrts()
         * This creates timestamp wise vrts
+      - ds.to_cogs()
+        * This converts those vrts to COGs
   * edk.xarray
     * Functions
       - edk.xarray.open_dataset()
