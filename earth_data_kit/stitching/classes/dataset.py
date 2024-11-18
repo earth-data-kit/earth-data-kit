@@ -2,10 +2,7 @@ import pandas as pd
 import ast
 import geopandas as gpd
 import logging
-import re
-import rioxarray as rio
-import xarray as xr
-import copy
+from osgeo import osr
 import os
 from shapely.geometry.polygon import orient
 from earth_data_kit.stitching import geo, helpers
@@ -39,7 +36,7 @@ class DataSet:
             engine (string): Remote datasource engine, accepted values - ``s3``
             clean (bool, optional): Whether to clean the tmp directory before stitching. Defaults to False.
         """
-        if engine not in constants.engines_supported:
+        if engine not in constants.ENGINES_SUPPORTED:
             raise Exception(f"{engine} not supported")
 
         self.id = id
@@ -96,10 +93,12 @@ class DataSet:
         self.filter_tiles()
 
         bands_df = self.get_all_bands()
-        by = ["band_idx", "description", "dtype"]
+        by = ["band_idx", "description", "dtype", "x_res", "y_res", "projection"]
         distinct_bands = bands_df.groupby(by=by).size().reset_index()
 
-        self.bands = distinct_bands[by]
+        distinct_bands["crs"] = distinct_bands.apply(lambda x: "EPSG:" + osr.SpatialReference(x.projection).GetAttrValue('AUTHORITY',1), axis=1)
+
+        self.bands = distinct_bands[["band_idx", "description", "dtype", "x_res", "y_res", "crs"]]
 
     @decorators.log_time
     @decorators.log_init
@@ -265,7 +264,7 @@ class DataSet:
         return output_vrt
 
     def get_gdal_option(self, opts, opt):
-        if opt in constants.gdalwarp_opts_supported and opt in opts:
+        if opt in constants.GDALWARP_OPTS_SUPPORTED and opt in opts:
             return opts[opt]
         return None
 
@@ -305,6 +304,7 @@ class DataSet:
 
     def to_cogs(self):
         # TODO: Add more params like gdal_options
+        # TODO: Test parallel processing, seems to be not working
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=helpers.get_processpool_workers()
         ) as executor:

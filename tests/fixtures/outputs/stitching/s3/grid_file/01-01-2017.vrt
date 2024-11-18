@@ -1,0 +1,26 @@
+<VRTDataset rasterXSize="2400" rasterYSize="2400">
+  <SRS dataAxisToSRSAxisMapping="1,2">PROJCS["unnamed",GEOGCS["Unknown datum based upon the custom spheroid",DATUM["Not specified (based on custom spheroid)",SPHEROID["Custom spheroid",6371007.181,0]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]]],PROJECTION["Sinusoidal"],PARAMETER["longitude_of_center",0],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH]]</SRS>
+  <GeoTransform>  1.1119505196670000e+06,  4.6331271652749990e+02,  0.0000000000000000e+00,  5.5597525983330002e+06,  0.0000000000000000e+00, -4.6331271652750013e+02</GeoTransform>
+  <VRTRasterBand dataType="Int16" band="1">
+    <Description>Nadir_Reflectance_Band7</Description>
+    <NoDataValue>32767</NoDataValue>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">01-Jan-2017-Nadir_Reflectance_Band7.gti</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SrcRect xOff="0" yOff="0" xSize="2400" ySize="2400" />
+      <DstRect xOff="0" yOff="0" xSize="2400" ySize="2400" />
+      <NODATA>32767</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="2">
+    <Description>Nadir_Reflectance_Band3</Description>
+    <NoDataValue>32767</NoDataValue>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">01-Jan-2017-Nadir_Reflectance_Band3.gti</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SrcRect xOff="0" yOff="0" xSize="2400" ySize="2400" />
+      <DstRect xOff="0" yOff="0" xSize="2400" ySize="2400" />
+      <NODATA>32767</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+</VRTDataset>

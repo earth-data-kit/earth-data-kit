@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from osgeo import gdal
 import pathlib
 from osgeo_utils import gdalcompare
+import time
 
 CONFIG_FILE_PATH = "tests/config.env"
 load_dotenv(CONFIG_FILE_PATH)
@@ -28,7 +29,7 @@ def fn(x):
 
 def test_grid_file():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF"
-    destination = f"{OUTPUT_BASE_PATH}/modis-pds/%d-%m-%Y-b03_7.tif"
+    destination = f"{OUTPUT_BASE_PATH}/modis-pds/%d-%m-%Y.vrt"
     grid_fp = "tests/fixtures/modis.kml"
 
     bbox = country_bounding_boxes["AL"]
@@ -48,30 +49,23 @@ def test_grid_file():
     # Setting spatial extent
     ds.set_spacebounds(bbox[1], grid_fp, fn)
 
-    # Getting distinct bands
-    bands = ds.get_distinct_bands()
+    # Discover catalogue
+    ds.discover()
 
-    # Syncing data
-    ds.sync()
-
-    # Stitching data together as COGs
-    ds.to_cog(
-        destination,
-        bands=[
-            "Nadir_Reflectance_Band3",
-            "Nadir_Reflectance_Band7",
-        ],
+    # Stitching data together as VRTs
+    ds.to_vrts(
+        destination, bands=["Nadir_Reflectance_Band7", "Nadir_Reflectance_Band3"]
     )
 
     golden_files = [
-        f"tests/fixtures/outputs/stitching/s3/grid_file/01-01-2017-b03_7.tif",
-        f"tests/fixtures/outputs/stitching/s3/grid_file/02-01-2017-b03_7.tif",
+        f"tests/fixtures/outputs/stitching/s3/grid_file/01-01-2017.vrt",
+        f"tests/fixtures/outputs/stitching/s3/grid_file/02-01-2017.vrt",
     ]
     new_files = [
-        f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017-b03_7.tif",
-        f"{OUTPUT_BASE_PATH}/modis-pds/02-01-2017-b03_7.tif",
+        f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017.vrt",
+        f"{OUTPUT_BASE_PATH}/modis-pds/02-01-2017.vrt",
     ]
-
+    time.sleep(2)
     for i in range(len(golden_files)):
         assert (
             gdalcompare.compare_db(gdal.Open(golden_files[i]), gdal.Open(new_files[i]))
