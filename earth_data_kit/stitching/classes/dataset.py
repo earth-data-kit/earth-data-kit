@@ -225,7 +225,7 @@ class DataSet:
         return vrt_path
 
     def create_band_mosaic(self, tiles, date, bands):
-        date_str = date.strftime("%Y%m%d%H%M%S")
+        date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
         for idx in range(len(bands)):
             current_bands_df = tiles[tiles["description"] == bands[idx]]
@@ -251,7 +251,7 @@ class DataSet:
         return band_mosaics
 
     def stack_band_mosaics(self, band_mosaics, date):
-        date_str = date.strftime("%Y%m%d%H%M%S")
+        date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.vrt"
         output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.txt"
         pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
