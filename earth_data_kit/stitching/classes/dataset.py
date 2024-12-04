@@ -14,6 +14,7 @@ import concurrent.futures
 import earth_data_kit.stitching.classes.tile as tile
 import shapely.geometry
 import pyproj
+import numpy as np
 import fiona
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
@@ -93,14 +94,16 @@ class DataSet:
         self.filter_tiles()
 
         bands_df = self.get_all_bands()
-        by = ["band_idx", "description", "dtype", "x_res", "y_res", "projection"]
-        distinct_bands = bands_df.groupby(by=by).size().reset_index()
-
-        distinct_bands["crs"] = distinct_bands.apply(
+        bands_df["crs"] = bands_df.apply(
             lambda x: "EPSG:"
             + osr.SpatialReference(x.projection).GetAttrValue("AUTHORITY", 1),
             axis=1,
         )
+
+        by = ["band_idx", "description", "dtype", "x_res", "y_res", "crs"]
+        bands_df["x_res"] = bands_df["x_res"].astype(np.float32)
+        bands_df["y_res"] = bands_df["y_res"].astype(np.float32)
+        distinct_bands = bands_df.groupby(by=by).size().reset_index()
 
         self.bands = distinct_bands[
             ["band_idx", "description", "dtype", "x_res", "y_res", "crs"]
