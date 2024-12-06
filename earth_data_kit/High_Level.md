@@ -38,4 +38,7 @@
     4. ESGF - https://esgf.llnl.gov/ - *Planned*
   * Output formats
     1. VRTs
+    2. COGs
 * xarray backend - https://docs.xarray.dev/en/stable/internals/how-to-add-new-backend.html#rst-backend-entrypoint
+* xarray-ray integration - https://docs.xarray.dev/en/stable/internals/chunked-arrays.html#internals-chunkedarrays
+* xarray-ramba - https://github.com/Python-for-HPC/ramba
