@@ -56,7 +56,7 @@ class EarthEngine:
                         f'{base_path}/{row.engine_path}-{bands[b_idx]["band_idx"]}.tif'
                     )
 
-                    cmd = f'GOOGLE_APPLICATION_CREDENTIALS={os.getenv("GOOGLE_APPLICATION_CREDENTIALS")} gdal_translate -b {bands[b_idx]["band_idx"]} {row.gdal_path} {single_band_fp} -co SPARSE_OK=TRUE -co BIGTIFF=YES -co NUM_THREADS=ALL_CPUS'
+                    cmd = f'GOOGLE_APPLICATION_CREDENTIALS={self.app_creds} gdal_translate -b {bands[b_idx]["band_idx"]} {row.gdal_path} {single_band_fp} -co SPARSE_OK=TRUE -co BIGTIFF=YES -co NUM_THREADS=ALL_CPUS'
                     base_folder = "/".join(single_band_fp.split("/")[:-1])
                     helpers.make_sure_dir_exists(base_folder)
 

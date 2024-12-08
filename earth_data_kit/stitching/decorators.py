@@ -38,7 +38,7 @@ def deprecated(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         logger.warn(
-            "Function {} will be deprecated. Use to_vrts instead".format(func.__name__)
+            "Function {} will be deprecated.".format(func.__name__)
         )
         result = func(*args, **kwargs)
         return result
