@@ -14,6 +14,7 @@ func list_files_recursively(in_paths []string, tmp_base_path string) []string {
 	custom_in_paths := create_file_paths(in_paths)
 
 	// Listing single level from s3 till first wildcard
+	// TODO: Add size of a wait group, think it's running on a lot of threads
 	var s3_wg sync.WaitGroup
 
 	s3_wg.Add(len(custom_in_paths))

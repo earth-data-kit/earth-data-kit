@@ -2,6 +2,7 @@ from osgeo import gdal
 import logging
 import pandas as pd
 import earth_data_kit.stitching.decorators as decorators
+import json
 
 gdal.UseExceptions()
 
@@ -9,9 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class Tile:
-    def __init__(self, engine_path, gdal_path) -> None:
+    def __init__(self, engine_path, gdal_path, date, tile_name) -> None:
         self.engine_path = engine_path
         self.gdal_path = gdal_path
+        self.date = date
+        self.tile_name = tile_name
 
     @staticmethod
     def to_df(tiles):
@@ -27,6 +30,7 @@ class Tile:
     def from_dict(
         engine_path,
         gdal_path,
+        date,
         geo_transform,
         x_min,
         x_max,
@@ -37,8 +41,9 @@ class Tile:
         projection,
         local_path,
         bands,
+        tile_name,
     ):
-        t = Tile(engine_path, gdal_path)
+        t = Tile(engine_path, gdal_path, date, tile_name)
         t.set_metadata(
             {
                 "x_min": x_min,
@@ -67,7 +72,7 @@ class Tile:
         y_min = y_max + geo_transform[5] * ds.RasterYSize
         projection = ds.GetProjection()
 
-        bands = self.get_bands(ds)
+        bands = json.dumps(self.get_bands(ds))
         o = {
             "geo_transform": geo_transform,
             "x_min": x_min,
@@ -107,7 +112,7 @@ class Tile:
                 {
                     "band_idx": i,
                     "description": band.GetDescription(),
-                    "dtype": band.DataType,
+                    "dtype": gdal.GetDataTypeName(band.DataType),
                     "x_size": band.XSize,
                     "y_size": band.YSize,
                 }
