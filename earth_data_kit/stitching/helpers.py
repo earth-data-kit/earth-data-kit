@@ -3,6 +3,8 @@ import shutil
 from shapely import Polygon
 import hashlib
 import logging
+import json
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +15,10 @@ def make_sure_dir_exists(dir):
 
 
 def get_processpool_workers():
-    return (os.cpu_count() != None) if (os.cpu_count() - 2) else 1
+    if os.cpu_count() - 2 < 1:
+        return 1
+    else:
+        return os.cpu_count() - 2
 
 
 def get_threadpool_workers():
@@ -43,3 +48,8 @@ def polygonise_2Dcells(df_row):
 
 def cheap_hash(input):
     return hashlib.md5(input.encode("utf-8")).hexdigest()[:6]
+
+
+def json_to_series(text):
+    keys, values = zip(*[item for dct in json.loads(text) for item in dct.items()])
+    return pd.Series(values, index=keys)
