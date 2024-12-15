@@ -5,7 +5,6 @@ from osgeo import ogr
 import pandas as pd
 import earth_data_kit.stitching.helpers as helpers
 import json
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
