@@ -111,7 +111,7 @@ Algorithm -
 1. First finds all scene files kept in the remote dataset using the `.scan` method. Takes in the `source`, `time_opts` and `space_opts`
 2. Once all the scene files are fetched we use gdal to get the metadata and create `band` model instances.
 
-`.to_vrts()` - Is typically called after discover method and can be used to combine dataset into a singlea
+`.to_vrts()` - Is typically called after discover method and can be used to combine dataset into a single one
 Algorithm - 
 * We list all the tiles and get band data from every tile using gdal.
 * This is stored in tiles and bands models.

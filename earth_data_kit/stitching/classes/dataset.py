@@ -24,15 +24,15 @@ fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
 logger = logging.getLogger(__name__)
 
 
-class DataSet:
+class Dataset:
     """
     The main class implemented by stitching module. Acts as a wrapper above a single remote dataset
     """
 
-    def __init__(self, id, source, engine, clean=False) -> None:
+    def __init__(self, name, source, engine, clean=False) -> None:
         """
         Args:
-            id (string): User provided unique string
+            name (string): User provided name, should be unique across datasets being opened
             source (string): Source path, Read more :ref:`Defining source`
             engine (string): Remote datasource engine, accepted values - ``s3``
             clean (bool, optional): Whether to clean the tmp directory before stitching. Defaults to False.
@@ -40,19 +40,37 @@ class DataSet:
         if engine not in constants.ENGINES_SUPPORTED:
             raise Exception(f"{engine} not supported")
 
-        self.id = id
+        self.name = name
+        self.time_opts = {}
+        self.space_opts = {}
         if engine == "s3":
             self.engine = s3.S3()
         if engine == "earth_engine":
             self.engine = earth_engine.EarthEngine()
         self.source = source
-        self.patterns = []
-        self.tiles = []
+
         self.complete_inventory = f"{self.get_ds_tmp_path()}/complete-inventory.csv"
         self.filtered_inventory = f"{self.get_ds_tmp_path()}/filtered-inventory.csv"
         self.local_inventory = f"{self.get_ds_tmp_path()}/local-inventory.csv"
         if clean:
             helpers.delete_dir(f"{self.get_ds_tmp_path()}")
+
+    def __str__(self):
+        s = (
+            "edk.Dataset\n"
+            "\tname: {}\n"
+            "\tsource: {}\n"
+            "\tengine: {}\n"
+            "\ttime_opts: {}\n"
+            "\tspace_opts: {}".format(
+                self.name,
+                self.source,
+                self.engine.name,
+                (self.time_opts.get("start", None), self.time_opts.get("end", None)),
+                self.space_opts.get("bbox", None),
+            )
+        )
+        return s
 
     def set_timebounds(self, start, end):
         """
@@ -112,9 +130,10 @@ class DataSet:
     @decorators.log_time
     @decorators.log_init
     def find_tiles(self):
-        df = self.engine.create_inventory(
+        df = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
         )
+
         futures = []
         tiles = []
         with concurrent.futures.ThreadPoolExecutor(
@@ -140,22 +159,17 @@ class DataSet:
         # Not filtering for time dimension as we are already pin pointing files
 
         # Filter spatially
-        # * Below function assumes the projection is gonna be same which can be
-        # * usually true for a single set of tiles
-        # Getting the projection from first row
-        projection = df["projection"].iloc[0]
         # Add the extent geo-series and set projection
         extent = gpd.GeoSeries(
             df.apply(helpers.polygonise_2Dcells, axis=1),  # type: ignore
-            crs=pyproj.CRS.from_user_input(projection),
+            crs="EPSG:4326",
         )
-        reprojected_extent = extent.to_crs(epsg=4326)
 
         # Get polygon from user's bbox
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
 
         # Perform intersection and filtering
-        intersects = reprojected_extent.intersects(bbox)
+        intersects = extent.intersects(bbox)
         df = df[intersects == True]
 
         filtered_inventory = f"{self.filtered_inventory}"
@@ -209,20 +223,8 @@ class DataSet:
         bands_df["date"] = pd.to_datetime(bands_df["date"])
         return bands_df
 
-    @decorators.log_time
-    @decorators.log_init
-    def sync(self):
-        """
-        Downloads the relevant scene files, based on temporal and spatial bounds provided by ``set_timebounds`` and ``set_spacebounds`` methods
-        """
-        # Reading the filtered inventory
-        df = pd.read_csv(self.filtered_inventory)
-        # Syncing files to local
-        df = self.engine.sync_inventory(df, self.get_ds_tmp_path())
-        df.to_csv(f"{self.local_inventory}", index=False, header=True)
-
     def get_ds_tmp_path(self):
-        path = f"{helpers.get_tmp_dir()}/{self.id}"
+        path = f"{helpers.get_tmp_dir()}/{self.name}"
         helpers.make_sure_dir_exists(path)
         return path
 

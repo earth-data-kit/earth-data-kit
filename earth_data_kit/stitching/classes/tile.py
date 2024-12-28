@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 import earth_data_kit.stitching.decorators as decorators
 import json
+import uuid
 
 gdal.UseExceptions()
 
@@ -38,6 +39,10 @@ class Tile:
         y_max,
         x_res,
         y_res,
+        wgs_x_min,
+        wgs_y_min,
+        wgs_x_max,
+        wgs_y_max,
         projection,
         local_path,
         bands,
@@ -52,6 +57,10 @@ class Tile:
                 "y_max": y_max,
                 "x_res": x_res,
                 "y_res": y_res,
+                "wgs_x_min": wgs_x_min,
+                "wgs_y_min": wgs_y_min,
+                "wgs_x_max": wgs_x_max,
+                "wgs_y_max": wgs_y_max,
                 "geo_transform": geo_transform,
                 "projection": projection,
                 "bands": bands,
@@ -73,6 +82,18 @@ class Tile:
         projection = ds.GetProjection()
 
         bands = json.dumps(self.get_bands(ds))
+
+        # Getting reprojected raster's extent. This is done so that we can filter later on
+        warped_ds = gdal.Warp(
+            f"/vsimem/{uuid.uuid4()}.tif", gdal.Open(self.gdal_path), dstSRS="EPSG:4326"
+        )
+
+        wgs_geo_transform = warped_ds.GetGeoTransform()
+        wgs_x_min = wgs_geo_transform[0]
+        wgs_y_max = wgs_geo_transform[3]
+        wgs_x_max = wgs_x_min + wgs_geo_transform[1] * warped_ds.RasterXSize
+        wgs_y_min = wgs_y_max + wgs_geo_transform[5] * warped_ds.RasterYSize
+        warped_ds = None
         o = {
             "geo_transform": geo_transform,
             "x_min": x_min,
@@ -82,6 +103,10 @@ class Tile:
             "x_res": geo_transform[1],
             "y_res": geo_transform[5],
             "projection": projection,
+            "wgs_x_min": wgs_x_min,
+            "wgs_y_min": wgs_y_min,
+            "wgs_x_max": wgs_x_max,
+            "wgs_y_max": wgs_y_max,
             "bands": bands,
         }
         return o
@@ -96,6 +121,11 @@ class Tile:
         self.y_res = metadata["y_res"]
         self.projection = metadata["projection"]
         self.bands = metadata["bands"]
+
+        self.wgs_x_min = metadata["wgs_x_min"]
+        self.wgs_x_max = metadata["wgs_x_max"]
+        self.wgs_y_min = metadata["wgs_y_min"]
+        self.wgs_y_max = metadata["wgs_y_max"]
 
     def get_local_path(self):
         return self.local_path
