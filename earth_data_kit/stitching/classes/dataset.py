@@ -49,9 +49,7 @@ class Dataset:
             self.engine = earth_engine.EarthEngine()
         self.source = source
 
-        self.complete_inventory = f"{self.get_ds_tmp_path()}/complete-inventory.csv"
-        self.filtered_inventory = f"{self.get_ds_tmp_path()}/filtered-inventory.csv"
-        self.local_inventory = f"{self.get_ds_tmp_path()}/local-inventory.csv"
+        self.catalog_path = f"{self.get_ds_tmp_path()}/catalog.csv"
         if clean:
             helpers.delete_dir(f"{self.get_ds_tmp_path()}")
 
@@ -108,10 +106,47 @@ class Dataset:
     @decorators.log_init
     def discover(self):
         # TODO: Add docstring
-        self.find_tiles()
-        self.filter_tiles()
+        # Calling the .scan method of engine to list all the tiles
+        df = self.engine.scan(
+            self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
+        )
 
-        bands_df = self.get_all_bands()
+        # Fetching metadata of all files
+        futures = []
+        tiles = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            for row in df.itertuples():
+                t = tile.Tile(row.engine_path, row.gdal_path, row.date, row.tile_name)
+                tiles.append(t)
+                futures.append(executor.submit(t.get_metadata))
+
+        for idx in range(len(futures)):
+            future = futures[idx]
+            result = future.result()
+            tiles[idx].set_metadata(result)
+
+        df = tile.Tile.to_df(tiles)
+
+        # Filtering spatially
+        # Add the extent geo-series and set projection
+        extent = gpd.GeoSeries(
+            df.apply(helpers.polygonise_2Dcells, axis=1),  # type: ignore
+            crs="EPSG:4326",
+        )
+
+        # Get polygon from user's bbox
+        bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
+
+        # Perform intersection and filtering
+        intersects = extent.intersects(bbox)
+        df = df[intersects == True]
+
+        catalog_path = f"{self.catalog_path}"
+        df.to_csv(catalog_path, index=False, header=True)
+
+        bands_df = self.__get_all_bands()
         bands_df["crs"] = bands_df.apply(
             lambda x: "EPSG:"
             + osr.SpatialReference(x.projection).GetAttrValue("AUTHORITY", 1),
@@ -127,70 +162,8 @@ class Dataset:
             ["band_idx", "description", "dtype", "x_res", "y_res", "crs"]
         ]
 
-    @decorators.log_time
-    @decorators.log_init
-    def find_tiles(self):
-        df = self.engine.scan(
-            self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
-        )
-
-        futures = []
-        tiles = []
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
-        ) as executor:
-            for row in df.itertuples():
-                t = tile.Tile(row.engine_path, row.gdal_path, row.date, row.tile_name)
-                tiles.append(t)
-                futures.append(executor.submit(t.get_metadata))
-
-            for idx in range(len(futures)):
-                future = futures[idx]
-                result = future.result()
-                tiles[idx].set_metadata(result)
-
-            df = tile.Tile.to_df(tiles)
-            df.to_csv(f"{self.complete_inventory}", header=True, index=False)
-
-    @decorators.log_time
-    @decorators.log_init
-    def filter_tiles(self):
-        df = pd.read_csv(f"{self.complete_inventory}")
-        # Not filtering for time dimension as we are already pin pointing files
-
-        # Filter spatially
-        # Add the extent geo-series and set projection
-        extent = gpd.GeoSeries(
-            df.apply(helpers.polygonise_2Dcells, axis=1),  # type: ignore
-            crs="EPSG:4326",
-        )
-
-        # Get polygon from user's bbox
-        bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
-
-        # Perform intersection and filtering
-        intersects = extent.intersects(bbox)
-        df = df[intersects == True]
-
-        filtered_inventory = f"{self.filtered_inventory}"
-        df.to_csv(filtered_inventory, index=False, header=True)
-
-    @decorators.log_time
-    @decorators.log_init
-    def get_distinct_bands(self):
-        """
-        Reads the metadata from scene files and extract distinct bands available.
-
-        Returns:
-            pd.DataFrame: Dataframe with band indexes, name and datatype
-        """
-        bands_df = self.get_all_bands()
-        by = ["band_idx", "description", "dtype"]
-        distinct_bands = bands_df.groupby(by=by).size().reset_index()
-        return distinct_bands[by]
-
-    def get_all_bands(self):
-        df = pd.read_csv(self.filtered_inventory)
+    def __get_all_bands(self):
+        df = pd.read_csv(self.catalog_path)
 
         bands_df = pd.DataFrame()
 
@@ -352,7 +325,7 @@ class Dataset:
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
 
         # bands_df contains all the bands of all the tiles along with dates
-        bands_df = self.get_all_bands()
+        bands_df = self.__get_all_bands()
 
         # Now we filter bands based on user supplied bands
         bands_df = bands_df[bands_df["description"].isin(bands)]
