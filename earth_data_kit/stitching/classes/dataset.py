@@ -129,7 +129,9 @@ class Dataset:
 
         df = tile.Tile.to_df(tiles)
 
-        # Filtering spatially
+        # Filtering spatially. Doing this by re-projecting raster extent to 4326 and running intersects query with bbox
+        # This is done as raster can be in different coordinates (eg: UTMs) and much easier to convert multiple to 4326,
+        # rather than 4326 to different multiple EPSGs (UTM zones)
         # Add the extent geo-series and set projection
         extent = gpd.GeoSeries(
             df.apply(helpers.polygonise_2Dcells, axis=1),  # type: ignore
@@ -187,6 +189,7 @@ class Dataset:
                     "x_res",
                     "y_res",
                     "projection",
+                    "length_unit",
                 ]
             ],
             left_on="tile_index",
@@ -201,12 +204,22 @@ class Dataset:
         helpers.make_sure_dir_exists(path)
         return path
 
+    def __convert_length_to_meter(self, val, unit):
+        print (val, unit)
+        if (unit == "metre") or (unit == "meter"):
+            return val
+        elif unit == "degree":
+            # TODO: Add degree to meter conversion
+            return val
+
     def extract_band(self, tile):
-        vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{tile.tile_name}-band-{tile.band_idx}.vrt"
-        # Creating vrt for every tile extracting the correct band required and in the correct order
-        buildvrt_cmd = f"gdalbuildvrt -b {tile.band_idx} {vrt_path} {tile.gdal_path}"
-        os.system(buildvrt_cmd)
-        return vrt_path
+        warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{tile.tile_name}-band-{tile.band_idx}-warped.vrt"
+        
+        # Creating warped vrt for every tile extracting the correct band required and in the correct order
+        build_warped_vrt_cmd = f"gdalwarp -tr {self.__convert_length_to_meter(tile.x_res, tile.length_unit)} {self.__convert_length_to_meter(tile.y_res, tile.length_unit)} -t_srs EPSG:3857 -srcnodata '0' -srcband {tile.band_idx} -dstband 1 -et 0 -of VRT -overwrite {tile.gdal_path} {warped_vrt_path}"
+        
+        os.system(build_warped_vrt_cmd)
+        return warped_vrt_path
 
     def create_band_mosaic(self, tiles, date, bands):
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
@@ -226,8 +239,7 @@ class Dataset:
             current_bands_df[["vrt_path"]].to_csv(
                 band_mosaic_file_list, index=False, header=False
             )
-
-            buildgti_cmd = f"gdaltindex -f FlatgeoBuf {band_mosaic_index_path} -gti_filename {band_mosaic_path} -lyr_name {bands[idx]} -write_absolute_path -overwrite --optfile {band_mosaic_file_list}"
+            buildgti_cmd = f"gdaltindex -f FlatgeoBuf {band_mosaic_index_path} -gti_filename {band_mosaic_path} -lyr_name {bands[idx]} -nodata 0 -write_absolute_path -overwrite --optfile {band_mosaic_file_list}"
 
             os.system(buildgti_cmd)
 
@@ -241,7 +253,7 @@ class Dataset:
         pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
             output_vrt_file_list, index=False, header=False
         )
-
+        # TODO: We need to set nodata values
         build_mosaiced_stacked_vrt_cmd = f"gdalbuildvrt -separate {output_vrt} -input_file_list {output_vrt_file_list}"
         os.system(build_mosaiced_stacked_vrt_cmd)
 
@@ -331,19 +343,23 @@ class Dataset:
         bands_df = bands_df[bands_df["description"].isin(bands)]
 
         outputs_by_dates = bands_df.groupby(by=["date"])
+
         # Then we iterate over every output, create vrt and gti index for that output
         for date, tiles in outputs_by_dates:
             # TODO: Add multiprocessing here to add give some performance boost
             curr_date = date[0]
             # First we extract all the required bands using a vrt which will be in that output
-            for tile in tiles.itertuples():
+            _tiles = tiles.copy(deep=True).reset_index(drop=True)
+            for tile in _tiles.itertuples():
                 vrt_path = self.extract_band(tile)
-                tiles.at[tile.Index, "vrt_path"] = vrt_path
+                # vrt gets warped to 3857 to bring all tiles to a consistent resolution
+                # TODO: Later on we can make user pass this information to to_vrts and use it
+                _tiles.at[tile.Index, "vrt_path"] = vrt_path
 
             # At this stage we have single band vrts, now we combine the same bands together create one gti per mosaic.
             # GDAL Raster Tile is done as number of tiles can be a lot more than number of bands
             # We also store all the band level mosaics we are creating to be later stacked together in a vrt
-            band_mosaics = self.create_band_mosaic(tiles, curr_date, bands)
+            band_mosaics = self.create_band_mosaic(_tiles, curr_date, bands)
 
             # Then we line up the bands in a single vrt file, this is stacking bands on top of each other
             output_vrt = self.stack_band_mosaics(band_mosaics, curr_date)

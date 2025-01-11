@@ -15,7 +15,7 @@ class Tile:
         self.engine_path = engine_path
         self.gdal_path = gdal_path
         self.date = date
-        self.tile_name = tile_name
+        self.tile_name = f"{tile_name}-{uuid.uuid4()}"
 
     @staticmethod
     def to_df(tiles):
@@ -44,6 +44,7 @@ class Tile:
         wgs_x_max,
         wgs_y_max,
         projection,
+        length_unit,
         local_path,
         bands,
         tile_name,
@@ -63,6 +64,7 @@ class Tile:
                 "wgs_y_max": wgs_y_max,
                 "geo_transform": geo_transform,
                 "projection": projection,
+                "length_unit": length_unit,
                 "bands": bands,
             }
         )
@@ -80,6 +82,7 @@ class Tile:
         x_max = x_min + geo_transform[1] * ds.RasterXSize
         y_min = y_max + geo_transform[5] * ds.RasterYSize
         projection = ds.GetProjection()
+        length_unit = ds.GetSpatialRef().GetAttrValue("UNIT")
 
         bands = json.dumps(self.get_bands(ds))
 
@@ -108,6 +111,7 @@ class Tile:
             "wgs_x_max": wgs_x_max,
             "wgs_y_max": wgs_y_max,
             "bands": bands,
+            "length_unit": length_unit,
         }
         return o
 
@@ -127,6 +131,8 @@ class Tile:
         self.wgs_y_min = metadata["wgs_y_min"]
         self.wgs_y_max = metadata["wgs_y_max"]
 
+        self.length_unit = metadata["length_unit"]
+
     def get_local_path(self):
         return self.local_path
 
@@ -141,7 +147,9 @@ class Tile:
             bands.append(
                 {
                     "band_idx": i,
-                    "description": band.GetDescription(),
+                    "description": band.GetDescription()
+                    if band.GetDescription() != ""
+                    else "NoDescription",
                     "dtype": gdal.GetDataTypeName(band.DataType),
                     "x_size": band.XSize,
                     "y_size": band.YSize,
