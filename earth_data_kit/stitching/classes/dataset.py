@@ -102,6 +102,24 @@ class Dataset:
         }
         self.space_opts["bbox"] = bbox
 
+    def set_gdal_options(self, options):
+        self.gdal_options = options
+
+    def get_target_resolution(self):
+        for opt in self.gdal_options:
+            if opt.startswith("-tr"):
+                return opt
+
+    def get_target_srs(self):
+        for opt in self.gdal_options:
+            if opt.startswith("-t_srs"):
+                return opt
+
+    def get_srcnodata(self):
+        for opt in self.gdal_options:
+            if opt.startswith("-srcnodata"):
+                return opt
+
     @decorators.log_time
     @decorators.log_init
     def discover(self):
@@ -205,7 +223,6 @@ class Dataset:
         return path
 
     def __convert_length_to_meter(self, val, unit):
-        print (val, unit)
         if (unit == "metre") or (unit == "meter"):
             return val
         elif unit == "degree":
@@ -258,57 +275,6 @@ class Dataset:
         os.system(build_mosaiced_stacked_vrt_cmd)
 
         return output_vrt
-
-    def get_gdal_option(self, opts, opt):
-        if opt in constants.GDALWARP_OPTS_SUPPORTED and opt in opts:
-            return opts[opt]
-        return None
-
-    @decorators.log_time
-    @decorators.log_init
-    def convert_vrt(self, src, dest, of, gdal_options={}):
-        """Important options
-        -te <xmin> <ymin> <xmax> <ymax> - Get from bounding box. Not given to user
-        -te_srs <srs_def> - Specifies the SRS in which to interpret the coordinates given with -te - EPSG:4326
-        -t_srs <srs_def> - Target SRS
-        -tr <xres> <yres> | -tr square - Set output file resolution (in target georeferenced units)
-        -r <resampling_method>
-        """
-        helpers.make_sure_dir_exists("/".join(dest.split("/")[:-1]))
-        # self.bbox = left, bottom, right, top
-        te = self.space_opts["bbox"]
-        te_srs = "EPSG:4326"
-        t_srs = self.get_gdal_option(gdal_options, "t_srs")
-        tr = self.get_gdal_option(gdal_options, "tr")
-        r = self.get_gdal_option(gdal_options, "r")
-        # -t_srs {srs_def}  {src} {dest}
-        # TODO: Add more optimizations
-        convert_cmd = f"gdalwarp -of {of} -te {te[0]} {te[1]} {te[2]} {te[3]} -te_srs {te_srs} -overwrite -multi -wo NUM_THREADS=ALL_CPUS"  # type: ignore
-
-        if t_srs:
-            convert_cmd = f"{convert_cmd} -t_srs {t_srs}"
-
-        if tr:
-            convert_cmd = f"{convert_cmd} -tr {tr}"
-
-        if r:
-            convert_cmd = f"{convert_cmd} -r {r}"
-
-        convert_cmd = f"{convert_cmd} {src} {dest}"
-
-        os.system(convert_cmd)
-
-    def to_cogs(self):
-        # TODO: Add more params like gdal_options
-        # TODO: Test parallel processing, seems to be not working
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_processpool_workers()
-        ) as executor:
-            for ov in self.output_vrts:
-                executor.submit(
-                    self.convert_vrt, ov, ov.replace(".vrt", ".tif"), "COG", {}
-                )
-            executor.shutdown(wait=True)
 
     def to_vrts(self, bands):
         """
