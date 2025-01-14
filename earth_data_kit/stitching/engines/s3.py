@@ -128,4 +128,9 @@ class S3:
         # Adding gdal_path
         inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
         inv_df["engine_path"] = inv_df["key"]
+
+        # Removing extra files created
+        os.remove(inventory_file_path)
+        os.remove(ls_cmds_fp)
+        
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]

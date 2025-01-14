@@ -16,6 +16,7 @@ import shapely.geometry
 import pyproj
 import numpy as np
 import fiona
+import json
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -136,14 +137,20 @@ class Dataset:
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
             for row in df.itertuples():
-                t = tile.Tile(row.engine_path, row.gdal_path, row.date, row.tile_name)
-                tiles.append(t)
-                futures.append(executor.submit(t.get_metadata))
+                futures.append(
+                    executor.submit(
+                        tile.Tile,
+                        row.engine_path,
+                        row.gdal_path,
+                        row.date,
+                        row.tile_name,
+                    )
+                )
 
         for idx in range(len(futures)):
             future = futures[idx]
             result = future.result()
-            tiles[idx].set_metadata(result)
+            tiles.append(result)
 
         df = tile.Tile.to_df(tiles)
 
@@ -166,6 +173,8 @@ class Dataset:
         catalog_path = f"{self.catalog_path}"
         df.to_csv(catalog_path, index=False, header=True)
 
+
+        # Getting distinct bands
         bands_df = self.__get_all_bands()
         bands_df["crs"] = bands_df.apply(
             lambda x: "EPSG:"
@@ -173,22 +182,22 @@ class Dataset:
             axis=1,
         )
 
-        by = ["band_idx", "description", "dtype", "x_res", "y_res", "crs"]
+        by = ["idx", "description", "dtype", "x_res", "y_res", "crs"]
         bands_df["x_res"] = bands_df["x_res"].astype(np.float32)
         bands_df["y_res"] = bands_df["y_res"].astype(np.float32)
         distinct_bands = bands_df.groupby(by=by).size().reset_index()
 
         self.bands = distinct_bands[
-            ["band_idx", "description", "dtype", "x_res", "y_res", "crs"]
+            ["idx", "description", "dtype", "x_res", "y_res", "crs"]
         ]
 
     def __get_all_bands(self):
         df = pd.read_csv(self.catalog_path)
-
+        print (df)
         bands_df = pd.DataFrame()
 
         for df_row in df.itertuples():
-            _df = pd.DataFrame(ast.literal_eval(df_row.bands))  # type: ignore
+            _df = pd.DataFrame(json.loads(df_row.bands))  # type: ignore
             _df["tile_index"] = df_row.Index
             bands_df = pd.concat([_df, bands_df], axis=0)
 
@@ -230,11 +239,11 @@ class Dataset:
             return val
 
     def extract_band(self, tile):
-        warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{tile.tile_name}-band-{tile.band_idx}-warped.vrt"
-        
+        warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{tile.tile_name}-band-{tile.idx}-warped.vrt"
+
         # Creating warped vrt for every tile extracting the correct band required and in the correct order
-        build_warped_vrt_cmd = f"gdalwarp -tr {self.__convert_length_to_meter(tile.x_res, tile.length_unit)} {self.__convert_length_to_meter(tile.y_res, tile.length_unit)} -t_srs EPSG:3857 -srcnodata '0' -srcband {tile.band_idx} -dstband 1 -et 0 -of VRT -overwrite {tile.gdal_path} {warped_vrt_path}"
-        
+        build_warped_vrt_cmd = f"gdalwarp -tr {self.__convert_length_to_meter(tile.x_res, tile.length_unit)} {self.__convert_length_to_meter(tile.y_res, tile.length_unit)} -t_srs EPSG:3857 -srcnodata '0' -srcband {tile.idx} -dstband 1 -et 0 -of VRT -overwrite {tile.gdal_path} {warped_vrt_path}"
+
         os.system(build_warped_vrt_cmd)
         return warped_vrt_path
 
