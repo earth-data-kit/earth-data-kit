@@ -4,16 +4,14 @@ import geopandas as gpd
 import logging
 from osgeo import osr
 import os
-from shapely.geometry.polygon import orient
 from earth_data_kit.stitching import geo, helpers
 import earth_data_kit.stitching.constants as constants
 import earth_data_kit.stitching.decorators as decorators
 import earth_data_kit.stitching.engines.earth_engine as earth_engine
 import earth_data_kit.stitching.engines.s3 as s3
 import concurrent.futures
-import earth_data_kit.stitching.classes.tile as tile
-import shapely.geometry
-import pyproj
+from earth_data_kit.stitching.classes.tile import Tile
+import shapely
 import numpy as np
 import fiona
 import json
@@ -139,7 +137,7 @@ class Dataset:
             for row in df.itertuples():
                 futures.append(
                     executor.submit(
-                        tile.Tile,
+                        Tile,
                         row.engine_path,
                         row.gdal_path,
                         row.date,
@@ -152,106 +150,87 @@ class Dataset:
             result = future.result()
             tiles.append(result)
 
-        df = tile.Tile.to_df(tiles)
-
         # Filtering spatially. Doing this by re-projecting raster extent to 4326 and running intersects query with bbox
         # This is done as raster can be in different coordinates (eg: UTMs) and much easier to convert multiple to 4326,
         # rather than 4326 to different multiple EPSGs (UTM zones)
         # Add the extent geo-series and set projection
-        extent = gpd.GeoSeries(
-            df.apply(helpers.polygonise_2Dcells, axis=1),  # type: ignore
-            crs="EPSG:4326",
-        )
 
         # Get polygon from user's bbox
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
+        intersecting_tiles = []
+        for tile in tiles:
+            tile_bbox = shapely.geometry.box(*tile.get_wgs_extent(), ccw=True)
+            if shapely.intersects(tile_bbox, bbox):
+                intersecting_tiles.append(tile)
 
-        # Perform intersection and filtering
-        intersects = extent.intersects(bbox)
-        df = df[intersects == True]
-
-        catalog_path = f"{self.catalog_path}"
-        df.to_csv(catalog_path, index=False, header=True)
-
-
-        # Getting distinct bands
-        bands_df = self.__get_all_bands()
-        bands_df["crs"] = bands_df.apply(
-            lambda x: "EPSG:"
-            + osr.SpatialReference(x.projection).GetAttrValue("AUTHORITY", 1),
-            axis=1,
+        # Saving catalog
+        pd.DataFrame([t.__dict__ for t in intersecting_tiles]).to_csv(
+            f"{self.catalog_path}", header=True, index=False
         )
+
+        logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
+
+    def get_bands(self):
+        tile_bands = self.__get_tile_bands__()
+        df = pd.DataFrame(tile_bands)
+        df["x_res"] = df.apply(lambda row: row.tile.get_res()[0], axis=1)
+        df["y_res"] = df.apply(lambda row: row.tile.get_res()[1], axis=1)
+        df["crs"] = df.apply(lambda row: row.tile.crs, axis=1)
 
         by = ["idx", "description", "dtype", "x_res", "y_res", "crs"]
-        bands_df["x_res"] = bands_df["x_res"].astype(np.float32)
-        bands_df["y_res"] = bands_df["y_res"].astype(np.float32)
-        distinct_bands = bands_df.groupby(by=by).size().reset_index()
+        df["x_res"] = df["x_res"].astype(np.float32)
+        df["y_res"] = df["y_res"].astype(np.float32)
 
-        self.bands = distinct_bands[
-            ["idx", "description", "dtype", "x_res", "y_res", "crs"]
-        ]
+        return df.groupby(by=by).size().reset_index()[by]
 
-    def __get_all_bands(self):
+    def __get_tile_bands__(self):
+        tiles = self.__get_tiles__()
+
+        tile_bands = []
+        for tile in tiles:
+            for i in range(len(tile.bands)):
+                band = tile.bands[i]
+                band["tile"] = tile
+                tile_bands.append(band)
+
+        return tile_bands
+
+    def __get_tiles__(self):
         df = pd.read_csv(self.catalog_path)
-        print (df)
-        bands_df = pd.DataFrame()
+        df["bands"] = df["bands"].apply(json.loads)
+        df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
+        df["wgs_geo_transform"] = df["wgs_geo_transform"].apply(ast.literal_eval)
+        df["date"] = pd.to_datetime(df["date"])
 
-        for df_row in df.itertuples():
-            _df = pd.DataFrame(json.loads(df_row.bands))  # type: ignore
-            _df["tile_index"] = df_row.Index
-            bands_df = pd.concat([_df, bands_df], axis=0)
-
-        bands_df = bands_df.merge(
-            df[
-                [
-                    "engine_path",
-                    "gdal_path",
-                    "date",
-                    "tile_name",
-                    "geo_transform",
-                    "x_min",
-                    "x_max",
-                    "y_min",
-                    "y_max",
-                    "x_res",
-                    "y_res",
-                    "projection",
-                    "length_unit",
-                ]
-            ],
-            left_on="tile_index",
-            right_index=True,
-        )
-        bands_df.drop(columns=["tile_index"], inplace=True)
-        bands_df["date"] = pd.to_datetime(bands_df["date"])
-        return bands_df
+        tiles = Tile.from_df(df)
+        return tiles
 
     def get_ds_tmp_path(self):
         path = f"{helpers.get_tmp_dir()}/{self.name}"
         helpers.make_sure_dir_exists(path)
         return path
 
-    def __convert_length_to_meter(self, val, unit):
+    def _to_meter(self, val, unit):
         if (unit == "metre") or (unit == "meter"):
             return val
         elif unit == "degree":
             # TODO: Add degree to meter conversion
             return val
 
-    def extract_band(self, tile):
-        warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{tile.tile_name}-band-{tile.idx}-warped.vrt"
+    def __extract_band__(self, band_tile):
+        warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
         # Creating warped vrt for every tile extracting the correct band required and in the correct order
-        build_warped_vrt_cmd = f"gdalwarp -tr {self.__convert_length_to_meter(tile.x_res, tile.length_unit)} {self.__convert_length_to_meter(tile.y_res, tile.length_unit)} -t_srs EPSG:3857 -srcnodata '0' -srcband {tile.idx} -dstband 1 -et 0 -of VRT -overwrite {tile.gdal_path} {warped_vrt_path}"
+        build_warped_vrt_cmd = f"gdalwarp -tr {self._to_meter(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self._to_meter(band_tile.tile.get_res()[1], band_tile.tile.length_unit)} -t_srs EPSG:3857 -srcnodata '0' -srcband {band_tile.idx} -dstband 1 -et 0 -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
 
         os.system(build_warped_vrt_cmd)
         return warped_vrt_path
 
-    def create_band_mosaic(self, tiles, date, bands):
+    def __create_band_mosaic__(self, band_tiles, date, bands):
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
         for idx in range(len(bands)):
-            current_bands_df = tiles[tiles["description"] == bands[idx]]
+            current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
             band_mosaic_path = (
                 f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.gti"
             )
@@ -265,14 +244,14 @@ class Dataset:
             current_bands_df[["vrt_path"]].to_csv(
                 band_mosaic_file_list, index=False, header=False
             )
-            buildgti_cmd = f"gdaltindex -f FlatgeoBuf {band_mosaic_index_path} -gti_filename {band_mosaic_path} -lyr_name {bands[idx]} -nodata 0 -write_absolute_path -overwrite --optfile {band_mosaic_file_list}"
+            buildgti_cmd = f"gdaltindex -f FlatgeoBuf {band_mosaic_index_path} -gti_filename {band_mosaic_path} -lyr_name {bands[idx]} -write_absolute_path -overwrite --optfile {band_mosaic_file_list}"
 
             os.system(buildgti_cmd)
 
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
 
-    def stack_band_mosaics(self, band_mosaics, date):
+    def __stack_band_mosaics__(self, band_mosaics, date):
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.vrt"
         output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.txt"
@@ -312,34 +291,36 @@ class Dataset:
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
 
         # bands_df contains all the bands of all the tiles along with dates
-        bands_df = self.__get_all_bands()
+        tile_bands = self.__get_tile_bands__()
+        df = pd.DataFrame(tile_bands)
+        df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
         # Now we filter bands based on user supplied bands
-        bands_df = bands_df[bands_df["description"].isin(bands)]
+        df = df[df["description"].isin(bands)]
 
-        outputs_by_dates = bands_df.groupby(by=["date"])
+        outputs_by_dates = df.groupby(by=["date"])
 
         # Then we iterate over every output, create vrt and gti index for that output
-        for date, tiles in outputs_by_dates:
+        for date, band_tiles in outputs_by_dates:
             # TODO: Add multiprocessing here to add give some performance boost
             curr_date = date[0]
+
+            _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
             # First we extract all the required bands using a vrt which will be in that output
-            _tiles = tiles.copy(deep=True).reset_index(drop=True)
-            for tile in _tiles.itertuples():
-                vrt_path = self.extract_band(tile)
+            for band_tile in band_tiles.itertuples():
+                vrt_path = self.__extract_band__(band_tile)
+
                 # vrt gets warped to 3857 to bring all tiles to a consistent resolution
                 # TODO: Later on we can make user pass this information to to_vrts and use it
-                _tiles.at[tile.Index, "vrt_path"] = vrt_path
+                _band_tiles.at[band_tile.Index, "vrt_path"] = vrt_path
 
             # At this stage we have single band vrts, now we combine the same bands together create one gti per mosaic.
             # GDAL Raster Tile is done as number of tiles can be a lot more than number of bands
             # We also store all the band level mosaics we are creating to be later stacked together in a vrt
-            band_mosaics = self.create_band_mosaic(_tiles, curr_date, bands)
+            band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
 
             # Then we line up the bands in a single vrt file, this is stacking bands on top of each other
-            output_vrt = self.stack_band_mosaics(band_mosaics, curr_date)
+            output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
             # Setting output band descriptions
             geo.set_band_descriptions(output_vrt, bands)
-
-            self.output_vrts.append(output_vrt)

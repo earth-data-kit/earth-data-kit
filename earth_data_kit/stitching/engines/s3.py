@@ -132,5 +132,5 @@ class S3:
         # Removing extra files created
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
-        
+
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]

@@ -37,13 +37,6 @@ def delete_dir(dir):
     shutil.rmtree(dir, ignore_errors=True)
 
 
-def polygonise_2Dcells(df_row):
-    bbox = (df_row.wgs_x_min, df_row.wgs_y_min, df_row.wgs_x_max, df_row.wgs_y_max)
-    polygon = shapely.geometry.box(*bbox, ccw=True)
-
-    return polygon
-
-
 def warp_and_get_extent(df_row):
     ds = gdal.Warp(
         "/vsimem/reprojected.tif", gdal.Open(df_row.gdal_path), dstSRS="EPSG:4326"
