@@ -123,6 +123,7 @@ class Tile:
                     else "NoDescription"
                 ),
                 gdal.GetDataTypeName(band.DataType),
+                band.GetNoDataValue(),
             )
             bands.append(b)
         return bands

@@ -220,6 +220,15 @@ class Dataset:
     def __extract_band__(self, band_tile):
         warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
+
+        print (self.get_target_resolution())
+        print (self.get_target_srs())
+        print (self.get_srcnodata())
+        nodataval = band_tile.nodataval if band_tile.nodataval != None else self.get_srcnodata()
+
+        logger.warn("no data val set as None. it's advised to provide a nodataval")
+        
+        logger.info(nodataval)
         # Creating warped vrt for every tile extracting the correct band required and in the correct order
         build_warped_vrt_cmd = f"gdalwarp -tr {self._to_meter(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self._to_meter(band_tile.tile.get_res()[1], band_tile.tile.length_unit)} -t_srs EPSG:3857 -srcnodata '0' -srcband {band_tile.idx} -dstband 1 -et 0 -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
 
