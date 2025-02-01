@@ -220,31 +220,36 @@ class Dataset:
     def __extract_band__(self, band_tile):
         warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
+        if not (self.get_target_srs() and self.get_target_resolution()):
+            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system can converts the resolution in wrong units
+            logger.warn("either supply both -tr and -t_srs or supply nothing")
 
-        print (self.get_target_resolution())
-        print (self.get_target_srs())
-        print (self.get_srcnodata())
-        nodataval = band_tile.nodataval if band_tile.nodataval != None else self.get_srcnodata()
+        nodataval = (
+            band_tile.nodataval if band_tile.nodataval != None else self.get_srcnodata()
+        )
+        t_srs = self.get_target_srs() or "-t_srs EPSG:3857"
+        tr = (
+            self.get_target_resolution()
+            or f"-tr {self._to_meter(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self._to_meter(band_tile.tile.get_res()[1], band_tile.tile.length_unit)}"
+        )
 
-        logger.warn("no data val set as None. it's advised to provide a nodataval")
-        
-        logger.info(nodataval)
+        if nodataval == None:
+            logger.warn("no data val set as None. it's advised to provide a nodataval")
+
         # Creating warped vrt for every tile extracting the correct band required and in the correct order
-        build_warped_vrt_cmd = f"gdalwarp -tr {self._to_meter(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self._to_meter(band_tile.tile.get_res()[1], band_tile.tile.length_unit)} -t_srs EPSG:3857 -srcnodata '0' -srcband {band_tile.idx} -dstband 1 -et 0 -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
+        build_warped_vrt_cmd = f"gdalwarp --quiet {tr} {t_srs} {nodataval or ''} -srcband {band_tile.idx} -dstband 1 -et 0 -tap -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
 
         os.system(build_warped_vrt_cmd)
         return warped_vrt_path
 
     def __create_band_mosaic__(self, band_tiles, date, bands):
+        logger.info(band_tiles)
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
         for idx in range(len(bands)):
             current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
             band_mosaic_path = (
-                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.gti"
-            )
-            band_mosaic_index_path = (
-                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.fgb"
+                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.vrt"
             )
             band_mosaic_file_list = (
                 f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.txt"
@@ -253,9 +258,9 @@ class Dataset:
             current_bands_df[["vrt_path"]].to_csv(
                 band_mosaic_file_list, index=False, header=False
             )
-            buildgti_cmd = f"gdaltindex -f FlatgeoBuf {band_mosaic_index_path} -gti_filename {band_mosaic_path} -lyr_name {bands[idx]} -write_absolute_path -overwrite --optfile {band_mosaic_file_list}"
+            buildvrt_cmd = f"gdalbuildvrt --quiet -overwrite -input_file_list {band_mosaic_file_list} {band_mosaic_path}"
 
-            os.system(buildgti_cmd)
+            os.system(buildvrt_cmd)
 
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
@@ -267,7 +272,6 @@ class Dataset:
         pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
             output_vrt_file_list, index=False, header=False
         )
-        # TODO: We need to set nodata values
         build_mosaiced_stacked_vrt_cmd = f"gdalbuildvrt -separate {output_vrt} -input_file_list {output_vrt_file_list}"
         os.system(build_mosaiced_stacked_vrt_cmd)
 
@@ -315,16 +319,15 @@ class Dataset:
             curr_date = date[0]
 
             _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
+            logger.info(_band_tiles)
             # First we extract all the required bands using a vrt which will be in that output
-            for band_tile in band_tiles.itertuples():
-                vrt_path = self.__extract_band__(band_tile)
-
+            for _bt in _band_tiles.itertuples():
                 # vrt gets warped to 3857 to bring all tiles to a consistent resolution
-                # TODO: Later on we can make user pass this information to to_vrts and use it
-                _band_tiles.at[band_tile.Index, "vrt_path"] = vrt_path
+                vrt_path = self.__extract_band__(_bt)
+                _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
 
-            # At this stage we have single band vrts, now we combine the same bands together create one gti per mosaic.
-            # GDAL Raster Tile is done as number of tiles can be a lot more than number of bands
+            # At this stage we have single band vrts, now we combine the same bands together create one single vrt
+            # Ideally we want to do GDAL Raster Tile Index but it wasn't copying metadata properly when creating outputs. Eg: ColorInterp. GDAL Raster Tile is preferred as number of tiles can be a lot more than number of bands.
             # We also store all the band level mosaics we are creating to be later stacked together in a vrt
             band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
 

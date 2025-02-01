@@ -7,5 +7,10 @@ class Band(dict):
         self.metadata = metadata
 
         dict.__init__(
-            self, idx=idx, description=description, dtype=dtype, nodataval=nodataval, metadata=metadata
+            self,
+            idx=idx,
+            description=description,
+            dtype=dtype,
+            nodataval=nodataval,
+            metadata=metadata,
         )
