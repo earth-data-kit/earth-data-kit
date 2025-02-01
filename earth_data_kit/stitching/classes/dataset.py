@@ -30,11 +30,16 @@ class Dataset:
 
     def __init__(self, name, source, engine, clean=False) -> None:
         """
+        Initializes a new dataset instance.
+
         Args:
-            name (string): User provided name, should be unique across datasets being opened
-            source (string): Source path, Read more :ref:`Defining source`
-            engine (string): Remote datasource engine, accepted values - ``s3``
+            name (str): User provided name, should be unique across datasets being opened.
+            source (str): Source identifier, Read more :ref:`Defining source`.
+            engine (str): Remote datasource engine, accepted values - ``s3``, ``earth_engine``.
             clean (bool, optional): Whether to clean the tmp directory before stitching. Defaults to False.
+
+        Raises:
+            Exception: If the provided engine is not supported.
         """
         if engine not in constants.ENGINES_SUPPORTED:
             raise Exception(f"{engine} not supported")
@@ -42,6 +47,7 @@ class Dataset:
         self.name = name
         self.time_opts = {}
         self.space_opts = {}
+        self.gdal_options = {}
         if engine == "s3":
             self.engine = s3.S3()
         if engine == "earth_engine":
@@ -71,11 +77,11 @@ class Dataset:
 
     def set_timebounds(self, start, end):
         """
-        Sets time bounds for which we want to download the data for.
+        Sets time bounds for which we want to download the data.
 
         Args:
-            start (datetime): Start data
-            end (datetime): End date, inclusive
+            start (datetime): Start date.
+            end (datetime): End date, inclusive.
         """
         self.time_opts = {
             "start": start,
@@ -84,15 +90,15 @@ class Dataset:
 
     def set_spacebounds(self, bbox, grid_file=None, matcher=None):
         """
-        Sets spatial bounds using a bbox provided.
-        Optionally you can also provide a grid file and matching function which can then be used to pinpoint the
+        Sets spatial bounds using a bounding box (bbox) provided.
+        Optionally, you can also provide a grid file and matching function which can then be used to pinpoint the
         exact scene files to download.
 
         Read more on :ref:`Using a grid file`
 
         Args:
-            bbox (tuple[float, float, float, float]): Bounding box as a set of four coordinates in EPSG:4326
-            grid_file (string, optional): File path to grid file, currently only kml files are supported. Defaults to None.
+            bbox (tuple[float, float, float, float]): Bounding box as a set of four coordinates in EPSG:4326.
+            grid_file (str, optional): File path to grid file, currently only KML files are supported. Defaults to None.
             matcher (function, optional): Lambda function to extract spatial parts for scene filepaths. Defaults to None.
         """
         self.space_opts = {
@@ -102,19 +108,43 @@ class Dataset:
         self.space_opts["bbox"] = bbox
 
     def set_gdal_options(self, options):
+        """
+        Sets GDAL options for the dataset.
+
+        Args:
+            options (dict[str]): Dictionary of GDAL command-line options.
+        """
         self.gdal_options = options
 
     def get_target_resolution(self):
+        """
+        Retrieves the target resolution option from GDAL options.
+
+        Returns:
+            str: The target resolution option if found, otherwise None.
+        """
         for opt in self.gdal_options:
             if opt.startswith("-tr"):
                 return opt
 
     def get_target_srs(self):
+        """
+        Retrieves the target spatial reference system (SRS) option from GDAL options.
+
+        Returns:
+            str: The target SRS option if found, otherwise None.
+        """
         for opt in self.gdal_options:
             if opt.startswith("-t_srs"):
                 return opt
 
     def get_srcnodata(self):
+        """
+        Retrieves the source no-data value option from GDAL options.
+
+        Returns:
+            str: The source no-data value option if found, otherwise None.
+        """
         for opt in self.gdal_options:
             if opt.startswith("-srcnodata"):
                 return opt
@@ -122,7 +152,15 @@ class Dataset:
     @decorators.log_time
     @decorators.log_init
     def discover(self):
-        # TODO: Add docstring
+        """
+        Discovers and catalogs dataset tiles based on the provided time and space options.
+
+        This function scans the source using the engine to list all the tiles, fetches metadata for each tile,
+        filters the tiles spatially based on the bounding box, and saves the catalog of intersecting tiles.
+
+        Raises:
+            Exception: If any error occurs during the discovery process.
+        """
         # Calling the .scan method of engine to list all the tiles
         df = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
@@ -243,7 +281,6 @@ class Dataset:
         return warped_vrt_path
 
     def __create_band_mosaic__(self, band_tiles, date, bands):
-        logger.info(band_tiles)
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
         for idx in range(len(bands)):
@@ -319,7 +356,6 @@ class Dataset:
             curr_date = date[0]
 
             _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
-            logger.info(_band_tiles)
             # First we extract all the required bands using a vrt which will be in that output
             for _bt in _band_tiles.itertuples():
                 # vrt gets warped to 3857 to bring all tiles to a consistent resolution

@@ -72,7 +72,8 @@ class Tile:
 
         # Getting reprojected raster's extent. This is done so that we can filter later on
         # TODO: Optimize this, we actually don't need to reproject just to get the raster extent.
-        warped_ds = gdal.Warp(f"/vsimem/{uuid.uuid4()}.tif", ds, dstSRS="EPSG:4326")
+        warped_ds = gdal.Warp(f"/vsimem/{uuid.uuid4()}.vrt", ds, dstSRS="EPSG:4326", format="VRT")
+
         o = {
             "geo_transform": ds.GetGeoTransform(),
             "x_size": ds.RasterXSize,
