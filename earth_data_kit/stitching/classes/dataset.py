@@ -258,12 +258,12 @@ class Dataset:
     def __extract_band__(self, band_tile):
         warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
-        if not (self.get_target_srs() and self.get_target_resolution()):
+        if ((self.get_target_resolution() == None) and (self.get_target_srs() != None)) or ((self.get_target_resolution() != None) and (self.get_target_srs() == None)):
             # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system can converts the resolution in wrong units
-            logger.warn("either supply both -tr and -t_srs or supply nothing")
+            logger.warning("either supply both -tr and -t_srs or supply nothing")
 
         nodataval = (
-            band_tile.nodataval if band_tile.nodataval != None else self.get_srcnodata()
+            f"-srcnodata {band_tile.nodataval}" if band_tile.nodataval != None else self.get_srcnodata()
         )
         t_srs = self.get_target_srs() or "-t_srs EPSG:3857"
         tr = (
