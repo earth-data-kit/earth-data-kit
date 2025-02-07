@@ -570,12 +570,12 @@ sphinx-basic-ng = ">=1.0.0.beta2"
 
 [[package]]
 name = "gdal"
-version = "3.9.1"
+version = "3.10.1"
 description = "GDAL: Geospatial Data Abstraction Library"
 optional = false
 python-versions = ">=3.8.0"
 files = [
-    {file = "gdal-3.9.1.tar.gz", hash = "sha256:6d8a8f162ed32c5cb58839fa9198def477c68b670eed4cbce9eeef387ac3c8da"},
+    {file = "gdal-3.10.1.tar.gz", hash = "sha256:ec66a6cf5cd2380d03b1c27f82738732e0f829a95f7f0c81cc61c4bea18a9cda"},
 ]
 
 [package.extras]
@@ -2225,4 +2225,4 @@ jupyter = ["ipytree (>=0.2.2)", "ipywidgets (>=8.0.0)", "notebook"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "c28a0686a7d7d3175d1c914058f67afb550eb9e6ceba64225d6a47500cf6f2ba"
+content-hash = "e0195c5e0b81121b6d652004b75f2f34478d7999e811eb0a33786926fc10bdf6"

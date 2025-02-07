@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class S3:
     def __init__(self) -> None:
+        self.name = "S3"
         no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
         request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
         profile_flag = os.getenv("AWS_PROFILE")
@@ -63,12 +64,12 @@ class S3:
 
             new_patterns = []
             for row in patterns_df.itertuples():
-                matches = re.findall(r"({.[^}]*})", row.search_path)
+                matches = re.findall(r"({.[^}]*})", row.search_path)  # type: ignore
                 # Now we replace matches and with all space_variables
                 for var in space_vars:
                     tmp_p = copy.copy(row.search_path)
                     for m in matches:
-                        tmp_p = tmp_p.replace(
+                        tmp_p = tmp_p.replace(  # type: ignore
                             m, var[m.replace("{", "").replace("}", "")]
                         )
                     new_patterns.append([row.date, tmp_p])
@@ -79,9 +80,8 @@ class S3:
         else:
             raise Exception("drivers other than kml are not supported")
 
-    def create_inventory(self, source, time_opts, space_opts, tmp_base_dir):
+    def scan(self, source, time_opts, space_opts, tmp_base_dir):
         patterns_df = self.get_patterns(source, time_opts, space_opts)
-
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
 
@@ -109,7 +109,7 @@ class S3:
             max_score = -99
             max_score_idx = -1
             for out_row in patterns_df.itertuples():
-                s = levenshtein.ratio(in_row.key, out_row.search_path)
+                s = levenshtein.ratio(in_row.key, out_row.search_path)  # type: ignore
                 if s > max_score:
                     max_score = s
                     max_score_idx = out_row.Index
@@ -128,21 +128,9 @@ class S3:
         # Adding gdal_path
         inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
         inv_df["engine_path"] = inv_df["key"]
+
+        # Removing extra files created
+        os.remove(inventory_file_path)
+        os.remove(ls_cmds_fp)
+
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]
-
-    def sync_inventory(self, df, tmp_base_dir):
-        # Deleting /raw dir where data will be synced
-        base_path = f"{tmp_base_dir}/raw"
-        local_path = f"{base_path}/" + df["engine_path"].map(
-            lambda x: x.replace("s3://", "")
-        )
-        cmds = "cp" + " " + df["engine_path"].map(str) + " " + local_path
-        cmds_fp = f"{tmp_base_dir}/sync_commands.txt"
-
-        cmds.to_csv(cmds_fp, header=False, index=False)
-        s5_cmd = f"{self.base_cmd} run {cmds_fp}"
-
-        os.system(s5_cmd)
-
-        df["local_path"] = local_path
-        return df

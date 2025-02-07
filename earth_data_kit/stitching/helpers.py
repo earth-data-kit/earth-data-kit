@@ -5,6 +5,8 @@ import hashlib
 import logging
 import json
 import pandas as pd
+import shapely
+from osgeo import gdal
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +17,14 @@ def make_sure_dir_exists(dir):
 
 
 def get_processpool_workers():
-    if os.cpu_count() - 2 < 1:
+    if os.cpu_count() - 2 < 1:  # type: ignore
         return 1
     else:
-        return os.cpu_count() - 2
+        return os.cpu_count() - 2  # type: ignore
 
 
 def get_threadpool_workers():
-    return (2 * os.cpu_count()) - 1
+    return (2 * os.cpu_count()) - 1  # type: ignore
 
 
 def get_tmp_dir():
@@ -35,15 +37,18 @@ def delete_dir(dir):
     shutil.rmtree(dir, ignore_errors=True)
 
 
-def polygonise_2Dcells(df_row):
-    return Polygon(
-        [
-            (df_row.x_min, df_row.y_min),
-            (df_row.x_max, df_row.y_min),
-            (df_row.x_max, df_row.y_max),
-            (df_row.x_min, df_row.y_max),
-        ]
+def warp_and_get_extent(df_row):
+    ds = gdal.Warp(
+        "/vsimem/reprojected.tif", gdal.Open(df_row.gdal_path), dstSRS="EPSG:4326"
     )
+    geo_transform = ds.GetGeoTransform()
+    x_min = geo_transform[0]
+    y_max = geo_transform[3]
+    x_max = x_min + geo_transform[1] * ds.RasterXSize
+    y_min = y_max + geo_transform[5] * ds.RasterYSize
+    polygon = shapely.geometry.box(x_min, y_min, x_max, y_max, ccw=True)
+    ds = None
+    return polygon
 
 
 def cheap_hash(input):
