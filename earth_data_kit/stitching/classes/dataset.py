@@ -251,10 +251,12 @@ class Dataset:
         return path
 
     def _to_meter(self, val, unit):
+        logger.debug(f"Converting {val} with {unit} to meter")
         if (unit == "metre") or (unit == "meter"):
             return val
         elif unit == "degree":
-            # TODO: Add degree to meter conversion
+            conversion_factor = 111320  # approximate conversion factor: meters per degree at the equator
+            val = val * conversion_factor
             return val
 
     def __extract_band__(self, band_tile):
