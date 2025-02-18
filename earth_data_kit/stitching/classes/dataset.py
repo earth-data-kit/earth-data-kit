@@ -169,6 +169,7 @@ class Dataset:
         # Fetching metadata of all files
         futures = []
         tiles = []
+        logger.debug(f"Fetching metadata of {len(df)} tiles")
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
@@ -186,6 +187,7 @@ class Dataset:
         for idx in range(len(futures)):
             future = futures[idx]
             result = future.result()
+            logger.debug(f"Fetched metadata for tile at index {idx}")
             tiles.append(result)
 
         # Filtering spatially. Doing this by re-projecting raster extent to 4326 and running intersects query with bbox

@@ -111,6 +111,3 @@ def test():
 def test_grid_file():
     run()
     test()
-
-if __name__ == "__main__":
-    test_grid_file()
