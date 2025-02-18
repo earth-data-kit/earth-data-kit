@@ -1,14 +1,9 @@
 import earth_data_kit as edk
-import glob
 import os
-import re
-import pandas as pd
 from tests.fixtures.country_bboxes import country_bounding_boxes
-import geopandas as gpd
 import datetime
 from dotenv import load_dotenv
 from osgeo import gdal
-import pathlib
 from osgeo_utils import gdalcompare
 
 CONFIG_FILE_PATH = "tests/config.env"

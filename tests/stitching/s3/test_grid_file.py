@@ -6,8 +6,6 @@ from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import earth_data_kit as edk
-import random
-from osgeo import osr
 
 CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
@@ -22,46 +20,6 @@ def fn(x):
             "h": f"{int(vars[0]):02d}",
             "v": f"{int(vars[1]):02d}",
         }
-
-
-def get_raster_extent(raster_path):
-    dataset = gdal.Open(raster_path)
-    if not dataset:
-        raise FileNotFoundError(f"Unable to open {raster_path}")
-
-    geotransform = dataset.GetGeoTransform()
-    if not geotransform:
-        raise ValueError(f"Unable to get geotransform from {raster_path}")
-
-    x_min = geotransform[0]
-    y_max = geotransform[3]
-    x_max = x_min + geotransform[1] * dataset.RasterXSize
-    y_min = y_max + geotransform[5] * dataset.RasterYSize
-
-    return x_min, y_min, x_max, y_max
-
-def get_random_lat_lon_within_extent(raster_path, num_points=1):
-    x_min, y_min, x_max, y_max = get_raster_extent(raster_path)
-    points = []
-    for _ in range(num_points):
-        x = random.uniform(x_min, x_max)
-        y = random.uniform(y_min, y_max)
-        points.append((x, y))
-    return points
-
-def convert_to_lat_lon(raster_path, points):
-    dataset = gdal.Open(raster_path)
-    if not dataset:
-        raise FileNotFoundError(f"Unable to open {raster_path}")
-
-    source_proj = osr.SpatialReference()
-    source_proj.ImportFromWkt(dataset.GetProjection())
-    target_proj = osr.SpatialReference()
-    target_proj.ImportFromEPSG(4326)  # WGS84
-
-    transform = osr.CoordinateTransformation(source_proj, target_proj)
-    lat_lon_points = [transform.TransformPoint(x, y)[:2] for x, y in points]
-    return lat_lon_points
 
 def run():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF"
