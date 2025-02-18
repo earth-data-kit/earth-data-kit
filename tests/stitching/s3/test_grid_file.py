@@ -1,21 +1,16 @@
-from earth_data_kit.stitching.classes.dataset import Dataset
-import glob
 import os
 import re
-import pandas as pd
 from tests.fixtures.country_bboxes import country_bounding_boxes
-from tests.fixtures.constants import OUTPUT_BASE_PATH
-import geopandas as gpd
 import datetime
 from dotenv import load_dotenv
 from osgeo import gdal
-import pathlib
 from osgeo_utils import gdalcompare
-import time
+import earth_data_kit as edk
 import random
 from osgeo import osr
 
 CONFIG_FILE_PATH = "tests/config.env"
+FIXTURES_DIR = "tests/fixtures"
 load_dotenv(CONFIG_FILE_PATH)
 
 
@@ -68,25 +63,15 @@ def convert_to_lat_lon(raster_path, points):
     lat_lon_points = [transform.TransformPoint(x, y)[:2] for x, y in points]
     return lat_lon_points
 
-# Example usage
-# extent = get_raster_extent("path/to/your/raster/file.tif")
-# print(extent)
-# random_points = get_random_lat_lon_within_extent("path/to/your/raster/file.tif", 5)
-# print(random_points)
-# lat_lon_points = convert_to_lat_lon("path/to/your/raster/file.tif", random_points)
-# print(lat_lon_points)
-
-
-def test_grid_file():
+def run():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF"
-    destination = f"{OUTPUT_BASE_PATH}/modis-pds/%d-%m-%Y.vrt"
     grid_fp = "tests/fixtures/modis.kml"
 
     bbox = country_bounding_boxes["AL"]
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
 
     # Creating a dataset
-    ds = Dataset(
+    ds = edk.Dataset(
         "modis-pds",
         source,
         "s3",
@@ -101,27 +86,31 @@ def test_grid_file():
 
     # Discover catalogue
     ds.discover()
-
-    print (ds.get_bands())
     
     # Stitching data together as VRTs
     ds.to_vrts(
-        bands=["Nadir_Reflectance_Band7", "Nadir_Reflectance_Band3"]
+        bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"]
     )
-    assert False
 
-    points = get_raster
-    # golden_files = [
-    #     f"tests/fixtures/outputs/stitching/s3/grid_file/01-01-2017.vrt",
-    #     f"tests/fixtures/outputs/stitching/s3/grid_file/02-01-2017.vrt",
-    # ]
-    # new_files = [
-    #     f"{OUTPUT_BASE_PATH}/modis-pds/01-01-2017.vrt",
-    #     f"{OUTPUT_BASE_PATH}/modis-pds/02-01-2017.vrt",
-    # ]
-    # time.sleep(2)
-    # for i in range(len(golden_files)):
-    #     assert (
-    #         gdalcompare.compare_db(gdal.Open(golden_files[i]), gdal.Open(new_files[i]))
-    #         == 0
-    #     )
+def test():
+    output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/modis-pds/pre-processing"
+
+    output_vrts = [f"{output_base_vrt}/2017-01-01-00:00:00.vrt", f"{output_base_vrt}/2017-01-02-00:00:00.vrt"]
+    golden_files = [
+        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/with-grid-file.tar.gz/2017-01-01-00:00:00.vrt",
+        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/with-grid-file.tar.gz/2017-01-02-00:00:00.vrt",
+    ]
+
+    for output_vrt, golden_file in zip(output_vrts, golden_files):
+        print (f"Comparing {output_vrt} with {golden_file}")
+        ds = gdal.Open(output_vrt)
+        ds_golden = gdal.Open(golden_file)
+
+        assert gdalcompare.compare_db(ds_golden, ds) == 0
+
+def test_grid_file():
+    run()
+    test()
+
+if __name__ == "__main__":
+    test_grid_file()
