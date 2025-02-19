@@ -10,21 +10,28 @@ CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
 load_dotenv(CONFIG_FILE_PATH)
 
-def _test():
-    output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/modis-pds-wo-grid-file/pre-processing"
 
-    output_vrts = [f"{output_base_vrt}/2017-01-01-00:00:00.vrt", f"{output_base_vrt}/2017-01-02-00:00:00.vrt"]
+def _test():
+    output_base_vrt = (
+        f"{os.getenv('TMP_DIR')}/tmp/modis-pds-wo-grid-file/pre-processing"
+    )
+
+    output_vrts = [
+        f"{output_base_vrt}/2017-01-01-00:00:00.vrt",
+        f"{output_base_vrt}/2017-01-02-00:00:00.vrt",
+    ]
     golden_files = [
         f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/without-grid-file.tar.gz/2017-01-01-00:00:00.vrt",
         f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/without-grid-file.tar.gz/2017-01-02-00:00:00.vrt",
     ]
 
     for output_vrt, golden_file in zip(output_vrts, golden_files):
-        print (f"Comparing {output_vrt} with {golden_file}")
+        print(f"Comparing {output_vrt} with {golden_file}")
         ds = gdal.Open(output_vrt)
         ds_golden = gdal.Open(golden_file)
 
         assert gdalcompare.compare_db(ds_golden, ds) == 0
+
 
 def _run():
     source = "s3://modis-pds/MCD43A4.006/*/*/%Y%j/*_B07.TIF"
@@ -53,6 +60,7 @@ def _run():
     ds.to_vrts(
         bands=["Nadir_Reflectance_Band7"],
     )
+
 
 def test_wo_grid_file():
     _run()

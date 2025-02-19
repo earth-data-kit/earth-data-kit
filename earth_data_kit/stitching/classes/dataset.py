@@ -261,12 +261,18 @@ class Dataset:
     def __extract_band__(self, band_tile):
         warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
-        if ((self.get_target_resolution() == None) and (self.get_target_srs() != None)) or ((self.get_target_resolution() != None) and (self.get_target_srs() == None)):
+        if (
+            (self.get_target_resolution() == None) and (self.get_target_srs() != None)
+        ) or (
+            (self.get_target_resolution() != None) and (self.get_target_srs() == None)
+        ):
             # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system can converts the resolution in wrong units
             logger.warning("either supply both -tr and -t_srs or supply nothing")
 
         nodataval = (
-            f"-srcnodata {band_tile.nodataval}" if band_tile.nodataval != None else self.get_srcnodata()
+            f"-srcnodata {band_tile.nodataval}"
+            if band_tile.nodataval != None
+            else self.get_srcnodata()
         )
         t_srs = self.get_target_srs() or "-t_srs EPSG:3857"
         tr = (
@@ -275,7 +281,9 @@ class Dataset:
         )
 
         if nodataval == None:
-            logger.warning("no data val set as None. it's advised to provide a nodataval")
+            logger.warning(
+                "no data val set as None. it's advised to provide a nodataval"
+            )
 
         # Creating warped vrt for every tile extracting the correct band required and in the correct order
         build_warped_vrt_cmd = f"gdalwarp --quiet -te {self.space_opts["bbox"][0]} {self.space_opts["bbox"][1]} {self.space_opts["bbox"][2]} {self.space_opts["bbox"][3]} -te_srs 'EPSG:4326' {tr} {t_srs} {nodataval or ''} -srcband {band_tile.idx} -dstband 1 -et 0 -tap -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"

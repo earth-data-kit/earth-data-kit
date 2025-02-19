@@ -10,6 +10,7 @@ CONFIG_FILE_PATH = "tests/config.env"
 load_dotenv(CONFIG_FILE_PATH)
 FIXTURES_DIR = "tests/fixtures"
 
+
 def _run():
     source = "ECMWF/ERA5_LAND/MONTHLY_AGGR"
 
@@ -29,9 +30,10 @@ def _run():
 
     # Setting spatial extent
     ds.set_spacebounds(bbox[1])
-    
+
     ds.discover()
     ds.to_vrts(bands=["temperature_2m"])
+
 
 def _test():
     output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/surface-temp/pre-processing"
@@ -42,7 +44,7 @@ def _test():
     ]
 
     for output_vrt, golden_file in zip(output_vrts, golden_files):
-        print (f"Comparing {output_vrt} with {golden_file}")
+        print(f"Comparing {output_vrt} with {golden_file}")
         ds = gdal.Open(output_vrt)
         ds_golden = gdal.Open(golden_file)
 
