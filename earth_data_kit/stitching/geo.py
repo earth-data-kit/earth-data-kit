@@ -1,6 +1,4 @@
-import sys
 from osgeo import gdal
-import os
 import logging
 from earth_data_kit.stitching import decorators
 

@@ -21,7 +21,7 @@ def fn(x):
             "v": f"{int(vars[1]):02d}",
         }
 
-def run():
+def _run():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF"
     grid_fp = "tests/fixtures/modis.kml"
 
@@ -50,7 +50,7 @@ def run():
         bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"]
     )
 
-def test():
+def _test():
     output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/modis-pds/pre-processing"
 
     output_vrts = [f"{output_base_vrt}/2017-01-01-00:00:00.vrt", f"{output_base_vrt}/2017-01-02-00:00:00.vrt"]
@@ -67,5 +67,5 @@ def test():
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
 def test_grid_file():
-    run()
-    test()
+    _run()
+    _test()

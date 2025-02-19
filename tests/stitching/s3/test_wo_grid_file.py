@@ -10,7 +10,7 @@ CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
 load_dotenv(CONFIG_FILE_PATH)
 
-def test():
+def _test():
     output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/modis-pds-wo-grid-file/pre-processing"
 
     output_vrts = [f"{output_base_vrt}/2017-01-01-00:00:00.vrt", f"{output_base_vrt}/2017-01-02-00:00:00.vrt"]
@@ -26,7 +26,7 @@ def test():
 
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
-def run():
+def _run():
     source = "s3://modis-pds/MCD43A4.006/*/*/%Y%j/*_B07.TIF"
 
     bbox = country_bounding_boxes["AL"]
@@ -55,5 +55,5 @@ def run():
     )
 
 def test_wo_grid_file():
-    run()
-    test()
+    _run()
+    _test()

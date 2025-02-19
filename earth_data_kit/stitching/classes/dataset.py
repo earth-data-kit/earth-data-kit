@@ -250,8 +250,7 @@ class Dataset:
         helpers.make_sure_dir_exists(path)
         return path
 
-    def _to_meter(self, val, unit):
-        logger.debug(f"Converting {val} with {unit} to meter")
+    def __to_meter__(self, val, unit):
         if (unit == "metre") or (unit == "meter"):
             return val
         elif unit == "degree":
@@ -272,14 +271,14 @@ class Dataset:
         t_srs = self.get_target_srs() or "-t_srs EPSG:3857"
         tr = (
             self.get_target_resolution()
-            or f"-tr {self._to_meter(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self._to_meter(band_tile.tile.get_res()[1], band_tile.tile.length_unit)}"
+            or f"-tr {self.__to_meter__(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self.__to_meter__(band_tile.tile.get_res()[1], band_tile.tile.length_unit)}"
         )
 
         if nodataval == None:
-            logger.warn("no data val set as None. it's advised to provide a nodataval")
+            logger.warning("no data val set as None. it's advised to provide a nodataval")
 
         # Creating warped vrt for every tile extracting the correct band required and in the correct order
-        build_warped_vrt_cmd = f"gdalwarp --quiet {tr} {t_srs} {nodataval or ''} -srcband {band_tile.idx} -dstband 1 -et 0 -tap -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
+        build_warped_vrt_cmd = f"gdalwarp --quiet -te {self.space_opts["bbox"][0]} {self.space_opts["bbox"][1]} {self.space_opts["bbox"][2]} {self.space_opts["bbox"][3]} -te_srs 'EPSG:4326' {tr} {t_srs} {nodataval or ''} -srcband {band_tile.idx} -dstband 1 -et 0 -tap -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
 
         os.system(build_warped_vrt_cmd)
         return warped_vrt_path
