@@ -17,3 +17,6 @@ dist
 # Golang builds
 earth_data_kit/stitching/shared_libs/builds/
 example.py
+
+# Created by tests
+*.tar.gz.properties
