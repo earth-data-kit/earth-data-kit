@@ -187,7 +187,6 @@ class Dataset:
         for idx in range(len(futures)):
             future = futures[idx]
             result = future.result()
-            logger.debug(f"Fetched metadata for tile at index {idx}")
             tiles.append(result)
 
         # Filtering spatially. Doing this by re-projecting raster extent to 4326 and running intersects query with bbox
