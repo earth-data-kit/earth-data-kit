@@ -36,4 +36,5 @@ Contents
 
    getting-started
    stitching
+   examples
    api-reference
