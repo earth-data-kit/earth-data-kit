@@ -67,6 +67,29 @@ class Tile:
     @decorators.log_time
     @decorators.log_init
     def fetch_metadata(self):
+        """
+        Retrieve metadata for this tile.
+
+        Opens the GDAL dataset using the tile's gdal_path, extracts key spatial and band information,
+        and computes a reprojected extent in EPSG:4326 using an in-memory VRT. The metadata returned includes:
+          - geo_transform: The affine transformation parameters from the original dataset.
+          - x_size: The pixel width of the dataset.
+          - y_size: The pixel height of the dataset.
+          - wgs_x_size: The pixel width of the reprojected dataset.
+          - wgs_y_size: The pixel height of the reprojected dataset.
+          - projection: The projection string of the original dataset.
+          - crs: The coordinate reference system in EPSG format (derived from the dataset's projection).
+          - wgs_geo_transform: The affine transformation parameters of the reprojected dataset.
+          - bands: A JSON string containing the band information retrieved from the dataset.
+          - length_unit: The unit of measurement for the spatial reference (e.g., meter).
+
+        Note:
+            The function currently reprojects the dataset solely to extract the raster extent,
+            which might be optimized in future revisions.
+
+        Returns:
+            dict: A dictionary containing the extracted metadata.
+        """
         # Figure out aws options
         ds = gdal.Open(self.gdal_path)
 

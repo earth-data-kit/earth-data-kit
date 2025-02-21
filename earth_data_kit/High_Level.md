@@ -3,7 +3,7 @@
 * Modules
   * edk.stitching
     * Functions
-      - edk.DataSet()
+      - edk.stitching.Dataset()
       - ds.set_timebounds()
       - ds.set_spacebounds()
       - ds.discover()
@@ -22,7 +22,7 @@
 * Functions
   * edk.init_cluster()
 * Classes
-  * edk.DataSet
+  * edk.stitching.Dataset
 
 # Earth Data Cluster
 * Dockerised set of containers to run jobs sent by earth_data_kit.
