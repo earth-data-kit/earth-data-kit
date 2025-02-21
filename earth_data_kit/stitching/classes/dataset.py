@@ -59,6 +59,16 @@ class Dataset:
             helpers.delete_dir(f"{self.get_ds_tmp_path()}")
 
     def __str__(self):
+        """
+        Return a string representation of the Dataset instance.
+
+        This representation includes:
+          - name: the unique identifier for the dataset.
+          - source: the source identifier accordingly.
+          - engine: the name of the engine handling the dataset.
+          - time_opts: a tuple indicating the start and end time options.
+          - space_opts: the spatial bounding box if it is set.
+        """
         s = (
             "edk.Dataset\n"
             "\tname: {}\n"
@@ -90,16 +100,21 @@ class Dataset:
 
     def set_spacebounds(self, bbox, grid_file=None, matcher=None):
         """
-        Sets spatial bounds using a bounding box (bbox) provided.
-        Optionally, you can also provide a grid file and matching function which can then be used to pinpoint the
-        exact scene files to download.
+        Configure spatial constraints for the dataset using a bounding box and, optionally, a grid file.
 
-        Read more on :ref:`Using a grid file`
+        This method sets up the spatial filtering parameters by specifying a bounding box defined by
+        four coordinates in EPSG:4326. Additionally, if a grid file is provided (currently only KML files are supported),
+        along with a corresponding matcher function, the method will utilize these to accurately pinpoint the scene files to download.
+        The matcher function is expected to extract the necessary spatial components from each grid element to tailor the scene selection.
+
+        For more details on grid file utilization, please refer to :ref:`Using a grid file`.
 
         Args:
-            bbox (tuple[float, float, float, float]): Bounding box as a set of four coordinates in EPSG:4326.
-            grid_file (str, optional): File path to grid file, currently only KML files are supported. Defaults to None.
-            matcher (function, optional): Lambda function to extract spatial parts for scene filepaths. Defaults to None.
+            bbox (tuple[float, float, float, float]): A tuple of four coordinates in the order
+                (min_longitude, min_latitude, max_longitude, max_latitude)/(xmin, ymin, xmax, ymax) defining the spatial extent.
+            grid_file (str, optional): Path to the grid file (only KML files are currently supported). Defaults to None.
+            matcher (function, optional): A lambda or function used to extract spatial parameters from grid elements
+                for matching scene file paths. Defaults to None.
         """
         self.space_opts = {
             "grid_file": grid_file,
@@ -109,7 +124,17 @@ class Dataset:
 
     def set_gdal_options(self, options):
         """
-        Sets GDAL options for the dataset.
+        Sets GDAL options for the dataset. These options are passed directly to GDAL commands (e.g., gdalwarp and gdalbuildvrt)
+        and allow customization of the processing pipeline.
+
+        Supported GDAL options include:
+         - **-t_srs**: Define the target spatial reference system (defaults to EPSG:3857 if not provided).
+         - **-tr**: Specify the output resolution (in target units; if -t_srs is not provided, resolution is calculated in meters).
+         - **-r**: Set the resampling method.
+         - **-srcnodata**: Indicate the source no-data value.
+
+        For more details on these options, please refer to:
+        https://gdal.org/programs/gdalwarp.html
 
         Args:
             options (dict[str]): Dictionary of GDAL command-line options.
@@ -153,20 +178,33 @@ class Dataset:
     @decorators.log_init
     def discover(self):
         """
-        Discovers and catalogs dataset tiles based on the provided time and space options.
+        Scans the dataset source to identify, catalog, and save the intersecting tiles based on
+        provided time and spatial constraints.
 
-        This function scans the source using the engine to list all the tiles, fetches metadata for each tile,
-        filters the tiles spatially based on the bounding box, and saves the catalog of intersecting tiles.
+        This method follows a multi-step workflow:
+          1. Invokes the engine's scan method to retrieve a dataframe of available tile metadata
+             that match the time and spatial options.
+          2. Concurrently retrieves detailed metadata for each tile by constructing Tile objects
+             using a ThreadPoolExecutor.
+          3. Converts the user-specified bounding box into a Shapely polygon (in EPSG:4326) and
+             filters the tiles by comparing each tile's extent (also converted to EPSG:4326) to the
+             bounding box using an intersection test.
+          4. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
+             self.catalog_path.
+
+        Returns:
+            None
 
         Raises:
-            Exception: If any error occurs during the discovery process.
+            Exception: Propagates any exceptions encountered during scanning, metadata retrieval,
+                       spatial filtering, or catalog saving.
         """
-        # Calling the .scan method of engine to list all the tiles
+        # Retrieve tile metadata using the engine's scan function.
         df = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
         )
 
-        # Fetching metadata of all files
+        # Concurrently fetch metadata and construct Tile objects for each tile.
         futures = []
         tiles = []
         logger.debug(f"Fetching metadata of {len(df)} tiles")
@@ -184,17 +222,13 @@ class Dataset:
                     )
                 )
 
+        # Collect results from the thread pool.
         for idx in range(len(futures)):
             future = futures[idx]
             result = future.result()
             tiles.append(result)
 
-        # Filtering spatially. Doing this by re-projecting raster extent to 4326 and running intersects query with bbox
-        # This is done as raster can be in different coordinates (eg: UTMs) and much easier to convert multiple to 4326,
-        # rather than 4326 to different multiple EPSGs (UTM zones)
-        # Add the extent geo-series and set projection
-
-        # Get polygon from user's bbox
+        # Define the user-specified bounding box as a Shapely polygon for intersection tests.
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
         intersecting_tiles = []
         for tile in tiles:
@@ -202,7 +236,7 @@ class Dataset:
             if shapely.intersects(tile_bbox, bbox):
                 intersecting_tiles.append(tile)
 
-        # Saving catalog
+        # Save the catalog of intersecting tiles as a CSV file.
         pd.DataFrame([t.__dict__ for t in intersecting_tiles]).to_csv(
             f"{self.catalog_path}", header=True, index=False
         )
@@ -210,12 +244,24 @@ class Dataset:
         logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
 
     def get_bands(self):
+        """
+        Retrieve unique band configurations from tile metadata.
+
+        Aggregates metadata from each tile by extracting attributes such as resolution
+        (x_res, y_res) and coordinate reference system (crs). The data is then grouped
+        by columns: band index inside tile (idx), band description, data type (dtype), x_res,
+        y_res, and CRS.
+
+        Returns:
+            pd.DataFrame: A DataFrame with unique band configurations.
+        """
         tile_bands = self.__get_tile_bands__()
         df = pd.DataFrame(tile_bands)
         df["x_res"] = df.apply(lambda row: row.tile.get_res()[0], axis=1)
         df["y_res"] = df.apply(lambda row: row.tile.get_res()[1], axis=1)
         df["crs"] = df.apply(lambda row: row.tile.crs, axis=1)
 
+        # Group the bands by columns: idx, description, dtype, x_res, y_res, and crs.
         by = ["idx", "description", "dtype", "x_res", "y_res", "crs"]
         df["x_res"] = df["x_res"].astype(np.float32)
         df["y_res"] = df["y_res"].astype(np.float32)
@@ -223,6 +269,15 @@ class Dataset:
         return df.groupby(by=by).size().reset_index()[by]
 
     def __get_tile_bands__(self):
+        """
+        Collect band metadata from all tiles.
+
+        Iterates over each tile (from __get_tiles__) and builds a list of band dictionaries,
+        each enhanced with its corresponding tile information.
+
+        Returns:
+            list: List of band dictionaries.
+        """
         tiles = self.__get_tiles__()
 
         tile_bands = []
@@ -235,6 +290,14 @@ class Dataset:
         return tile_bands
 
     def __get_tiles__(self):
+        """
+        Load tiles from the catalog CSV.
+
+        Reads the catalog file, converts necessary fields, and creates Tile objects.
+
+        Returns:
+            list: List of Tile objects.
+        """
         df = pd.read_csv(self.catalog_path)
         df["bands"] = df["bands"].apply(json.loads)
         df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
@@ -245,11 +308,32 @@ class Dataset:
         return tiles
 
     def get_ds_tmp_path(self):
+        """
+        Get the temporary directory path for dataset processing.
+
+        Ensures the directory exists.
+
+        Returns:
+            str: Path to the temporary directory.
+        """
         path = f"{helpers.get_tmp_dir()}/{self.name}"
         helpers.make_sure_dir_exists(path)
         return path
 
     def __to_meter__(self, val, unit):
+        """
+        Convert a length value to meters.
+
+        If the unit is 'meter' or 'metre', returns the value unchanged.
+        If the unit is 'degree', applies an approximate conversion factor.
+
+        Args:
+            val (float): The value to convert.
+            unit (str): The unit of the value.
+
+        Returns:
+            float: Value converted to meters.
+        """
         if (unit == "metre") or (unit == "meter"):
             return val
         elif unit == "degree":
@@ -258,19 +342,28 @@ class Dataset:
             return val
 
     def __extract_band__(self, band_tile):
+        """
+        Extract and warp a specific band into a VRT file.
+
+        Args:
+            band_tile (object): The band descriptor containing attributes such as tile, idx, and nodataval.
+
+        Returns:
+            str: Path to the generated warped VRT.
+        """
         warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
         if (
-            (self.get_target_resolution() == None) and (self.get_target_srs() != None)
+            self.get_target_resolution() is None and self.get_target_srs() is not None
         ) or (
-            (self.get_target_resolution() != None) and (self.get_target_srs() == None)
+            self.get_target_resolution() is not None and self.get_target_srs() is None
         ):
-            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system can converts the resolution in wrong units
+            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system converts the resolution in wrong units
             logger.warning("either supply both -tr and -t_srs or supply nothing")
 
         nodataval = (
             f"-srcnodata {band_tile.nodataval}"
-            if band_tile.nodataval != None
+            if band_tile.nodataval is not None
             else self.get_srcnodata()
         )
         t_srs = self.get_target_srs() or "-t_srs EPSG:3857"
@@ -279,7 +372,7 @@ class Dataset:
             or f"-tr {self.__to_meter__(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self.__to_meter__(band_tile.tile.get_res()[1], band_tile.tile.length_unit)}"
         )
 
-        if nodataval == None:
+        if nodataval is None:
             logger.warning(
                 "no data val set as None. it's advised to provide a nodataval"
             )
@@ -291,6 +384,20 @@ class Dataset:
         return warped_vrt_path
 
     def __create_band_mosaic__(self, band_tiles, date, bands):
+        """
+        Create mosaic VRT files for the specified bands.
+
+        For each band, filters the relevant tiles, writes an input file list,
+        and creates a mosaic VRT using gdalbuildvrt.
+
+        Args:
+            band_tiles (pd.DataFrame): DataFrame with VRT paths for each band.
+            date (datetime): Date associated with the mosaics.
+            bands (list): List of band descriptions to assemble.
+
+        Returns:
+            list: Paths to the created band mosaic VRTs.
+        """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
         for idx in range(len(bands)):
@@ -308,11 +415,22 @@ class Dataset:
             buildvrt_cmd = f"gdalbuildvrt --quiet -overwrite -input_file_list {band_mosaic_file_list} {band_mosaic_path}"
 
             os.system(buildvrt_cmd)
-
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
 
     def __stack_band_mosaics__(self, band_mosaics, date):
+        """
+        Stack individual band mosaic VRTs into a multi-band VRT.
+
+        Combines the mosaic VRTs using gdalbuildvrt with the -separate option.
+
+        Args:
+            band_mosaics (list): List of band mosaic VRT paths.
+            date (datetime): Date used for naming the combined VRT.
+
+        Returns:
+            str: Path to the stacked multi-band VRT.
+        """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.vrt"
         output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.txt"
@@ -326,59 +444,52 @@ class Dataset:
 
     def to_vrts(self, bands):
         """
-        # TODO: Update docstrings
-        Stitches the scene files together according to the band arrangement provided by the user.
-        Internally uses gdalwarp. Currently supported gdalwarp options are
+        Stitches the scene files together into VRTs based on the ordered band arrangement provided.
+        For each unique date, this function extracts the required bands from the tile metadata and
+        creates individual single-band VRTs that are reprojected to EPSG:3857 by default (if no target spatial reference
+        is specified). These single-band VRTs are then mosaiced per band and finally stacked into a multi-band VRT.
 
-        * t_srs - Set target spatial reference.
-        * tr - Set output file resolution (in target georeferenced units).
-        * r - Resampling method
-
-        Read more about supported options: `gdalwarp <https://gdal.org/programs/gdalwarp.html>`_.
+        GDAL options influencing the gdalwarp process can be configured using the :meth:`edk.stitching.Dataset.set_gdal_options` function.
 
         Args:
-            bands (list[string]): Ordered list of bands to output in COGs
-            gdal_options (dict, optional): GDAL options to pass during stitching. Defaults to {}. Currently supported options are ``-t_srs``, ``-tr``, ``-r``. Example ``{"t_srs": "EPSG:3857", "tr": 30, "r": "nearest"}``
+            bands (list[string]): Ordered list of band descriptions to output as VRTs.
 
-        Returns:
-            pd.DataFrameGroupBy[tuple]: Dataframe with output vrt path, output hash and tuple of all the tile files to be combined
-            list[string]: Final mosaiced and stacked vrt paths
         """
-
         self.output_vrts = []
 
-        # Making sure pre-processing directory exists
+        # Ensuring the pre-processing directory exists
         helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
 
-        # bands_df contains all the bands of all the tiles along with dates
+        # Retrieve all bands from tiles.
         tile_bands = self.__get_tile_bands__()
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
-        # Now we filter bands based on user supplied bands
+        # Filter bands based on the user-supplied list.
         df = df[df["description"].isin(bands)]
 
         outputs_by_dates = df.groupby(by=["date"])
 
-        # Then we iterate over every output, create vrt and gti index for that output
+        # Iterate over each date group to create VRTs.
         for date, band_tiles in outputs_by_dates:
-            # TODO: Add multiprocessing here to add give some performance boost
+            # TODO: Add multiprocessing for performance boost.
             curr_date = date[0]
 
             _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
-            # First we extract all the required bands using a vrt which will be in that output
+            # Extract each required band as a single-band VRT.
+            # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
+            # unless overridden by options configured via set_gdal_options.
             for _bt in _band_tiles.itertuples():
-                # vrt gets warped to 3857 to bring all tiles to a consistent resolution
                 vrt_path = self.__extract_band__(_bt)
                 _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
 
-            # At this stage we have single band vrts, now we combine the same bands together create one single vrt
-            # Ideally we want to do GDAL Raster Tile Index but it wasn't copying metadata properly when creating outputs. Eg: ColorInterp. GDAL Raster Tile is preferred as number of tiles can be a lot more than number of bands.
-            # We also store all the band level mosaics we are creating to be later stacked together in a vrt
+            # Combine single-band VRTs to create mosaic VRTs per band.
+            # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
+            # due to issues with metadata copying (e.g., ColorInterp). Hence, individual mosaics are created.
             band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
 
-            # Then we line up the bands in a single vrt file, this is stacking bands on top of each other
+            # Stack the band mosaics into a multi-band VRT.
             output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
-            # Setting output band descriptions
+            # Set the descriptions for the bands in the output VRT.
             geo.set_band_descriptions(output_vrt, bands)

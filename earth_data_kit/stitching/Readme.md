@@ -44,7 +44,7 @@ Class Structure
     * gdal_path
 4. DatasetProvider
     * Methods - 
-        * scan - Scans the remote dataset and creates the inventory files. files.csv
+        * scan - Scans the remote dataset and creates the catalog. catalog.csv
 
 
 Now when a user initializes a dataset and runs .discover method we scan the remote dataset and creates the data catalog.

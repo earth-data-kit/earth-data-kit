@@ -1,36 +1,49 @@
 Getting Started
 ===============
 
+Prerequisites
+-------------
+Before using Earth Data Kit, ensure that the following are installed:
+
+- Python 3.12 or newer
+- GDAL 3.10 or above - https://gdal.org/en/stable/download.html#binaries
+- s5cmd - https://github.com/peak/s5cmd
+
 Installation
 ------------
+To install Earth Data Kit, follow these steps:
 
-To use Earth Data Kit, first download the latest release from https://github.com/earth-data-kit/earth-data-kit/releases and install it using tarball:
-
-.. code-block:: console
+1. Download the latest release from the official GitHub releases page:
    
-   (.venv) $ wget https://github.com/siddhantgupta3/earth-data-kit/releases/download/1.0.0a1/earth_data_kit-1.0.0a1.tar.gz 
-   (.venv) $ pip3 install earth_data_kit-1.0.0a1.tar.gz
+   - https://github.com/earth-data-kit/earth-data-kit/releases
 
-Environment Setup
------------------
+2. After downloading the tarball, install the package using pip. For example, within your virtual environment execute:
 
-Environment variables can be used to configure different aspects of earth data kit, like AWS credentials, GDAL options, etc.
-You can use ``.env`` file and ``python-dotenv`` package to configure edk.
+   .. code-block:: console
 
-Below is a list of all possible options
+      (.venv) $ wget https://github.com/siddhantgupta3/earth-data-kit/releases/download/1.0.0a1/earth_data_kit-1.0.0a1.tar.gz 
+      (.venv) $ pip3 install earth_data_kit-1.0.0a1.tar.gz
 
-**General options**
+Environment Configuration
+-------------------------
+Earth Data Kit can be customized via environment variables. This approach lets you easily configure settings such as AWS credentials, GDAL options, and other operational parameters. You can maintain these settings in a ``.env`` file and load them using the ``python-dotenv`` package.
 
-* ``TMP_DIR`` *(Required)*: Directory to stores temporary files, example scene files, pre-processed vrts, etc.
+General Options
+~~~~~~~~~~~~~~~
+* ``TMP_DIR`` *(Required)*: The directory path used for storing temporary files (e.g., catalog, pre-processed VRTs).
 
-**AWS related options**
+AWS Options
+~~~~~~~~~~~
+* ``AWS_REGION``: Specifies the AWS region to use (e.g., us-west-2).
+* ``AWS_NO_SIGN_REQUEST`` (YES/NO): If set to YES, this option disables request signing, meaning AWS credentials will be bypassed.
+* ``AWS_REQUEST_PAYER`` (requester): Indicates that the requester accepts any charges that may result from the request. Use this when accessing buckets that require payer confirmation.
 
-* ``AWS_REGION`` : The region to use, eg: us-west-2
-* ``AWS_NO_SIGN_REQUEST`` (YES/NO): Do not sign requests. Credentials will not be loaded if this argument is provided.
-* ``AWS_REQUEST_PAYER`` (requester): Confirms that the requester knows that they will be charged for the request. Bucket owners need not specify this parameter in their requests
+Google Earth Engine Options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ``GOOGLE_APPLICATION_CREDENTIALS``: Specifies the path to the JSON credentials file for authenticating with the Earth Engine API.
 
+GDAL Options
+~~~~~~~~~~~~
+* ``GDAL_HTTP_TCP_KEEPALIVE`` (YES/NO): Determines whether to enable TCP keep-alive for GDAL HTTP connections (defaults to NO).
 
-**GDAL related options**
-
-* ``GDAL_HTTP_TCP_KEEPALIVE`` (YES/NO): Sets whether to enable TCP keep-alive. Defaults to NO
-
+This configuration setup provides flexibility to adapt Earth Data Kit to your specific environment and processing needs.

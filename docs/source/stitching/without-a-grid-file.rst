@@ -1,12 +1,14 @@
-Without a grid file
+Without a Grid File
 -------------------
 
-When grid file is not available system can try to read tile metadata to do spatial filtering. In such cases users can simply supply ``*`` (wildcard) instead of providing ``h`` and ``v`` parts of source string.
+If a grid file is not available, the system will use tile metadata to perform spatial filtering. 
 
-To demonstrate we will try to download data the same data, Albania for 1st month of Jan, 2017 without using a grid file
+In this approach, you simply replace the specific grid indices (``h`` and ``v``) in the source string with a wildcard (``*``).
+
+This example demonstrates how to download data for Albania during January 2017 without using a grid file.
 
 .. warning::
-    This method can be time consuming as metadata of all files is fetched first and then filtered based on bounding box
+   This method can be slower because it first fetches metadata for all available files before applying the bounding box filter.
 
 .. literalinclude:: without_a_grid_file.py
     :language: python
