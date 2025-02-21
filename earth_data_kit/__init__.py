@@ -1,4 +1,4 @@
-from earth_data_kit.stitching import *
+from earth_data_kit import stitching
 import pandas as pd
 import logging
 import os

@@ -40,6 +40,15 @@ class Dataset:
 
         Raises:
             Exception: If the provided engine is not supported.
+
+        Example:
+            >>> from earth_data_kit.stitching.classes.dataset import Dataset
+            >>>
+            >>> # Initialize a dataset using the Earth Engine engine
+            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
+            >>>
+            >>> # Alternatively, initialize a dataset using the S3 engine
+            >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3")
         """
         if engine not in constants.ENGINES_SUPPORTED:
             raise Exception(f"{engine} not supported")
@@ -54,9 +63,9 @@ class Dataset:
             self.engine = earth_engine.EarthEngine()
         self.source = source
 
-        self.catalog_path = f"{self.get_ds_tmp_path()}/catalog.csv"
+        self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
         if clean:
-            helpers.delete_dir(f"{self.get_ds_tmp_path()}")
+            helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
 
     def __str__(self):
         """
@@ -70,7 +79,7 @@ class Dataset:
           - space_opts: the spatial bounding box if it is set.
         """
         s = (
-            "edk.Dataset\n"
+            "edk.stitching.Dataset\n"
             "\tname: {}\n"
             "\tsource: {}\n"
             "\tengine: {}\n"
@@ -92,6 +101,12 @@ class Dataset:
         Args:
             start (datetime): Start date.
             end (datetime): End date, inclusive.
+
+        Example:
+            >>> from earth_data_kit.stitching import Dataset
+            >>> from datetime import datetime
+            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
+            >>> ds.set_timebounds(datetime(2020, 1, 1), datetime(2020, 12, 31))
         """
         self.time_opts = {
             "start": start,
@@ -115,6 +130,26 @@ class Dataset:
             grid_file (str, optional): Path to the grid file (only KML files are currently supported). Defaults to None.
             matcher (function, optional): A lambda or function used to extract spatial parameters from grid elements
                 for matching scene file paths. Defaults to None.
+
+        Example:
+            >>> import earth_data_kit as edk
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>>
+            >>> # Setting spatial bounds using only a bounding box:
+            >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
+            >>>
+            >>> # Setting spatial bounds with a grid file and a matcher function:
+            >>> def extract_grid_components(row):
+            ...     import re
+            ...     match = re.search(r"h:(\d+)\s+v:(\d+)", row.Name)
+            ...     if match:
+            ...         return {"h": f"{int(match.group(1)):02d}", "v": f"{int(match.group(2)):02d}"}
+            ...     return {}
+            >>> ds.set_spacebounds(
+            ...     (19.3044861183, 39.624997667, 21.0200403175, 42.6882473822),
+            ...     grid_file="path/to/grid.kml",
+            ...     matcher=extract_grid_components
+            ... )
         """
         self.space_opts = {
             "grid_file": grid_file,
@@ -137,7 +172,16 @@ class Dataset:
         https://gdal.org/programs/gdalwarp.html
 
         Args:
-            options (dict[str]): Dictionary of GDAL command-line options.
+            options (list[str]): Array of GDAL command-line options.
+
+        Example:
+            >>> # Configure GDAL options for target SRS, resolution, resampling method, and source no-data value.
+            >>> ds.set_gdal_options([
+            ...     "-t_srs EPSG:4326",
+            ...     "-tr 30 30",
+            ...     "-r bilinear",
+            ...     "-srcnodata 0"
+            ... ])
         """
         self.gdal_options = options
 
@@ -198,10 +242,26 @@ class Dataset:
         Raises:
             Exception: Propagates any exceptions encountered during scanning, metadata retrieval,
                        spatial filtering, or catalog saving.
+
+        Example:
+            >>> import datetime
+            >>> import earth_data_kit as edk
+            >>> # Dummy grid extraction function.
+            >>> def fn(x):
+            ...     return x
+            >>> ds = edk.stitching.Dataset(
+            ...     "modis-pds",
+            ...     "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF",
+            ...     "s3",
+            ...     True
+            ... )
+            >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
+            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path.
         """
         # Retrieve tile metadata using the engine's scan function.
         df = self.engine.scan(
-            self.source, self.time_opts, self.space_opts, self.get_ds_tmp_path()
+            self.source, self.time_opts, self.space_opts, self.__get_ds_tmp_path__()
         )
 
         # Concurrently fetch metadata and construct Tile objects for each tile.
@@ -249,8 +309,23 @@ class Dataset:
 
         Aggregates metadata from each tile by extracting attributes such as resolution
         (x_res, y_res) and coordinate reference system (crs). The data is then grouped
-        by columns: band index inside tile (idx), band description, data type (dtype), x_res,
-        y_res, and CRS.
+        by columns: band index inside tile (idx), band description, data type (dtype),
+        x_res, y_res, and crs.
+
+        Example:
+            >>> import datetime
+            >>> import earth_data_kit as edk
+            >>> # Initialize the dataset (ensure 'source' and 'fn' are defined appropriately)
+            >>> ds = edk.stitching.Dataset("modis-pds", source, "s3", True)
+            >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
+            >>> ds.discover()
+            >>> bands_df = ds.get_bands()
+            >>> print(bands_df.head())
+               idx                description    dtype  x_res  y_res         crs
+            0    0  Nadir_Reflectance_Band1  uint16   30.0   30.0   EPSG:4326
+            1    1  Nadir_Reflectance_Band2  uint16   30.0   30.0   EPSG:4326
+            2    2  Nadir_Reflectance_Band3  uint16   30.0   30.0   EPSG:4326
 
         Returns:
             pd.DataFrame: A DataFrame with unique band configurations.
@@ -307,7 +382,7 @@ class Dataset:
         tiles = Tile.from_df(df)
         return tiles
 
-    def get_ds_tmp_path(self):
+    def __get_ds_tmp_path__(self):
         """
         Get the temporary directory path for dataset processing.
 
@@ -351,7 +426,7 @@ class Dataset:
         Returns:
             str: Path to the generated warped VRT.
         """
-        warped_vrt_path = f"{self.get_ds_tmp_path()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
+        warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
         if (
             self.get_target_resolution() is None and self.get_target_srs() is not None
@@ -402,12 +477,8 @@ class Dataset:
         band_mosaics = []
         for idx in range(len(bands)):
             current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
-            band_mosaic_path = (
-                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.vrt"
-            )
-            band_mosaic_file_list = (
-                f"{self.get_ds_tmp_path()}/pre-processing/{date_str}-{bands[idx]}.txt"
-            )
+            band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.vrt"
+            band_mosaic_file_list = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.txt"
 
             current_bands_df[["vrt_path"]].to_csv(
                 band_mosaic_file_list, index=False, header=False
@@ -432,8 +503,10 @@ class Dataset:
             str: Path to the stacked multi-band VRT.
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
-        output_vrt = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.vrt"
-        output_vrt_file_list = f"{self.get_ds_tmp_path()}/pre-processing/{date_str}.txt"
+        output_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.vrt"
+        output_vrt_file_list = (
+            f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.txt"
+        )
         pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
             output_vrt_file_list, index=False, header=False
         )
@@ -454,11 +527,17 @@ class Dataset:
         Args:
             bands (list[string]): Ordered list of band descriptions to output as VRTs.
 
+        Example:
+            >>> import datetime
+            >>> import earth_data_kit as edk
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket-name/path/to/data", "s3")
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
+            >>> ds.discover()  # Discover available scene files before stitching
+            >>> bands = ["red", "green", "blue"]
+            >>> ds.to_vrts(bands)
         """
-        self.output_vrts = []
-
         # Ensuring the pre-processing directory exists
-        helpers.make_sure_dir_exists(f"{self.get_ds_tmp_path()}/pre-processing")
+        helpers.make_sure_dir_exists(f"{self.__get_ds_tmp_path__()}/pre-processing")
 
         # Retrieve all bands from tiles.
         tile_bands = self.__get_tile_bands__()
