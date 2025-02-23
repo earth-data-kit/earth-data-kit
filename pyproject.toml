@@ -2,6 +2,7 @@
 name = "earth-data-kit"
 version = "1.0.0-alpha1"
 description = "Making GIS data analysis cheap and easy"
+license = "Apache-2.0"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
 readme = "README.md"
 include = ["earth_data_kit/stitching/shared_libs/builds/*"]
