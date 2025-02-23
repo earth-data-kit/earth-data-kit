@@ -7,5 +7,6 @@ Contains modules to ease working with Geospatial Data.
 
 **If you wish to contribute please reach out on siddhantgupta3@gmail.com**
 
-Checkout the [docs](docs/source/index.rst) for more details.
-Check out the [Roadmap](docs/source/roadmap.rst) for more details.
+Checkout the [docs](https://earth-data-kit.github.io/) for more details.
+
+Check out the [Roadmap](https://earth-data-kit.github.io/roadmap.html).
