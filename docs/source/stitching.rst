@@ -1,28 +1,35 @@
 Stitching
 =========
 
+Earth Observation (EO) data is often distributed as many small scene files. These files may vary in their projections, resolutions, and naming conventions depending on the data provider.
 
-Earth Observation data is usually distributed as small scene files, with different projections, resolutions 
-across data providers. 
+For example, Modis (<https://registry.opendata.aws/modis/>) and Sentinel-2 (<https://registry.opendata.aws/sentinel-2/>) both organize their data differently and use different coordinate systems.
 
-For example Modis data <https://registry.opendata.aws/modis/> and Sentinel-2 data <https://registry.opendata.aws/sentinel-2/> both have different file path layout and are in different projections.
+Before analysis or visualization, you typically need to:
 
-Before using this data it's important to combine different scene files together, re-arrange bands and bring the datasets to consistent resolution and projection.
+- Download multiple scene files.
+- Rearrange or select specific bands.
+- Harmonize resolutions and projections.
 
-This module aims to make it easy for anyone to download and combine EO scene files into either COGs or Zarr 
-so that they can be visualized or analyzed easily.
+The Stitching module simplifies this workflow by enabling users to mosaic and preprocess EO scene files into a unified dataset. The resulting outputs (VRTs) can then be formatted as Cloud Optimized GeoTIFFs (COGs) or Zarr archives for easy use using GDAL.
 
-The main class implemented is **Dataset**.
+Dataset Class
+-------------
+The main class in this module is **Dataset**, which manages the entire stitching process. Below is an example of its usage:
 
 .. code-block:: python
-    
+
     import earth_data_kit as edk
-    ds = edk.stitching.DataSet(id, source, engine)
+    ds = edk.stitching.Dataset(id, source, engine)
 
-* ``id`` - string, used to create temporary directory for raw scene files and other intermediary files
-* ``source`` - string, engine dependent. Read more at - :ref:`Defining source`
-* ``engine`` - string, engine identifier, one of possible values. **s3**
+Parameters:
 
+* ``id``: A string used to create a temporary directory for catalog and intermediate vrts.
+* ``source``: A string specifying the data source; its format depends on the chosen engine. (See :ref:`Defining source` for more details.)
+* ``engine``: A string that identifies the processing engine. Currently supported value: **s3**, **earth_engine**.
+
+Additional Documentation
+------------------------
 .. toctree::
     stitching/defining-source
     stitching/using-a-grid-file

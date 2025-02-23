@@ -7,6 +7,7 @@ tmp
 .DS_Store
 docs/_build
 .zed
+.vscode
 
 # Python packaging related
 *.egg-info
@@ -16,3 +17,6 @@ dist
 # Golang builds
 earth_data_kit/stitching/shared_libs/builds/
 example.py
+
+# Created by tests
+*.tar.gz.properties

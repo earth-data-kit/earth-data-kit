@@ -3,7 +3,7 @@
 * Modules
   * edk.stitching
     * Functions
-      - edk.DataSet()
+      - edk.stitching.Dataset()
       - ds.set_timebounds()
       - ds.set_spacebounds()
       - ds.discover()
@@ -22,7 +22,7 @@
 * Functions
   * edk.init_cluster()
 * Classes
-  * edk.DataSet
+  * edk.stitching.Dataset
 
 # Earth Data Cluster
 * Dockerised set of containers to run jobs sent by earth_data_kit.
@@ -40,6 +40,10 @@
   * Output formats
     1. VRTs
     2. COGs
+  * Supported Options
+    * Resolution
+    * Projection
+    * No data values
 * xarray backend - https://docs.xarray.dev/en/stable/internals/how-to-add-new-backend.html#rst-backend-entrypoint
 * xarray-ray integration - https://docs.xarray.dev/en/stable/internals/chunked-arrays.html#internals-chunkedarrays
 * xarray-ramba - https://github.com/Python-for-HPC/ramba
