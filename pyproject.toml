@@ -16,6 +16,9 @@ zarr = "^2.18.2"
 netcdf4 = "^1.7.1.post2"
 earthengine-api = "^1.5.2"
 python-levenshtein = "^0.26.1"
+rasterio = "^1.4.3"
+rioxarray = "^0.18.2"
+dask = "^2025.2.0"
 
 
 [tool.poetry.group.dev.dependencies]
