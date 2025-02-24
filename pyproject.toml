@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "earth-data-kit"
-version = "1.0.0-alpha1"
+version = "1.0.0-alpha2"
 description = "Making GIS data analysis cheap and easy"
 license = "Apache-2.0"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
