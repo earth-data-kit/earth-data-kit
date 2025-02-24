@@ -2,6 +2,7 @@
 name = "earth-data-kit"
 version = "1.0.0-alpha1"
 description = "Making GIS data analysis cheap and easy"
+license = "Apache-2.0"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
 readme = "README.md"
 include = ["earth_data_kit/stitching/shared_libs/builds/*"]
@@ -10,11 +11,11 @@ include = ["earth_data_kit/stitching/shared_libs/builds/*"]
 python = "^3.12"
 geopandas = "^0.14.4"
 python-dotenv = "^1.0.1"
-gdal = "3.9.1"
-python-levenshtein = "^0.25.1"
-rioxarray = "^0.17.0"
+gdal = "3.10.2"
 zarr = "^2.18.2"
 netcdf4 = "^1.7.1.post2"
+earthengine-api = "^1.5.2"
+python-levenshtein = "^0.26.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -22,6 +23,9 @@ ipykernel = "^6.29.4"
 pytest = "^8.3.2"
 sphinx = "^7.4.0"
 furo = "^2024.5.6"
+pytest-xdist = "^3.6.1"
+black = "^25.1.0"
+sphinx-copybutton = "^0.5.2"
 
 [build-system]
 requires = ["poetry-core"]

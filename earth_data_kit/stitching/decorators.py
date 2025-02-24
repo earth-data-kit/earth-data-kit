@@ -1,6 +1,7 @@
 import time
 import logging
 from functools import wraps
+import warnings
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,18 @@ def log_init(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         logger.debug("Running function {}".format(func.__name__))
+        result = func(*args, **kwargs)
+        return result
+
+    return wrapper
+
+
+def deprecated(func):
+    """This decorator prints that the function has started been deprecated"""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.warn("Function {} will be deprecated.".format(func.__name__))
         result = func(*args, **kwargs)
         return result
 

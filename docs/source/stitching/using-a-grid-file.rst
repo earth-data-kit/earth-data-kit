@@ -1,19 +1,16 @@
-Using a grid file
+Using a Grid File
 -----------------
 
-Grid file is a kml or shapefile which contains a mapping of data provider's grid to world coordinates. 
+A grid file is typically a KML or Shapefile that maps a data provider's grid system to global coordinates. 
 
-It contains a ``Name`` column and a ``geometry`` which contains a mapping between ``x`` and ``y`` of satellite grid to bounding boxes in world coordinates. This file can be used to create a set of patterns, 
-which then is used to search for scene files. 
+Such a file usually includes a “Name” column to identify each grid cell and a “geometry” column that defines the corresponding bounding box in world coordinates.
 
 .. note::
+   By using a grid file, you can generate targeted search patterns that precisely identify the scene files you need. This is the recommended approach because it allows you to download and stitch together only the relevant files.
 
-   This is the advised method as using the grid file we can pinpoint exactly which files to download and stitch together
+The example below demonstrates how to create Cloud Optimized GeoTIFFs (COGs) from MODIS scene files stored on S3 by selecting data for Albania during January 2017.
 
-As an example we will trying to create COGs from modis scene files kept on S3.
-We will try to download data for Albania for 1st month of Jan, 2017.
-
-Before moving ahead it's important to go through :ref:`Defining source`
+Before proceeding, please review the :ref:`Defining source` section for details on how to define your source pattern.
 
 .. literalinclude:: using_a_grid_file.py
     :language: python

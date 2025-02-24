@@ -10,6 +10,7 @@ import (
 )
 
 func run_s5cmd(in_path string, out_path string, wg *sync.WaitGroup) {
+	// TODO: Check the order of defer statements, maybe we should close the file first and then do function defer using wg.Done()
 	defer wg.Done()
 	cmd := exec.Command("s5cmd", "--no-sign-request", "--json", "ls", in_path)
 
