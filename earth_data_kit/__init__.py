@@ -1,4 +1,5 @@
 from earth_data_kit import stitching
+from earth_data_kit import xarray_boosted
 import pandas as pd
 import logging
 import os

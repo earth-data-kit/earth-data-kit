@@ -19,6 +19,7 @@ python-levenshtein = "^0.26.1"
 rasterio = "^1.4.3"
 rioxarray = "^0.18.2"
 dask = "^2025.2.0"
+lxml = "^5.3.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -39,4 +40,4 @@ venvPath = "."
 venv = ".venv"
 
 [tool.poetry.plugins."xarray.backends"]
-edk_dataset = "earth_data_kit.xarray_boosted.entrypoint:EDKDatasetBackendEntrypoint"
+edk_dataset = "earth_data_kit.xarray_boosted.entrypoint:EDKDatasetBackend"
