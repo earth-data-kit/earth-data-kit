@@ -19,6 +19,7 @@ import numpy as np
 import dask
 import traceback
 import logging
+import earth_data_kit.stitching.decorators as decorators
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class EDKDatasetBackendArray(BackendArray):
 
         return x_coords, y_coords
 
+    @decorators.log_init
     def _raw_indexing_method(self, key):
         """Handle basic indexing (integers and slices only).
 
@@ -86,18 +88,6 @@ class EDKDatasetBackendArray(BackendArray):
         numpy.ndarray
             The indexed data.
         """
-        # Calculate output shape
-        output_shape = ()
-
-        for idx, k in enumerate(key):
-            if isinstance(k, slice):
-                output_shape += (len(range(*k.indices(self.shape[idx]))),)
-            else:
-                pass
-
-        if output_shape == ():
-            output_shape = (1, 1, 1, 1)
-
         df = pd.read_xml(self.filename_or_obj)
 
         time_coord = self._get_time_coord(key[0])
@@ -116,10 +106,11 @@ class EDKDatasetBackendArray(BackendArray):
             buf_type=get_gdal_dtype(self.dtype),
         )
 
-        if data.shape != output_shape:
-            raise ValueError(
-                f"Data shape {data.shape} does not match expected output shape {output_shape}"
-            )
+        # Data returned from gdal has band_num, y, x as shape so transposing it to band, x, y
+        data = np.transpose(data, axes=(0, 2, 1))
+
+        # Making data 4D array with time, band, x, y
+        data = np.array([data])
 
         return data
 
