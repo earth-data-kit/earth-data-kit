@@ -97,6 +97,8 @@ class EDKDatasetBackendArray(BackendArray):
         x_coords, y_coords = self._get_x_y_coords(key[2], key[3])
 
         ds = gdal.Open(df.iloc[time_coord].source)
+
+        # Data returned will either be 2D or 3D, depending on whether we are selecting a single band or multiple bands
         data = ds.ReadAsArray(
             xoff=x_coords.start,
             yoff=y_coords.start,
@@ -105,12 +107,19 @@ class EDKDatasetBackendArray(BackendArray):
             band_list=band_nums,
             buf_type=get_gdal_dtype(self.dtype),
         )
+        data = np.squeeze(data)
 
-        # Data returned from gdal has band_num, y, x as shape so transposing it to band, x, y
-        data = np.transpose(data, axes=(0, 2, 1))
+        if len(band_nums) == 1:
+            data = np.transpose(data, axes=(1, 0))
+        else:
+            data = np.transpose(data, axes=(0, 2, 1))
 
-        # Making data 4D array with time, band, x, y
-        data = np.array([data])
+        if isinstance(key[1], slice) and len(band_nums) == 1:
+            data = np.array([data])
+
+        if isinstance(key[0], slice):
+            # Adding time dimension to the data, just need to wrap it in a list
+            data = np.array([data])
 
         return data
 
