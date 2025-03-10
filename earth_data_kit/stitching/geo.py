@@ -1,3 +1,4 @@
+# TODO: move to it's own folder, utilities/geo.py
 from osgeo import gdal
 import logging
 from earth_data_kit.stitching import decorators

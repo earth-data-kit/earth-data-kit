@@ -1,6 +1,7 @@
 import pandas as pd
 import ast
 import geopandas as gpd
+from lxml import etree
 import logging
 from osgeo import osr
 import os
@@ -15,6 +16,7 @@ import shapely
 import numpy as np
 import fiona
 import json
+import xarray as xr
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -515,6 +517,54 @@ class Dataset:
 
         return output_vrt
 
+    def __combine_timestamped_vrts__(self, output_vrts):
+        """
+        Combine multiple timestamped VRT files into a single XML file.
+
+        This method creates an XML file that references all the VRTs with their corresponding timestamps.
+        The XML structure follows the EDKDataset format, where each VRT is represented as a VRTDataset
+        element with source and time attributes. The time attribute is extracted from the VRT filename.
+
+        The resulting XML file serves as a temporal index for the dataset, allowing for time-based
+        queries and operations on the collection of VRTs.
+
+        Args:
+            output_vrts (list): List of VRT file paths to combine. Each path should contain
+                                a timestamp in the format YYYY-MM-DD-HH:MM:SS in its filename.
+
+        Returns:
+            str: Path to the created XML file, or None if output_vrts is empty.
+
+        Example XML structure:
+            <?xml version='1.0' encoding='UTF-8'?>
+            <EDKDataset name="dataset_name">
+              <VRTDataset source="/path/to/2017-01-01-00:00:00.vrt" time="2017-01-01-00:00:00"/>
+              <VRTDataset source="/path/to/2017-01-02-00:00:00.vrt" time="2017-01-02-00:00:00"/>
+            </EDKDataset>
+        """
+        if not output_vrts:
+            return None
+
+        # Create root element
+        root = etree.Element("EDKDataset")
+        root.set("name", self.name)
+
+        # Add VRTDataset elements for each VRT file
+        for vrt in output_vrts:
+            date_str = vrt.split("/")[-1].split(".")[0]
+            vrt_element = etree.SubElement(root, "VRTDataset")
+            vrt_element.set("source", vrt)
+            vrt_element.set("time", date_str)
+
+        # Create XML tree and write to file
+        tree = etree.ElementTree(root)
+        xml_path = f"{self.__get_ds_tmp_path__()}/{self.name}.xml"
+
+        # Write with pretty formatting
+        tree.write(xml_path, pretty_print=True, xml_declaration=True, encoding="utf-8")
+
+        return xml_path
+
     def to_vrts(self, bands):
         """
         Stitches the scene files together into VRTs based on the ordered band arrangement provided.
@@ -548,7 +598,7 @@ class Dataset:
         df = df[df["description"].isin(bands)]
 
         outputs_by_dates = df.groupby(by=["date"])
-
+        output_vrts = []
         # Iterate over each date group to create VRTs.
         for date, band_tiles in outputs_by_dates:
             # TODO: Add multiprocessing for performance boost.
@@ -572,3 +622,34 @@ class Dataset:
 
             # Set the descriptions for the bands in the output VRT.
             geo.set_band_descriptions(output_vrt, bands)
+
+            output_vrts.append(output_vrt)
+
+        xml_path = self.__combine_timestamped_vrts__(output_vrts)
+        self.xml_path = xml_path
+
+    def to_dataarray(self):
+        """
+        Converts the dataset to an xarray DataArray.
+        
+        This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
+        and returns the DataArray corresponding to this dataset.
+        
+        Returns:
+            xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands, 
+            and spatial coordinates.
+            
+        Example:
+            >>> import earth_data_kit as edk
+            >>> import datetime
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
+            >>> ds.discover()
+            >>> ds.to_vrts(bands=["red", "green", "blue"])
+            >>> data_array = ds.to_dataarray()
+        
+        Note:
+            This method requires that `to_vrts()` has been called first to generate the VRT file.
+        """
+        ds = xr.open_dataset(self.xml_path, engine="edk_dataset")
+        return ds[self.name]

@@ -35,7 +35,8 @@
     1. S3 - *Implemented*
     2. Earth Engine - *Implemented*
     3. Arbritrary files kept in a folder - *Planned*
-    4. ESGF - https://esgf.llnl.gov/ - *Planned*
+    4. Planetary Compute *Planned*
+    5. ESGF - https://esgf.llnl.gov/ - *Planned*
   * Output formats
     1. VRTs
     2. COGs

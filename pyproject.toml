@@ -16,6 +16,12 @@ zarr = "^2.18.2"
 netcdf4 = "^1.7.1.post2"
 earthengine-api = "^1.5.2"
 python-levenshtein = "^0.26.1"
+rasterio = "^1.4.3"
+rioxarray = "^0.18.2"
+dask = "^2025.2.0"
+lxml = "^5.3.1"
+folium = "^0.19.5"
+matplotlib = "^3.10.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -34,3 +40,6 @@ build-backend = "poetry.core.masonry.api"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+[tool.poetry.plugins."xarray.backends"]
+edk_dataset = "earth_data_kit.xarray_boosted.entrypoint:EDKDatasetBackend"
