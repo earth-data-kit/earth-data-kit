@@ -224,7 +224,7 @@ def open_edk_dataset(filename_or_obj):
 
         # Close the GDAL dataset
         src_ds = None
-        return da.to_dataset()
+        return da.to_dataset(promote_attrs=True)
 
     except Exception as e:
         print(f"Error opening dataset: {e}")

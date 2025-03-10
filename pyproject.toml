@@ -20,6 +20,8 @@ rasterio = "^1.4.3"
 rioxarray = "^0.18.2"
 dask = "^2025.2.0"
 lxml = "^5.3.1"
+folium = "^0.19.5"
+matplotlib = "^3.10.1"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -13,7 +13,7 @@ def read_block(vrt_path, x, y, x_size, y_size):
 
 @log_init
 @log_time
-def read_gdal_parallel(vrt_path, block_multiplier=1, max_workers=10):
+def read_gdal_parallel(vrt_path, block_multiplier, max_workers):
     ds = gdal.Open(vrt_path)
     x_raster_size, y_raster_size = ds.RasterXSize, ds.RasterYSize
     x_block_size, y_block_size = 128, 128
