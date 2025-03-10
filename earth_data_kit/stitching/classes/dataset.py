@@ -16,6 +16,7 @@ import shapely
 import numpy as np
 import fiona
 import json
+import xarray as xr
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -624,4 +625,31 @@ class Dataset:
 
             output_vrts.append(output_vrt)
 
-        self.__combine_timestamped_vrts__(output_vrts)
+        xml_path = self.__combine_timestamped_vrts__(output_vrts)
+        self.xml_path = xml_path
+
+    def to_dataarray(self):
+        """
+        Converts the dataset to an xarray DataArray.
+        
+        This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
+        and returns the DataArray corresponding to this dataset.
+        
+        Returns:
+            xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands, 
+            and spatial coordinates.
+            
+        Example:
+            >>> import earth_data_kit as edk
+            >>> import datetime
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
+            >>> ds.discover()
+            >>> ds.to_vrts(bands=["red", "green", "blue"])
+            >>> data_array = ds.to_dataarray()
+        
+        Note:
+            This method requires that `to_vrts()` has been called first to generate the VRT file.
+        """
+        ds = xr.open_dataset(self.xml_path, engine="edk_dataset")
+        return ds[self.name]
