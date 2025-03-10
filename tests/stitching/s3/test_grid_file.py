@@ -30,7 +30,7 @@ def _run():
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
 
     # Creating a dataset
-    ds = edk.Dataset(
+    ds = edk.stitching.Dataset(
         "modis-pds",
         source,
         "s3",
