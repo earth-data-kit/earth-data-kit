@@ -55,7 +55,7 @@ build:
 # Create a new release
 release:
 	@echo "Creating release $(TAG)..."
-	$(MAKE) build-package
+	$(MAKE) build
 	$(GH) release create $(TAG) --title $(TAG) --generate-notes
 	$(GH) release upload $(TAG) dist/earth_data_kit-$(TAG).tar.gz
 
