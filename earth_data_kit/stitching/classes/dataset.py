@@ -651,5 +651,6 @@ class Dataset:
         Note:
             This method requires that `to_vrts()` has been called first to generate the VRT file.
         """
-        ds = xr.open_dataset(self.xml_path, engine="edk_dataset")
+        # TODO: Optimize the chunk size later
+        ds = xr.open_dataset(self.xml_path, engine="edk_dataset", chunks={"time": 1, "band": 'auto', "x": 128, "y": 128})
         return ds[self.name]
