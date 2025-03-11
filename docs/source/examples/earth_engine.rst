@@ -37,7 +37,7 @@ This example demonstrates how to use the Earth Data Kit to stitch together a Ear
     ])
 
     # Define the ordered list of band descriptions you wish to stitch together.
-    bands = ["B4", "B3", "B2"]  # Typically representing Red, Green, and Blue bands.
+    bands = ["B4", "B3", "B2"]
 
     # Create the stitched VRTs from the provided Earth Engine data.
     ds.to_vrts(bands)

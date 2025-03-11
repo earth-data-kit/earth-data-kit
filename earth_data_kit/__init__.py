@@ -1,7 +1,11 @@
 from earth_data_kit import stitching
+from earth_data_kit import xarray_boosted
+from earth_data_kit import utilities
 import pandas as pd
 import logging
 import os
+
+__version__ = "0.1.1"
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()

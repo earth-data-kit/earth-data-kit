@@ -1,11 +1,19 @@
 [tool.poetry]
 name = "earth-data-kit"
-version = "1.0.0-alpha2"
+version = "0.1.1"
 description = "Making GIS data analysis cheap and easy"
 license = "Apache-2.0"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
 readme = "README.md"
 include = ["earth_data_kit/stitching/shared_libs/builds/*"]
+
+[tool.poetry_bumpversion.file."earth_data_kit/__init__.py"]
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[tool.poetry_bumpversion.file."docs/source/conf.py"]
+search = 'release = "{current_version}"'
+replace = 'release = "{new_version}"'
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -16,6 +24,12 @@ zarr = "^2.18.2"
 netcdf4 = "^1.7.1.post2"
 earthengine-api = "^1.5.2"
 python-levenshtein = "^0.26.1"
+rasterio = "^1.4.3"
+rioxarray = "^0.18.2"
+dask = "^2025.2.0"
+lxml = "^5.3.1"
+folium = "^0.19.5"
+matplotlib = "^3.10.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -34,3 +48,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+[tool.poetry.plugins."xarray.backends"]
+edk_dataset = "earth_data_kit.xarray_boosted.entrypoint:EDKDatasetBackend"
+
+[tool.poetry.requires-plugins]
+poetry-bumpversion = "^0.3.3"

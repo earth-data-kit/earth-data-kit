@@ -1,3 +1,4 @@
+# TODO: move to it's own folder, utilities/helpers.py
 import os
 import shutil
 from shapely import Polygon
@@ -37,6 +38,7 @@ def delete_dir(dir):
     shutil.rmtree(dir, ignore_errors=True)
 
 
+# TODO: move to geo.py
 def warp_and_get_extent(df_row):
     ds = gdal.Warp(
         "/vsimem/reprojected.tif", gdal.Open(df_row.gdal_path), dstSRS="EPSG:4326"
