@@ -1,4 +1,4 @@
-.PHONY: build-shared-libs run-tests build-package install-package build-docs rebuild-docs release release-docs
+.PHONY: build-shared-libs run-tests build build-package install-package build-docs rebuild-docs release release-docs
 
 # Variables
 SHARED_LIBS_DIR := earth_data_kit/stitching/shared_libs/earth_data_kit
@@ -55,7 +55,7 @@ build:
 # Create a new release
 release:
 	@echo "Creating release $(TAG)..."
-	$(MAKE) build
+	$(MAKE) build-package
 	$(GH) release create $(TAG) --title $(TAG) --generate-notes
 	$(GH) release upload $(TAG) dist/earth_data_kit-$(TAG).tar.gz
 
