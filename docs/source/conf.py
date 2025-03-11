@@ -7,9 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Earth Data Kit"
-copyright = "2024, Siddhant Gupta"
+copyright = "2025, Siddhant Gupta"
 author = "Siddhant Gupta"
-release = "1.0.0-alpha2"
+release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
