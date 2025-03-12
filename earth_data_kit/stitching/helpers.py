@@ -1,5 +1,6 @@
 # TODO: move to it's own folder, utilities/helpers.py
 import os
+import sys
 import shutil
 from shapely import Polygon
 import hashlib
@@ -8,6 +9,7 @@ import json
 import pandas as pd
 import shapely
 from osgeo import gdal
+import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -60,3 +62,30 @@ def cheap_hash(input):
 def json_to_series(text):
     keys, values = zip(*[item for dct in json.loads(text) for item in dct.items()])
     return pd.Series(values, index=keys)
+
+def get_platform():
+    if sys.platform == "darwin":
+        return "macos"
+    elif sys.platform == "linux":
+        return "linux"
+    else:
+        raise Exception(f"Unsupported platform: {sys.platform}")
+    
+def get_shared_lib_path():
+    if get_platform() == "macos":
+        path = os.path.join(
+            pathlib.Path(__file__).parent.resolve(),
+            "shared_libs",
+            "builds",
+            "go-lib-darwin-arm64",
+        )
+    elif get_platform() == "linux":
+        path = os.path.join(
+            pathlib.Path(__file__).parent.resolve(),
+            "shared_libs",
+            "builds",
+            "go-lib-linux-amd64",
+        )
+    else:
+        raise Exception(f"Unsupported platform: {sys.platform}")
+    return path

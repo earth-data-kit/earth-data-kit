@@ -89,13 +89,7 @@ class S3:
         patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
 
         patterns_df[["unix_path"]].to_csv(ls_cmds_fp, index=False, header=False)
-        lib_path = os.path.join(
-            pathlib.Path(__file__).parent.resolve(),
-            "..",
-            "shared_libs",
-            "builds",
-            "go-lib",
-        )
+        lib_path = helpers.get_shared_lib_path()
 
         ls_cmd = f"{lib_path} {ls_cmds_fp} {inventory_file_path}"
         os.system(ls_cmd)
