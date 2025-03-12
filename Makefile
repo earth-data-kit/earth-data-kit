@@ -27,7 +27,7 @@ install-package:
 # Run tests using pytest
 run-tests:
 	@echo "Running tests..."
-	$(PYTHON) -m pytest ./tests/stitching/s3/test_grid_file.py -rx
+	$(PYTHON) -m pytest ./ -rx
 
 # Build shared libraries using Go
 build-shared-libs:
