@@ -63,6 +63,7 @@ def json_to_series(text):
     keys, values = zip(*[item for dct in json.loads(text) for item in dct.items()])
     return pd.Series(values, index=keys)
 
+
 def get_platform():
     if sys.platform == "darwin":
         return "macos"
@@ -70,7 +71,8 @@ def get_platform():
         return "linux"
     else:
         raise Exception(f"Unsupported platform: {sys.platform}")
-    
+
+
 def get_shared_lib_path():
     if get_platform() == "macos":
         path = os.path.join(
