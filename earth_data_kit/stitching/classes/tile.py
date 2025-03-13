@@ -163,6 +163,8 @@ class Tile:
     def get_res(self):
         return (self.geo_transform[1], self.geo_transform[5])
 
+    @decorators.log_init
+    @decorators.log_time
     def get_bands(self, ds):
         bands = []
         band_count = ds.RasterCount
