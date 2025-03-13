@@ -97,7 +97,6 @@ class Tile:
             "length_unit": ds.GetSpatialRef().GetAttrValue("UNIT"),
         }
 
-        warped_ds = None
         ds = None
         return o
 
