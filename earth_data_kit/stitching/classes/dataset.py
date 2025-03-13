@@ -378,7 +378,6 @@ class Dataset:
         df = pd.read_csv(self.catalog_path)
         df["bands"] = df["bands"].apply(json.loads)
         df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
-        df["wgs_geo_transform"] = df["wgs_geo_transform"].apply(ast.literal_eval)
         df["date"] = pd.to_datetime(df["date"])
 
         tiles = Tile.from_df(df)
