@@ -20,14 +20,25 @@ def make_sure_dir_exists(dir):
 
 
 def get_processpool_workers():
-    if os.cpu_count() - 2 < 1:  # type: ignore
-        return 1
-    else:
-        return os.cpu_count() - 2  # type: ignore
+    try:
+        if os.getenv("EDK_MAX_WORKERS"):
+            return int(os.getenv("EDK_MAX_WORKERS"))
+    except Exception as e:
+        logger.warning(
+            f"Error getting EDK_MAX_WORKERS: {e}. Returning default value using max(1,os.cpu_count() - 2)"
+        )
+        return max(1, os.cpu_count() - 2)  # type: ignore
 
 
 def get_threadpool_workers():
-    return (2 * os.cpu_count()) - 1  # type: ignore
+    try:
+        if os.getenv("EDK_MAX_WORKERS"):
+            return int(os.getenv("EDK_MAX_WORKERS"))
+    except Exception as e:
+        logger.warning(
+            f"Error getting EDK_MAX_WORKERS: {e}. Returning default value using max(1,2*os.cpu_count() - 1)"
+        )
+        return max(1, 2 * os.cpu_count() - 1)  # type: ignore
 
 
 def get_tmp_dir():
