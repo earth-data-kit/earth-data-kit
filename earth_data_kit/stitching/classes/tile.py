@@ -83,20 +83,22 @@ class Tile:
         Returns:
             dict: A dictionary containing the extracted metadata.
         """
+
         # Figure out aws options
         ds = gdal.Open(self.gdal_path)
-
+        gt = ds.GetGeoTransform()
+        projection = ds.GetProjection()
+        length_unit = ds.GetSpatialRef().GetAttrValue("UNIT")
         o = {
-            "geo_transform": ds.GetGeoTransform(),
+            "geo_transform": gt,
             "x_size": ds.RasterXSize,
             "y_size": ds.RasterXSize,
-            "projection": ds.GetProjection(),
+            "projection": projection,
             "crs": "EPSG:"
-            + osr.SpatialReference(ds.GetProjection()).GetAttrValue("AUTHORITY", 1),
+            + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
             "bands": json.dumps(self.get_bands(ds)),
-            "length_unit": ds.GetSpatialRef().GetAttrValue("UNIT"),
+            "length_unit": length_unit,
         }
-
         ds = None
         return o
 
@@ -163,8 +165,8 @@ class Tile:
     def get_res(self):
         return (self.geo_transform[1], self.geo_transform[5])
 
-    @decorators.log_init
     @decorators.log_time
+    @decorators.log_init
     def get_bands(self, ds):
         bands = []
         band_count = ds.RasterCount
