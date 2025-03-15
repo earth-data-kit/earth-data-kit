@@ -5,6 +5,7 @@ from earth_data_kit.stitching import decorators
 
 logger = logging.getLogger(__name__)
 
+
 @decorators.log_time
 @decorators.log_init
 def set_band_descriptions(filepath, bands):
