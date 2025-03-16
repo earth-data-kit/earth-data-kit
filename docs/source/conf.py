@@ -33,9 +33,13 @@ exclude_patterns = []
 
 html_theme = "furo"
 html_static_path = ["_static"]
+html_additional_pages = {'index': 'index.html'}
+
 
 # These paths are either relative to html_static_path
 # or fully qualified paths (eg. https://...)
 html_css_files = [
     "css/custom.css",
 ]
+
+master_doc = 'contents'
