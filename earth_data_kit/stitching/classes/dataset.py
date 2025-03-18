@@ -470,7 +470,7 @@ class Dataset:
             format="VRT",
         )
 
-        gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options);
+        gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options)
         return warped_vrt_path
 
     @decorators.log_time
@@ -496,10 +496,13 @@ class Dataset:
             current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
             band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.vrt"
 
-            ds = gdal.BuildVRT(destName=band_mosaic_path, srcDSOrSrcDSTab=current_bands_df["vrt_path"].tolist())
+            ds = gdal.BuildVRT(
+                destName=band_mosaic_path,
+                srcDSOrSrcDSTab=current_bands_df["vrt_path"].tolist(),
+            )
             # This saves the vrt file
             ds.Close()
-            
+
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
 
@@ -521,7 +524,9 @@ class Dataset:
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         output_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.vrt"
 
-        ds = gdal.BuildVRT(destName=output_vrt, srcDSOrSrcDSTab=band_mosaics, separate=True)
+        ds = gdal.BuildVRT(
+            destName=output_vrt, srcDSOrSrcDSTab=band_mosaics, separate=True
+        )
         ds.Close()
 
         return output_vrt
