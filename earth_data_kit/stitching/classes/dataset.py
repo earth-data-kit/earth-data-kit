@@ -17,6 +17,7 @@ import numpy as np
 import fiona
 import json
 import xarray as xr
+from osgeo import gdal
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -455,10 +456,21 @@ class Dataset:
                 "no data val set as None. it's advised to provide a nodataval"
             )
 
-        # Creating warped vrt for every tile extracting the correct band required and in the correct order
-        build_warped_vrt_cmd = f"gdalwarp --quiet -te {self.space_opts["bbox"][0]} {self.space_opts["bbox"][1]} {self.space_opts["bbox"][2]} {self.space_opts["bbox"][3]} -te_srs 'EPSG:4326' {tr} {t_srs} {nodataval or ''} -srcband {band_tile.idx} -dstband 1 -et 0 -tap -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
+        options = gdal.WarpOptions(
+            outputBounds=self.space_opts["bbox"],
+            outputBoundsSRS="EPSG:4326",
+            xRes=tr.split(" ")[1],
+            yRes=tr.split(" ")[2],
+            dstSRS=t_srs.split(" ")[1],
+            srcNodata=nodataval.split(" ")[1] if nodataval is not None else None,
+            srcBands=[band_tile.idx],
+            dstBands=[1],
+            errorThreshold=0,
+            targetAlignedPixels=True,
+            format="VRT",
+        )
 
-        os.system(build_warped_vrt_cmd)
+        gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options);
         return warped_vrt_path
 
     @decorators.log_time
@@ -483,14 +495,11 @@ class Dataset:
         for idx in range(len(bands)):
             current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
             band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.vrt"
-            band_mosaic_file_list = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.txt"
 
-            current_bands_df[["vrt_path"]].to_csv(
-                band_mosaic_file_list, index=False, header=False
-            )
-            buildvrt_cmd = f"gdalbuildvrt --quiet -overwrite -input_file_list {band_mosaic_file_list} {band_mosaic_path}"
-
-            os.system(buildvrt_cmd)
+            ds = gdal.BuildVRT(destName=band_mosaic_path, srcDSOrSrcDSTab=current_bands_df["vrt_path"].tolist())
+            # This saves the vrt file
+            ds.Close()
+            
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
 
@@ -511,14 +520,9 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         output_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.vrt"
-        output_vrt_file_list = (
-            f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.txt"
-        )
-        pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
-            output_vrt_file_list, index=False, header=False
-        )
-        build_mosaiced_stacked_vrt_cmd = f"gdalbuildvrt -separate {output_vrt} -input_file_list {output_vrt_file_list}"
-        os.system(build_mosaiced_stacked_vrt_cmd)
+
+        ds = gdal.BuildVRT(destName=output_vrt, srcDSOrSrcDSTab=band_mosaics, separate=True)
+        ds.Close()
 
         return output_vrt
 
