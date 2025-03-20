@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for Terra Draw
+about: Suggest an idea for EDK
 title: "[Feature Request]"
 labels: enhancement
 assignees: ''

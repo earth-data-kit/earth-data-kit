@@ -10,9 +10,6 @@ assignees: ''
 **Describe the bug**
 A clear and concise description of what the bug is.
 
-**Terra Draw npm version**
-Please tell us exactly which version of edk you are using
-
 **To Reproduce**
 Steps to reproduce the behavior:
 
