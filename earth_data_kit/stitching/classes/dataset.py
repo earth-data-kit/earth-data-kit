@@ -631,14 +631,14 @@ class Dataset:
     def to_dataarray(self):
         """
         Converts the dataset to an xarray DataArray.
-        
+
         This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
         and returns the DataArray corresponding to this dataset.
-        
+
         Returns:
-            xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands, 
+            xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands,
             and spatial coordinates.
-            
+
         Example:
             >>> import earth_data_kit as edk
             >>> import datetime
@@ -647,10 +647,14 @@ class Dataset:
             >>> ds.discover()
             >>> ds.to_vrts(bands=["red", "green", "blue"])
             >>> data_array = ds.to_dataarray()
-        
+
         Note:
             This method requires that `to_vrts()` has been called first to generate the VRT file.
         """
         # TODO: Optimize the chunk size later
-        ds = xr.open_dataset(self.xml_path, engine="edk_dataset", chunks={"time": 1, "band": 'auto', "x": 128, "y": 128})
+        ds = xr.open_dataset(
+            self.xml_path,
+            engine="edk_dataset",
+            chunks={"time": 1, "band": "auto", "x": 128, "y": 128},
+        )
         return ds[self.name]

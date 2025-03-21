@@ -88,4 +88,4 @@ Checkout the [docs](https://earth-data-kit.github.io/) for more details.
 
 Checkout the [examples](https://github.com/earth-data-kit/edk-examples).
 
-Check out the [Roadmap](https://earth-data-kit.github.io/roadmap.html).
+Checkout the [roadmap](https://earth-data-kit.github.io/roadmap.html).

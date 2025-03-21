@@ -11,7 +11,7 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 **To Reproduce**
-Steps to reproduce the behavior:
+Steps to reproduce the behavior. Any test datasets you can provide?
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
@@ -21,9 +21,9 @@ If applicable, add screenshots to help explain your problem.
 
 **Desktop (please complete the following information):**
 
-- OS: [e.g. iOS]
-- GDAL Ver
-- Version [e.g. 22]
+- OS: [e.g. iOS/Windows]
+- GDAL Ver (3.10.2)
+- Version [e.g. 0.1.1]
 
 **Additional context**
 Add any other context about the problem here.
