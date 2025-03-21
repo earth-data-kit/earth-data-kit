@@ -61,6 +61,7 @@ class EDKDatasetBackendArray(BackendArray):
 
         return x_coords, y_coords
 
+    @decorators.log_time
     @decorators.log_init
     def _raw_indexing_method(self, key):
         """Handle basic indexing (integers and slices only).
