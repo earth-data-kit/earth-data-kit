@@ -138,21 +138,10 @@ class Dataset:
             >>> import earth_data_kit as edk
             >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
             >>>
-            >>> # Setting spatial bounds using only a bounding box:
+            >>> # Setting spatial bounds using a bounding box:
             >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
             >>>
-            >>> # Setting spatial bounds with a grid file and a matcher function:
-            >>> def extract_grid_components(row):
-            ...     import re
-            ...     match = re.search(r"h:(\d+)\s+v:(\d+)", row.Name)
-            ...     if match:
-            ...         return {"h": f"{int(match.group(1)):02d}", "v": f"{int(match.group(2)):02d}"}
-            ...     return {}
-            >>> ds.set_spacebounds(
-            ...     (19.3044861183, 39.624997667, 21.0200403175, 42.6882473822),
-            ...     grid_file="path/to/grid.kml",
-            ...     matcher=extract_grid_components
-            ... )
+            >>> # For more examples, please refer to the edk-examples repository
         """
         self.space_opts = {
             "grid_file": grid_file,
