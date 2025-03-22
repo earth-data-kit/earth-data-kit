@@ -7,6 +7,7 @@ import numpy as np
 import traceback
 import logging
 import earth_data_kit.stitching.decorators as decorators
+import affine
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,30 @@ def get_numpy_dtype(gdal_dtype):
         gdal_dtype, np.float32
     )  # Default to float32 if type not found
 
+def get_spatial_coords(geotransform, width, height):
+    # Extract geotransform parameters
+    top_x, pixel_width, row_rotation, top_y, column_rotation, pixel_height = geotransform
+    
+    # Create affine transform
+    transform = affine.Affine(
+        pixel_width, row_rotation, top_x,
+        column_rotation, pixel_height, top_y
+    )
+    
+    # Apply pixel center offset (0.5, 0.5)
+    transform = transform * affine.Affine.translation(0.5, 0.5)
+    
+    # Picked from rioxarray
+    if transform.is_rectilinear and (transform.b == 0 and transform.d == 0):
+        x_coords, _ = transform * (np.arange(width), np.zeros(width))
+        _, y_coords = transform * (np.zeros(height), np.arange(height))
+    else:
+        x_coords, y_coords = transform * np.meshgrid(
+            np.arange(width),
+            np.arange(height),
+        )
+    return {"x": x_coords, "y": y_coords}
+
 
 def get_gdal_dtype(numpy_dtype):
     # Map numpy data types to GDAL data types
@@ -183,6 +208,8 @@ def open_edk_dataset(filename_or_obj):
 
         # Get corresponding numpy dtype
         dtype = get_numpy_dtype(gdal_dtype)  # Default to float32 if type not found
+
+        spatial_coords = get_spatial_coords(src_ds.GetGeoTransform(), x_size, y_size)
 
         # Create coordinates
         coords = {
