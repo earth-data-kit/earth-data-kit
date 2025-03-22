@@ -519,7 +519,7 @@ class Dataset:
         ds.Close()
 
         return output_vrt
-    
+
     @decorators.log_time
     @decorators.log_init
     def __combine_timestamped_vrts__(self, output_vrts):
@@ -569,6 +569,56 @@ class Dataset:
         tree.write(xml_path, pretty_print=True, xml_declaration=True, encoding="utf-8")
 
         return xml_path
+
+    @decorators.log_time
+    @decorators.log_init
+    def __create_timestamped_vrt__(self, date, band_tiles, bands):
+        """
+        Create a timestamped VRT file for a specific date from band tiles.
+
+        This method processes band tiles for a given date to create a multi-band VRT file.
+        The process involves several steps:
+        1. Extract each band as a single-band VRT
+        2. Create mosaic VRTs for each band
+        3. Stack these mosaics into a multi-band VRT
+        4. Set appropriate band descriptions
+
+        Args:
+            date (tuple): A tuple containing the date for which to create the VRT
+            band_tiles (DataFrame): DataFrame containing band tile information
+            bands (list): List of band descriptions to include in the VRT
+
+        Returns:
+            str: Path to the created VRT file
+
+        Note:
+            The function creates temporary single-band VRTs that are reprojected to EPSG:3857
+            by default unless overridden by options set via set_gdal_options.
+        """
+        curr_date = date[0]
+
+        _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
+        # Extract each required band as a single-band VRT.
+        # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
+        # unless overridden by options configured via set_gdal_options.
+        for _bt in _band_tiles.itertuples():
+            # TODO: Add multiprocessing for performance boost.
+            vrt_path = self.__extract_band__(_bt)
+            _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
+
+        # Combine single-band VRTs to create mosaic VRTs per band.
+        # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
+        # due to issues with metadata copying (e.g., ColorInterp). Hence, individual mosaics are created.
+        # Also vrt has better support than gti
+        band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
+
+        # Stack the band mosaics into a multi-band VRT.
+        output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
+
+        # Set the descriptions for the bands in the output VRT.
+        geo.set_band_descriptions(output_vrt, bands)
+
+        return output_vrt
 
     @decorators.log_time
     @decorators.log_init

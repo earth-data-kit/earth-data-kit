@@ -132,19 +132,21 @@ def get_numpy_dtype(gdal_dtype):
         gdal_dtype, np.float32
     )  # Default to float32 if type not found
 
+
 def get_spatial_coords(geotransform, width, height):
     # Extract geotransform parameters
-    top_x, pixel_width, row_rotation, top_y, column_rotation, pixel_height = geotransform
-    
+    top_x, pixel_width, row_rotation, top_y, column_rotation, pixel_height = (
+        geotransform
+    )
+
     # Create affine transform
     transform = affine.Affine(
-        pixel_width, row_rotation, top_x,
-        column_rotation, pixel_height, top_y
+        pixel_width, row_rotation, top_x, column_rotation, pixel_height, top_y
     )
-    
+
     # Apply pixel center offset (0.5, 0.5)
     transform = transform * affine.Affine.translation(0.5, 0.5)
-    
+
     # Picked from rioxarray
     if transform.is_rectilinear and (transform.b == 0 and transform.d == 0):
         x_coords, _ = transform * (np.arange(width), np.zeros(width))
@@ -215,8 +217,8 @@ def open_edk_dataset(filename_or_obj):
         coords = {
             "time": pd.DatetimeIndex(df.time),
             "band": np.arange(1, num_bands + 1, dtype=np.int32),
-            "x": np.arange(x_size, dtype=np.int32),
-            "y": np.arange(y_size, dtype=np.int32),
+            "x": spatial_coords["x"],
+            "y": spatial_coords["y"],
         }
         dims = ("time", "band", "x", "y")
 
