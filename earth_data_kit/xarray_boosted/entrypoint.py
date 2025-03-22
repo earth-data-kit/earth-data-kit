@@ -135,13 +135,13 @@ def get_numpy_dtype(gdal_dtype):
 
 def get_spatial_coords(geotransform, width, height):
     # Extract geotransform parameters
-    top_x, pixel_width, row_rotation, top_y, column_rotation, pixel_height = (
+    upper_left_x, pixel_width, row_rotation, upper_left_y, column_rotation, pixel_height = (
         geotransform
     )
 
     # Create affine transform
     transform = affine.Affine(
-        pixel_width, row_rotation, top_x, column_rotation, pixel_height, top_y
+        pixel_width, row_rotation, upper_left_x, column_rotation, pixel_height, upper_left_y
     )
 
     # Apply pixel center offset (0.5, 0.5)
