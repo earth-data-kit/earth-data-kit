@@ -32,7 +32,10 @@ run-tests:
 # Build shared libraries using Go
 build-shared-libs:
 	@echo "Building shared libraries..."
-	cd $(SHARED_LIBS_DIR) && go build -o $(GO_LIB_OUTPUT) main.go
+	@echo "Bulding for macos/arm64"
+	cd $(SHARED_LIBS_DIR) && env GOOS=darwin GOARCH=arm64 go build -o $(GO_LIB_OUTPUT)-darwin-arm64 main.go
+	@echo "Bulding for linux/amd64"
+	cd $(SHARED_LIBS_DIR) && env GOOS=linux GOARCH=amd64 go build -o $(GO_LIB_OUTPUT)-linux-amd64 main.go
 
 # Build the Python package with Poetry
 build-package:

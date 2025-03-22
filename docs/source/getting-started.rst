@@ -31,6 +31,7 @@ Earth Data Kit can be customized via environment variables. This approach lets y
 General Options
 ~~~~~~~~~~~~~~~
 * ``TMP_DIR`` *(Required)*: The directory path used for storing temporary files (e.g., catalog, pre-processed VRTs).
+* ``EDK_MAX_WORKERS``: The maximum number of workers to use for parallel processing. If not set, it will use ``num_cores - 2`` for CPU intensive tasks and ``(2 * num_cores) - 1`` for I/O intensive tasks.
 
 AWS Options
 ~~~~~~~~~~~

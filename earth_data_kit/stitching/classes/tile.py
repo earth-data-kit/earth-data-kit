@@ -5,6 +5,8 @@ import earth_data_kit.stitching.decorators as decorators
 import json
 import uuid
 from earth_data_kit.stitching.classes.band import Band
+import numpy as np
+import earth_data_kit.utilities as utilities
 
 gdal.UseExceptions()
 
@@ -24,12 +26,9 @@ class Tile:
         self.geo_transform = metadata["geo_transform"]
         self.projection = metadata["projection"]
         self.bands = metadata["bands"]
-        self.wgs_geo_transform = metadata["wgs_geo_transform"]
         self.length_unit = metadata["length_unit"]
         self.x_size = metadata["x_size"]
         self.y_size = metadata["y_size"]
-        self.wgs_x_size = metadata["wgs_x_size"]
-        self.wgs_y_size = metadata["wgs_y_size"]
         self.crs = metadata["crs"]
 
     @staticmethod
@@ -49,12 +48,9 @@ class Tile:
                 {
                     "geo_transform": row.geo_transform,
                     "projection": row.projection,
-                    "wgs_geo_transform": row.wgs_geo_transform,
                     "length_unit": row.length_unit,
                     "x_size": row.x_size,
                     "y_size": row.y_size,
-                    "wgs_x_size": row.wgs_x_size,
-                    "wgs_y_size": row.wgs_y_size,
                     "crs": row.crs,
                     "bands": row.bands,
                 },
@@ -75,11 +71,8 @@ class Tile:
           - geo_transform: The affine transformation parameters from the original dataset.
           - x_size: The pixel width of the dataset.
           - y_size: The pixel height of the dataset.
-          - wgs_x_size: The pixel width of the reprojected dataset.
-          - wgs_y_size: The pixel height of the reprojected dataset.
           - projection: The projection string of the original dataset.
           - crs: The coordinate reference system in EPSG format (derived from the dataset's projection).
-          - wgs_geo_transform: The affine transformation parameters of the reprojected dataset.
           - bands: A JSON string containing the band information retrieved from the dataset.
           - length_unit: The unit of measurement for the spatial reference (e.g., meter).
 
@@ -90,30 +83,22 @@ class Tile:
         Returns:
             dict: A dictionary containing the extracted metadata.
         """
+
         # Figure out aws options
         ds = gdal.Open(self.gdal_path)
-
-        # Getting reprojected raster's extent. This is done so that we can filter later on
-        # TODO: Optimize this, we actually don't need to reproject just to get the raster extent.
-        warped_ds = gdal.Warp(
-            f"/vsimem/{uuid.uuid4()}.vrt", ds, dstSRS="EPSG:4326", format="VRT"
-        )
-
+        gt = ds.GetGeoTransform()
+        projection = ds.GetProjection()
+        length_unit = ds.GetSpatialRef().GetAttrValue("UNIT")
         o = {
-            "geo_transform": ds.GetGeoTransform(),
+            "geo_transform": gt,
             "x_size": ds.RasterXSize,
             "y_size": ds.RasterXSize,
-            "wgs_x_size": warped_ds.RasterXSize,
-            "wgs_y_size": warped_ds.RasterYSize,
-            "projection": ds.GetProjection(),
+            "projection": projection,
             "crs": "EPSG:"
-            + osr.SpatialReference(ds.GetProjection()).GetAttrValue("AUTHORITY", 1),
-            "wgs_geo_transform": warped_ds.GetGeoTransform(),
+            + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
             "bands": json.dumps(self.get_bands(ds)),
-            "length_unit": ds.GetSpatialRef().GetAttrValue("UNIT"),
+            "length_unit": length_unit,
         }
-
-        warped_ds = None
         ds = None
         return o
 
@@ -126,16 +111,62 @@ class Tile:
         return (x_min, y_min, x_max, y_max)
 
     def get_wgs_extent(self):
-        wgs_x_min = self.wgs_geo_transform[0]
-        wgs_y_max = self.wgs_geo_transform[3]
-        wgs_x_max = wgs_x_min + self.wgs_geo_transform[1] * self.wgs_x_size
-        wgs_y_min = wgs_y_max + self.wgs_geo_transform[5] * self.wgs_y_size
+        # Get the geotransform
+        gt = self.geo_transform
 
-        return (wgs_x_min, wgs_y_max, wgs_x_max, wgs_y_min)
+        # Get raster dimensions
+        cols = self.x_size
+        rows = self.y_size
+
+        # Get extent in original projection
+        ext = []
+        xarr = [0, cols]
+        yarr = [0, rows]
+
+        # Get the coordinates of all corners
+        for px in xarr:
+            for py in yarr:
+                x = gt[0] + (px * gt[1]) + (py * gt[2])
+                y = gt[3] + (px * gt[4]) + (py * gt[5])
+                ext.append([x, y])
+
+        # Get source coordinate system
+        src_srs = osr.SpatialReference()
+        src_srs.ImportFromWkt(self.projection)
+
+        # Get target coordinate system (WGS84)
+        tgt_srs = osr.SpatialReference()
+        tgt_srs.ImportFromEPSG(4326)
+        tgt_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        # Create transform
+        transform = osr.CoordinateTransformation(src_srs, tgt_srs)
+
+        # Transform all corners to WGS84
+        wgs84_ext = []
+        for x, y in ext:
+            try:
+                point = transform.TransformPoint(x, y)
+                wgs84_ext.append([point[0], point[1]])
+            except Exception as e:
+                print(f"Warning: Transformation failed: {e}")
+
+        wgs84_ext = np.array(wgs84_ext)
+
+        # Get min/max coordinates
+        bbox = [
+            np.min(wgs84_ext[:, 0]).item(),  # minx
+            np.min(wgs84_ext[:, 1]).item(),  # miny
+            np.max(wgs84_ext[:, 0]).item(),  # maxx
+            np.max(wgs84_ext[:, 1]).item(),  # maxy
+        ]
+
+        return bbox
 
     def get_res(self):
         return (self.geo_transform[1], self.geo_transform[5])
 
+    @decorators.log_time
+    @decorators.log_init
     def get_bands(self, ds):
         bands = []
         band_count = ds.RasterCount

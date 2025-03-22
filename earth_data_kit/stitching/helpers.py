@@ -1,5 +1,6 @@
 # TODO: move to it's own folder, utilities/helpers.py
 import os
+import sys
 import shutil
 from shapely import Polygon
 import hashlib
@@ -8,6 +9,7 @@ import json
 import pandas as pd
 import shapely
 from osgeo import gdal
+import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +20,25 @@ def make_sure_dir_exists(dir):
 
 
 def get_processpool_workers():
-    if os.cpu_count() - 2 < 1:  # type: ignore
-        return 1
-    else:
-        return os.cpu_count() - 2  # type: ignore
+    try:
+        if os.getenv("EDK_MAX_WORKERS"):
+            return int(os.getenv("EDK_MAX_WORKERS"))
+    except Exception as e:
+        logger.warning(
+            f"Error getting EDK_MAX_WORKERS: {e}. Returning default value using max(1,os.cpu_count() - 2)"
+        )
+        return max(1, os.cpu_count() - 2)  # type: ignore
 
 
 def get_threadpool_workers():
-    return (2 * os.cpu_count()) - 1  # type: ignore
+    try:
+        if os.getenv("EDK_MAX_WORKERS"):
+            return int(os.getenv("EDK_MAX_WORKERS"))
+    except Exception as e:
+        logger.warning(
+            f"Error getting EDK_MAX_WORKERS: {e}. Returning default value using max(1,2*os.cpu_count() - 1)"
+        )
+        return max(1, 2 * os.cpu_count() - 1)  # type: ignore
 
 
 def get_tmp_dir():
@@ -60,3 +73,32 @@ def cheap_hash(input):
 def json_to_series(text):
     keys, values = zip(*[item for dct in json.loads(text) for item in dct.items()])
     return pd.Series(values, index=keys)
+
+
+def get_platform():
+    if sys.platform == "darwin":
+        return "macos"
+    elif sys.platform == "linux":
+        return "linux"
+    else:
+        raise Exception(f"Unsupported platform: {sys.platform}")
+
+
+def get_shared_lib_path():
+    if get_platform() == "macos":
+        path = os.path.join(
+            pathlib.Path(__file__).parent.resolve(),
+            "shared_libs",
+            "builds",
+            "go-lib-darwin-arm64",
+        )
+    elif get_platform() == "linux":
+        path = os.path.join(
+            pathlib.Path(__file__).parent.resolve(),
+            "shared_libs",
+            "builds",
+            "go-lib-linux-amd64",
+        )
+    else:
+        raise Exception(f"Unsupported platform: {sys.platform}")
+    return path

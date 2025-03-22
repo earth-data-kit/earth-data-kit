@@ -378,7 +378,6 @@ class Dataset:
         df = pd.read_csv(self.catalog_path)
         df["bands"] = df["bands"].apply(json.loads)
         df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
-        df["wgs_geo_transform"] = df["wgs_geo_transform"].apply(ast.literal_eval)
         df["date"] = pd.to_datetime(df["date"])
 
         tiles = Tile.from_df(df)
@@ -418,6 +417,8 @@ class Dataset:
             val = val * conversion_factor
             return val
 
+    @decorators.log_time
+    @decorators.log_init
     def __extract_band__(self, band_tile):
         """
         Extract and warp a specific band into a VRT file.
@@ -460,6 +461,8 @@ class Dataset:
         os.system(build_warped_vrt_cmd)
         return warped_vrt_path
 
+    @decorators.log_time
+    @decorators.log_init
     def __create_band_mosaic__(self, band_tiles, date, bands):
         """
         Create mosaic VRT files for the specified bands.
@@ -491,6 +494,8 @@ class Dataset:
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
 
+    @decorators.log_time
+    @decorators.log_init
     def __stack_band_mosaics__(self, band_mosaics, date):
         """
         Stack individual band mosaic VRTs into a multi-band VRT.
@@ -517,6 +522,8 @@ class Dataset:
 
         return output_vrt
 
+    @decorators.log_time
+    @decorators.log_init
     def __combine_timestamped_vrts__(self, output_vrts):
         """
         Combine multiple timestamped VRT files into a single XML file.

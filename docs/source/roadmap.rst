@@ -7,8 +7,8 @@ Below is the tentative roadmap for Earth Data Kit. Our approach is to look close
 
    We view this roadmap as a collaborative and dynamic blueprint for Earth Data Kit. We hope that community contributions will continuously refine these plans to meet real-world challenges.
 
-1. **Collection**
-    * A module dedicated to collecting data from varied sources.
+1. **Stitching**
+    * A module dedicated to collecting and stitching data from varied sources.
     * Prepares data for analysis with functionalities such as clipping, reprojecting, and regridding.
     * Supported Sources:
         - Rasters:
@@ -23,7 +23,7 @@ Below is the tentative roadmap for Earth Data Kit. Our approach is to look close
             * Bing Buildings
 
 2. **Visualization**
-    - Extend xarray and geopandas to support visualization using deck.gl and pydeck.
+    - Extend xarray and geopandas to support large scale visualization.
 
 3. **Integration with xarray**
     - Develop a new xarray backend for EDK datasets.
