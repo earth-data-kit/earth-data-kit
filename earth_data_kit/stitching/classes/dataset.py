@@ -677,12 +677,16 @@ class Dataset:
 
     @decorators.log_time
     @decorators.log_init
-    def to_dataarray(self):
+    def to_dataarray(self, xml_path=None):
         """
         Converts the dataset to an xarray DataArray.
 
         This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
         and returns the DataArray corresponding to this dataset.
+
+        Args:
+            xml_path (str, optional): Path to the XML file to open. If not provided, uses the XML path 
+                                      from the most recent `to_vrts()` call.
 
         Returns:
             xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands,
@@ -698,11 +702,12 @@ class Dataset:
             >>> data_array = ds.to_dataarray()
 
         Note:
-            This method requires that `to_vrts()` has been called first to generate the VRT file.
+            This method requires that `to_vrts()` has been called first to generate the VRT file,
+            unless a custom XML path is provided.
         """
         # TODO: Optimize the chunk size later
         ds = xr.open_dataset(
-            self.xml_path,
+            xml_path or self.xml_path,
             engine="edk_dataset",
             chunks={"time": 1, "band": "auto", "x": 128, "y": 128},
         )
