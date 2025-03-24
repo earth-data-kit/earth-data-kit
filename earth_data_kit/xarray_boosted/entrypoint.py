@@ -8,15 +8,24 @@ import traceback
 import logging
 import earth_data_kit.stitching.decorators as decorators
 import affine
+import concurrent.futures
+import earth_data_kit.stitching.helpers as helpers
+gdal.UseExceptions()
 
 logger = logging.getLogger(__name__)
 
 
 class EDKDatasetBackendArray(BackendArray):
-    def __init__(self, filename_or_obj, shape, dtype):
+    def __init__(
+        self, filename_or_obj, shape, dtype, x_size, y_size, x_block_size, y_block_size
+    ):
         self.filename_or_obj = filename_or_obj
         self.shape = shape
         self.dtype = dtype
+        self.x_size = x_size
+        self.y_size = y_size
+        self.x_block_size = x_block_size
+        self.y_block_size = y_block_size
 
     def __getitem__(self, key):
         return xr.core.indexing.explicit_indexing_adapter(
@@ -26,7 +35,7 @@ class EDKDatasetBackendArray(BackendArray):
             self._raw_indexing_method,
         )
 
-    def _get_time_coord(self, key):
+    def _get_time_coords(self, key):
         if isinstance(key, slice):
             time_coords = []
             for t in range(*key.indices(self.shape[0])):
@@ -34,10 +43,7 @@ class EDKDatasetBackendArray(BackendArray):
         else:
             time_coords = [key]
 
-        if len(time_coords) > 1:
-            raise ValueError("Time selection must be a single value")
-
-        return time_coords[0]
+        return time_coords
 
     def _get_band_nums(self, key):
         if isinstance(key, slice):
@@ -50,6 +56,7 @@ class EDKDatasetBackendArray(BackendArray):
         return band_nums
 
     def _get_x_y_coords(self, x_key, y_key):
+        # TODO: Add code to pad x_key and y_key if they don't align with raster boundaries
         if not isinstance(x_key, slice):
             x_coords = slice(x_key, x_key + 1)
         else:
@@ -61,6 +68,31 @@ class EDKDatasetBackendArray(BackendArray):
             y_coords = y_key
 
         return x_coords, y_coords
+
+    def _get_data(self, fp, band_num, offsets, buf_sizes):
+        ds = gdal.Open(fp)
+
+        x_size = int(
+            self.x_size - offsets[0]
+            if (offsets[0] + buf_sizes[0]) > self.x_size
+            else buf_sizes[0]
+        )
+        y_size = int(
+            self.y_size - offsets[1]
+            if (offsets[1] + buf_sizes[1]) > self.y_size
+            else buf_sizes[1]
+        )
+
+        # Data returned will either be 2D or 3D, depending on whether we are selecting a single band or multiple bands
+        data = ds.ReadAsArray(
+            xoff=offsets[0],
+            yoff=offsets[1],
+            xsize=x_size,
+            ysize=y_size,
+            band_list=[band_num],
+            buf_type=get_gdal_dtype(self.dtype),
+        )
+        return data
 
     @decorators.log_time
     @decorators.log_init
@@ -79,23 +111,84 @@ class EDKDatasetBackendArray(BackendArray):
         """
         df = pd.read_xml(self.filename_or_obj)
 
-        time_coord = self._get_time_coord(key[0])
+        time_coords = self._get_time_coords(key[0])
 
         band_nums = self._get_band_nums(key[1])
 
         x_coords, y_coords = self._get_x_y_coords(key[2], key[3])
 
-        ds = gdal.Open(df.iloc[time_coord].source)
+        data = None
 
-        # Data returned will either be 2D or 3D, depending on whether we are selecting a single band or multiple bands
-        data = ds.ReadAsArray(
-            xoff=x_coords.start,
-            yoff=y_coords.start,
-            xsize=int(x_coords.stop - x_coords.start),
-            ysize=int(y_coords.stop - y_coords.start),
-            band_list=band_nums,
-            buf_type=get_gdal_dtype(self.dtype),
-        )
+        with concurrent.futures.ThreadPoolExecutor(max_workers=helpers.get_threadpool_workers()) as executor:
+            futures = []
+            for time_coord in time_coords:
+                for band_num in band_nums:
+                    for x_coord in range(
+                        x_coords.start, x_coords.stop, self.x_block_size
+                    ):
+                        data_along_x = None
+                        buf_x_size = (
+                            (x_coords.stop - x_coord)
+                            if x_coord + self.x_block_size > x_coords.stop
+                            else self.x_block_size
+                        )
+                        for y_coord in range(
+                            y_coords.start, y_coords.stop, self.y_block_size
+                        ):
+                            buf_y_size = (
+                                (y_coords.stop - y_coord)
+                                if y_coord + self.y_block_size > y_coords.stop
+                                else self.y_block_size
+                            )
+                            # Get chunk data
+                            futures.append(
+                                executor.submit(
+                                    self._get_data,
+                                    df.iloc[time_coord].source,
+                                    band_num,
+                                    (x_coord, y_coord),
+                                    (buf_x_size, buf_y_size),
+                                )
+                            )
+
+            executor.shutdown(wait=True)
+
+            time_arrays = []
+            counter = 0
+            for time_coord in time_coords:
+                band_arrays = []
+                for band_num in band_nums:
+                    band_data = None
+                    for x_coord in range(
+                        x_coords.start, x_coords.stop, self.x_block_size
+                    ):
+                        data_along_x = None
+                        for y_coord in range(
+                            y_coords.start, y_coords.stop, self.y_block_size
+                        ):
+                            chunk_data = futures[counter].result()
+                            counter += 1
+
+                            # Concatenate along y-axis
+                            if data_along_x is None:
+                                data_along_x = chunk_data
+                            else:
+                                data_along_x = np.concatenate(
+                                    (data_along_x, chunk_data), axis=0
+                                )
+
+                        # Concatenate along x-axis
+                        if band_data is None:
+                            band_data = data_along_x
+                        else:
+                            band_data = np.concatenate(
+                                (band_data, data_along_x), axis=1
+                            )
+                    band_arrays.append(band_data)
+                time_arrays.append(band_arrays)
+
+        data = np.array(time_arrays)
+
         data = np.squeeze(data)
 
         if len(band_nums) == 1:
@@ -135,13 +228,23 @@ def get_numpy_dtype(gdal_dtype):
 
 def get_spatial_coords(geotransform, width, height):
     # Extract geotransform parameters
-    upper_left_x, pixel_width, row_rotation, upper_left_y, column_rotation, pixel_height = (
-        geotransform
-    )
+    (
+        upper_left_x,
+        pixel_width,
+        row_rotation,
+        upper_left_y,
+        column_rotation,
+        pixel_height,
+    ) = geotransform
 
     # Create affine transform
     transform = affine.Affine(
-        pixel_width, row_rotation, upper_left_x, column_rotation, pixel_height, upper_left_y
+        pixel_width,
+        row_rotation,
+        upper_left_x,
+        column_rotation,
+        pixel_height,
+        upper_left_y,
     )
 
     # Apply pixel center offset (0.5, 0.5)
@@ -222,12 +325,18 @@ def open_edk_dataset(filename_or_obj):
         }
         dims = ("time", "band", "x", "y")
 
+        # TODO: Make this dynamic
+        BLOCK_SIZE = 512
         da = xr.DataArray(
             data=xr.core.indexing.LazilyIndexedArray(
                 EDKDatasetBackendArray(
                     filename_or_obj,
                     shape=(time_size, num_bands, x_size, y_size),
                     dtype=dtype,
+                    x_size=x_size,
+                    y_size=y_size,
+                    x_block_size=BLOCK_SIZE,
+                    y_block_size=BLOCK_SIZE,
                 )
             ),
             name=filename_or_obj.split("/")[-1].split(".")[0],

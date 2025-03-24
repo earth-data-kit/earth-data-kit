@@ -685,7 +685,7 @@ class Dataset:
         and returns the DataArray corresponding to this dataset.
 
         Args:
-            xml_path (str, optional): Path to the XML file to open. If not provided, uses the XML path 
+            xml_path (str, optional): Path to the XML file to open. If not provided, uses the XML path
                                       from the most recent `to_vrts()` call.
 
         Returns:
