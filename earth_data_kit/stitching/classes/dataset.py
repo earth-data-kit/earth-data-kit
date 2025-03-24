@@ -670,8 +670,9 @@ class Dataset:
                     )
                 )
 
-            for future in concurrent.futures.as_completed(futures):
-                output_vrts.append(future.result())
+            for future in futures:
+                result = future.result()
+                output_vrts.append(result)
 
         xml_path = self.__combine_timestamped_vrts__(output_vrts)
         self.xml_path = xml_path
