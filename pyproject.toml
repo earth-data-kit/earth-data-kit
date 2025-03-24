@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "earth-data-kit"
-version = "0.1.2"
+version = "0.1.0"
 description = "Making GIS data analysis cheap and easy"
 license = "Apache-2.0"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
@@ -39,6 +39,11 @@ furo = "^2024.5.6"
 pytest-xdist = "^3.6.1"
 black = "^25.1.0"
 sphinx-copybutton = "^0.5.2"
+rasterio = "^1.4.3"
+rioxarray = "^0.18.2"
+pyarrow = "^19.0.1"
+ipycytoscape = "^1.3.3"
+gcsfs = "^2025.3.0"
 
 [build-system]
 requires = ["poetry-core"]
