@@ -5,7 +5,8 @@ from lxml import etree
 import logging
 from osgeo import osr
 import os
-from earth_data_kit.stitching import geo, helpers
+import earth_data_kit.utilities.helpers as helpers
+import earth_data_kit.utilities.geo as geo
 import earth_data_kit.stitching.constants as constants
 import earth_data_kit.stitching.decorators as decorators
 import earth_data_kit.stitching.engines.earth_engine as earth_engine
@@ -17,6 +18,7 @@ import numpy as np
 import fiona
 import json
 import xarray as xr
+from osgeo import gdal
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -137,21 +139,10 @@ class Dataset:
             >>> import earth_data_kit as edk
             >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
             >>>
-            >>> # Setting spatial bounds using only a bounding box:
+            >>> # Setting spatial bounds using a bounding box:
             >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
             >>>
-            >>> # Setting spatial bounds with a grid file and a matcher function:
-            >>> def extract_grid_components(row):
-            ...     import re
-            ...     match = re.search(r"h:(\d+)\s+v:(\d+)", row.Name)
-            ...     if match:
-            ...         return {"h": f"{int(match.group(1)):02d}", "v": f"{int(match.group(2)):02d}"}
-            ...     return {}
-            >>> ds.set_spacebounds(
-            ...     (19.3044861183, 39.624997667, 21.0200403175, 42.6882473822),
-            ...     grid_file="path/to/grid.kml",
-            ...     matcher=extract_grid_components
-            ... )
+            >>> # For more examples, please refer to the edk-examples repository
         """
         self.space_opts = {
             "grid_file": grid_file,
@@ -378,7 +369,6 @@ class Dataset:
         df = pd.read_csv(self.catalog_path)
         df["bands"] = df["bands"].apply(json.loads)
         df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
-        df["wgs_geo_transform"] = df["wgs_geo_transform"].apply(ast.literal_eval)
         df["date"] = pd.to_datetime(df["date"])
 
         tiles = Tile.from_df(df)
@@ -418,6 +408,8 @@ class Dataset:
             val = val * conversion_factor
             return val
 
+    @decorators.log_time
+    @decorators.log_init
     def __extract_band__(self, band_tile):
         """
         Extract and warp a specific band into a VRT file.
@@ -454,12 +446,25 @@ class Dataset:
                 "no data val set as None. it's advised to provide a nodataval"
             )
 
-        # Creating warped vrt for every tile extracting the correct band required and in the correct order
-        build_warped_vrt_cmd = f"gdalwarp --quiet -te {self.space_opts["bbox"][0]} {self.space_opts["bbox"][1]} {self.space_opts["bbox"][2]} {self.space_opts["bbox"][3]} -te_srs 'EPSG:4326' {tr} {t_srs} {nodataval or ''} -srcband {band_tile.idx} -dstband 1 -et 0 -tap -of VRT -overwrite {band_tile.tile.gdal_path} {warped_vrt_path}"
+        options = gdal.WarpOptions(
+            outputBounds=self.space_opts["bbox"],
+            outputBoundsSRS="EPSG:4326",
+            xRes=tr.split(" ")[1],
+            yRes=tr.split(" ")[2],
+            dstSRS=t_srs.split(" ")[1],
+            srcNodata=nodataval.split(" ")[1] if nodataval is not None else None,
+            srcBands=[band_tile.idx],
+            dstBands=[1],
+            errorThreshold=0,
+            targetAlignedPixels=True,
+            format="VRT",
+        )
 
-        os.system(build_warped_vrt_cmd)
+        gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options)
         return warped_vrt_path
 
+    @decorators.log_time
+    @decorators.log_init
     def __create_band_mosaic__(self, band_tiles, date, bands):
         """
         Create mosaic VRT files for the specified bands.
@@ -480,17 +485,19 @@ class Dataset:
         for idx in range(len(bands)):
             current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
             band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.vrt"
-            band_mosaic_file_list = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.txt"
 
-            current_bands_df[["vrt_path"]].to_csv(
-                band_mosaic_file_list, index=False, header=False
+            ds = gdal.BuildVRT(
+                destName=band_mosaic_path,
+                srcDSOrSrcDSTab=current_bands_df["vrt_path"].tolist(),
             )
-            buildvrt_cmd = f"gdalbuildvrt --quiet -overwrite -input_file_list {band_mosaic_file_list} {band_mosaic_path}"
+            # This saves the vrt file
+            ds.Close()
 
-            os.system(buildvrt_cmd)
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
 
+    @decorators.log_time
+    @decorators.log_init
     def __stack_band_mosaics__(self, band_mosaics, date):
         """
         Stack individual band mosaic VRTs into a multi-band VRT.
@@ -506,17 +513,16 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         output_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.vrt"
-        output_vrt_file_list = (
-            f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.txt"
+
+        ds = gdal.BuildVRT(
+            destName=output_vrt, srcDSOrSrcDSTab=band_mosaics, separate=True
         )
-        pd.DataFrame(band_mosaics, columns=["band_mosaic_path"]).to_csv(
-            output_vrt_file_list, index=False, header=False
-        )
-        build_mosaiced_stacked_vrt_cmd = f"gdalbuildvrt -separate {output_vrt} -input_file_list {output_vrt_file_list}"
-        os.system(build_mosaiced_stacked_vrt_cmd)
+        ds.Close()
 
         return output_vrt
 
+    @decorators.log_time
+    @decorators.log_init
     def __combine_timestamped_vrts__(self, output_vrts):
         """
         Combine multiple timestamped VRT files into a single XML file.
@@ -565,6 +571,58 @@ class Dataset:
 
         return xml_path
 
+    @decorators.log_time
+    @decorators.log_init
+    def __create_timestamped_vrt__(self, date, band_tiles, bands):
+        """
+        Create a timestamped VRT file for a specific date from band tiles.
+
+        This method processes band tiles for a given date to create a multi-band VRT file.
+        The process involves several steps:
+        1. Extract each band as a single-band VRT
+        2. Create mosaic VRTs for each band
+        3. Stack these mosaics into a multi-band VRT
+        4. Set appropriate band descriptions
+
+        Args:
+            date (tuple): A tuple containing the date for which to create the VRT
+            band_tiles (DataFrame): DataFrame containing band tile information
+            bands (list): List of band descriptions to include in the VRT
+
+        Returns:
+            str: Path to the created VRT file
+
+        Note:
+            The function creates temporary single-band VRTs that are reprojected to EPSG:3857
+            by default unless overridden by options set via set_gdal_options.
+        """
+        curr_date = date[0]
+
+        _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
+        # Extract each required band as a single-band VRT.
+        # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
+        # unless overridden by options configured via set_gdal_options.
+        for _bt in _band_tiles.itertuples():
+            # TODO: Add multiprocessing for performance boost.
+            vrt_path = self.__extract_band__(_bt)
+            _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
+
+        # Combine single-band VRTs to create mosaic VRTs per band.
+        # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
+        # due to issues with metadata copying (e.g., ColorInterp). Hence, individual mosaics are created.
+        # Also vrt has better support than gti
+        band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
+
+        # Stack the band mosaics into a multi-band VRT.
+        output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
+
+        # Set the descriptions for the bands in the output VRT.
+        geo.set_band_descriptions(output_vrt, bands)
+
+        return output_vrt
+
+    @decorators.log_time
+    @decorators.log_init
     def to_vrts(self, bands):
         """
         Stitches the scene files together into VRTs based on the ordered band arrangement provided.
@@ -599,46 +657,42 @@ class Dataset:
 
         outputs_by_dates = df.groupby(by=["date"])
         output_vrts = []
-        # Iterate over each date group to create VRTs.
-        for date, band_tiles in outputs_by_dates:
-            # TODO: Add multiprocessing for performance boost.
-            curr_date = date[0]
 
-            _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
-            # Extract each required band as a single-band VRT.
-            # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
-            # unless overridden by options configured via set_gdal_options.
-            for _bt in _band_tiles.itertuples():
-                vrt_path = self.__extract_band__(_bt)
-                _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            futures = []
+            # Iterate over each date group to create VRTs.
+            for date, band_tiles in outputs_by_dates:
+                futures.append(
+                    executor.submit(
+                        self.__create_timestamped_vrt__, date, band_tiles, bands
+                    )
+                )
 
-            # Combine single-band VRTs to create mosaic VRTs per band.
-            # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
-            # due to issues with metadata copying (e.g., ColorInterp). Hence, individual mosaics are created.
-            band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
-
-            # Stack the band mosaics into a multi-band VRT.
-            output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
-
-            # Set the descriptions for the bands in the output VRT.
-            geo.set_band_descriptions(output_vrt, bands)
-
-            output_vrts.append(output_vrt)
+            for future in futures:
+                result = future.result()
+                output_vrts.append(result)
 
         xml_path = self.__combine_timestamped_vrts__(output_vrts)
         self.xml_path = xml_path
 
-    def to_dataarray(self):
+    @decorators.log_time
+    @decorators.log_init
+    def to_dataarray(self, xml_path=None):
         """
         Converts the dataset to an xarray DataArray.
-        
+
         This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
         and returns the DataArray corresponding to this dataset.
-        
+
+        Args:
+            xml_path (str, optional): Path to the XML file to open. If not provided, uses the XML path from the most recent `to_vrts()` call.
+
         Returns:
-            xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands, 
+            xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands,
             and spatial coordinates.
-            
+
         Example:
             >>> import earth_data_kit as edk
             >>> import datetime
@@ -647,10 +701,14 @@ class Dataset:
             >>> ds.discover()
             >>> ds.to_vrts(bands=["red", "green", "blue"])
             >>> data_array = ds.to_dataarray()
-        
+
         Note:
-            This method requires that `to_vrts()` has been called first to generate the VRT file.
+            This method requires that `to_vrts()` has been called first to generate the VRT file, unless a custom XML path is provided.
         """
         # TODO: Optimize the chunk size later
-        ds = xr.open_dataset(self.xml_path, engine="edk_dataset", chunks={"time": 1, "band": 'auto', "x": 128, "y": 128})
+        ds = xr.open_dataset(
+            xml_path or self.xml_path,
+            engine="edk_dataset",
+            chunks={"time": 1, "band": "auto", "x": 128, "y": 128},
+        )
         return ds[self.name]

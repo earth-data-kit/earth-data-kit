@@ -9,6 +9,7 @@ tmp
 docs/_build
 .zed
 .vscode
+.benchmarks
 
 # Python packaging related
 *.egg-info

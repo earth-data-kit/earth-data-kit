@@ -21,8 +21,10 @@ TAG ?= $(tag)
 # Install the built Python package
 install-package:
 	@echo "Installing package..."
-	# TODO: Make this dynamic
-	$(PIP) install dist/earth_data_kit-1.0.0a2.tar.gz
+	@echo "Fetching latest release tarball URL..."
+	@TARBALL_URL=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.tarball_url'); \
+	echo "Installing from $$TARBALL_URL"; \
+	$(PIP) install "$$TARBALL_URL"
 
 # Run tests using pytest
 run-tests:
@@ -32,7 +34,10 @@ run-tests:
 # Build shared libraries using Go
 build-shared-libs:
 	@echo "Building shared libraries..."
-	cd $(SHARED_LIBS_DIR) && go build -o $(GO_LIB_OUTPUT) main.go
+	@echo "Bulding for macos/arm64"
+	cd $(SHARED_LIBS_DIR) && env GOOS=darwin GOARCH=arm64 go build -o $(GO_LIB_OUTPUT)-darwin-arm64 main.go
+	@echo "Bulding for linux/amd64"
+	cd $(SHARED_LIBS_DIR) && env GOOS=linux GOARCH=amd64 go build -o $(GO_LIB_OUTPUT)-linux-amd64 main.go
 
 # Build the Python package with Poetry
 build-package:
@@ -45,12 +50,11 @@ build-docs:
 	rm -rf $(DOCS_BUILD_DIR)/*
 	$(SPHINXBUILD) -M html $(DOCS_SOURCE_DIR) $(DOCS_BUILD_DIR)
 
-# Builds the package and documentation
+# Builds the shared-libs and package
 build:
-	@echo "Rebuilding package and documentation..."
-	$(MAKE) build-package
+	@echo "Rebuilding shared libraries and package..."
 	$(MAKE) build-shared-libs
-	$(MAKE) build-docs
+	$(MAKE) build-package
 
 # Create a new release
 release:
