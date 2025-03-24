@@ -46,4 +46,5 @@ Contents
    stitching
    examples
    roadmap
+   developer-docs
    api-reference
