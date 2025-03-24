@@ -74,7 +74,7 @@ Release Checklist
         $ git checkout master
         $ git pull
 
-2. **Build and Publish the Package**
+2. **Build and Release the Package and Documentation**
 
    * Clean the build environment:
 
@@ -88,14 +88,6 @@ Release Checklist
 
         $ make build
 
-   * Release the package using the tag. Note that the tag is the version number without the ``v`` prefix:
-
-     .. code-block:: console
-
-        $ TAG=X.Y.Z make release
-
-3. **Update Documentation**
-
    * Install the built package to ensure documentation builds with the latest code:
 
      .. code-block:: console
@@ -108,11 +100,12 @@ Release Checklist
 
         $ make build-docs
 
-   * Release the documentation:
+   * Release both the package and documentation using the tag. Note that the tag is the version number without the ``v`` prefix:
 
      .. code-block:: console
 
-        $ make release-docs
+        $ TAG=X.Y.Z make release
+        $ TAG=X.Y.Z make release-docs
 
 4. **Announce the Release**
 
