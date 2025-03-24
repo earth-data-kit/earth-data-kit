@@ -69,6 +69,8 @@ class EDKDatasetBackendArray(BackendArray):
 
         return x_coords, y_coords
 
+    @decorators.log_time
+    @decorators.log_init
     def _get_data(self, fp, band_num, offsets, buf_sizes):
         ds = gdal.Open(fp)
 
