@@ -21,8 +21,10 @@ TAG ?= $(tag)
 # Install the built Python package
 install-package:
 	@echo "Installing package..."
-	# TODO: Make this dynamic
-	$(PIP) install dist/earth_data_kit-1.0.0a2.tar.gz
+	@echo "Fetching latest release tarball URL..."
+	@TARBALL_URL=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.tarball_url'); \
+	echo "Installing from $$TARBALL_URL"; \
+	$(PIP) install "$$TARBALL_URL"
 
 # Run tests using pytest
 run-tests:
