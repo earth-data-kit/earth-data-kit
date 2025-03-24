@@ -92,7 +92,7 @@ Release Checklist
 
      .. code-block:: console
 
-        $ make install-package
+        $ pip3 install dist/earth_data_kit-*.tar.gz
 
    * Build the documentation:
 
