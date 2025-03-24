@@ -51,7 +51,7 @@ Planning the Release
 
      .. code-block:: console
 
-        $ make test
+        $ make run-tests
 
    * Update the changelog with all notable changes
    * Merge all changes to the ``dev`` branch
