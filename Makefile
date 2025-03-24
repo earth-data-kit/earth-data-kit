@@ -46,6 +46,7 @@ build-package:
 build-docs:
 	@echo "Building documentation..."
 	rm -rf $(DOCS_BUILD_DIR)/*
+	jupyter nbconvert ./docs/source/notebooks/*.ipynb --no-prompt --to script
 	$(SPHINXBUILD) -M html $(DOCS_SOURCE_DIR) $(DOCS_BUILD_DIR)
 
 # Builds the shared-libs and package

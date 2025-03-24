@@ -11,3 +11,12 @@ Simply click on the Binder badge in the repository or use this link: |binder| to
    :target: https://mybinder.org/v2/gh/earth-data-kit/edk-examples.git/master
 
 The examples cover various use cases and data sources to help you get started with Earth Data Kit.
+
+Example: Import Earth Data Kit
+------------------------------
+
+This basic example shows how to import the Earth Data Kit library and check its version:
+
+.. literalinclude:: notebooks/import-edk.py
+   :language: python
+

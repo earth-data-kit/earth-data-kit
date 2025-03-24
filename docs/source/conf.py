@@ -19,13 +19,14 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "nbsphinx",
 ]
 
 autodoc_member_order = "bysource"
 autoclass_content = "both"
 
 templates_path = ["_templates"]
-exclude_patterns = []
+exclude_patterns = ['notebooks/*.ipynb', 'notebooks/Dockerfile.py', 'notebooks/earth_data_kit-0.0.1a1.tar.gz']
 
 
 # -- Options for HTML output -------------------------------------------------

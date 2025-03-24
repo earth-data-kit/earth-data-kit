@@ -10,6 +10,7 @@ docs/_build
 .zed
 .vscode
 .benchmarks
+docs/source/notebooks/*.py
 
 # Python packaging related
 *.egg-info
