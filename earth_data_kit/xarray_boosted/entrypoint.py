@@ -10,6 +10,7 @@ import earth_data_kit.stitching.decorators as decorators
 import affine
 import concurrent.futures
 import earth_data_kit.utilities.helpers as helpers
+
 gdal.UseExceptions()
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,9 @@ class EDKDatasetBackendArray(BackendArray):
 
         data = None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=helpers.get_threadpool_workers()) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
             futures = []
             for time_coord in time_coords:
                 for band_num in band_nums:

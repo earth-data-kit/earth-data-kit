@@ -28,6 +28,7 @@ def set_band_descriptions(filepath, bands):
         rb.SetDescription(bands[idx])
     del ds
 
+
 def warp_and_get_extent(df_row):
     ds = gdal.Warp(
         "/vsimem/reprojected.tif", gdal.Open(df_row.gdal_path), dstSRS="EPSG:4326"

@@ -686,8 +686,7 @@ class Dataset:
         and returns the DataArray corresponding to this dataset.
 
         Args:
-            xml_path (str, optional): Path to the XML file to open. If not provided, uses the XML path
-                                      from the most recent `to_vrts()` call.
+            xml_path (str, optional): Path to the XML file to open. If not provided, uses the XML path from the most recent `to_vrts()` call.
 
         Returns:
             xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands,
@@ -703,8 +702,7 @@ class Dataset:
             >>> data_array = ds.to_dataarray()
 
         Note:
-            This method requires that `to_vrts()` has been called first to generate the VRT file,
-            unless a custom XML path is provided.
+            This method requires that `to_vrts()` has been called first to generate the VRT file, unless a custom XML path is provided.
         """
         # TODO: Optimize the chunk size later
         ds = xr.open_dataset(

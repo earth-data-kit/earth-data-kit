@@ -80,7 +80,7 @@ def get_shared_lib_path():
 
     if arch == None:
         raise Exception(f"Unsupported platform: {sys.platform}")
-    
+
     path = os.path.join(path, arch)
-        
+
     return path
