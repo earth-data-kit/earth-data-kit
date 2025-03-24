@@ -48,11 +48,11 @@ build-docs:
 	rm -rf $(DOCS_BUILD_DIR)/*
 	$(SPHINXBUILD) -M html $(DOCS_SOURCE_DIR) $(DOCS_BUILD_DIR)
 
-# Builds the package and documentation
+# Builds the shared-libs and package
 build:
-	@echo "Rebuilding package and shared libraries..."
-	$(MAKE) build-package
+	@echo "Rebuilding shared libraries and package..."
 	$(MAKE) build-shared-libs
+	$(MAKE) build-package
 
 # Create a new release
 release:
