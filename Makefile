@@ -50,10 +50,9 @@ build-docs:
 
 # Builds the package and documentation
 build:
-	@echo "Rebuilding package and documentation..."
+	@echo "Rebuilding package and shared libraries..."
 	$(MAKE) build-package
 	$(MAKE) build-shared-libs
-	$(MAKE) build-docs
 
 # Create a new release
 release:

@@ -1,7 +1,7 @@
 Release Process
 ===============
 
-This document outlines the process for creating and publishing new releases of Earth Data Kit.
+This document outlines the process for creating and publishing new releases of Earth Data Kit. Earth Data Kit versioning starts from 0.1.0 and follows a straightforward versioning scheme. We don't use alpha or beta releases in our versioning strategy.
 
 Version Numbering
 -----------------
@@ -11,99 +11,119 @@ Earth Data Kit follows `Semantic Versioning <https://semver.org/>`_ (SemVer):
 * **MAJOR** version for incompatible API changes
 * **MINOR** version for backward-compatible functionality additions
 * **PATCH** version for backward-compatible bug fixes
-* Alpha/beta releases are denoted with suffixes (e.g., ``1.0.0a1``, ``1.0.0b1``)
 
 The current version is maintained in ``earth_data_kit/__init__.py`` as the ``__version__`` variable.
+
+Planning the Release
+--------------------
+
+1. **Development Workflow**
+
+   * All development work happens on the ``dev`` branch
+   * Features and fixes are developed in feature branches and merged into ``dev``
+   * Code reviews and tests are performed before merging into ``dev``
+
+2. **Release Branch Creation**
+
+   * When approaching a planned release, create a release branch from ``dev``:
+
+     .. code-block:: console
+
+        $ git checkout dev
+        $ git pull
+        $ git checkout -b release/vX.Y.Z
+
+   * The release branch is used to prepare and stabilize the release
+   * Only bug fixes and release-specific changes should be made on this branch
+   * Any changes made to the release branch must be merged back to ``dev`` after release
+
+3. **Release Preparation**
+
+   * Finalize features and fixes for the release
+   * Update version using Poetry:
+
+     .. code-block:: console
+
+        $ poetry version [major|minor|patch]
+
+   * Make sure all documentation is updated to reflect the new version
+   * Ensure all tests are passing:
+
+     .. code-block:: console
+
+        $ make test
+
+   * Update the changelog with all notable changes
+   * Merge all changes to the ``dev`` branch
 
 Release Checklist
 -----------------
 
-1. **Prepare the Release**
+1. **Finalize the Release**
 
-   * Ensure all tests pass on the release branch
-   * Update the version number in ``earth_data_kit/__init__.py``
-   * Update the changelog with all notable changes
-   * Install the package locally for testing:
-   
-     .. code-block:: console
-     
-        $ pip3 install .
-        
-   * Build the package using the Makefile:
-   
-     .. code-block:: console
-     
-        $ make build
-        
-   * Create and merge a PR with the changelog updates
+   * Create a pull request to merge the ``dev`` branch to ``master``:
+     1. Create the pull request with a descriptive title and details about the release
+     2. Make sure all tests pass
+     3. Once approved, merge the pull request
 
-2. **Create the Release Package**
+   * Lock the release branch to prevent further changes
+   * Checkout the master branch for release:
+
+     .. code-block:: console
+
+        $ git checkout master
+        $ git pull
+
+2. **Build and Publish the Package**
 
    * Clean the build environment:
 
      .. code-block:: console
 
-        $ rm -rf build/ dist/ *.egg-info/
+        $ rm -rf build/ dist/
 
    * Build the package:
 
      .. code-block:: console
 
-        $ python -m build
+        $ make build
 
-   * Verify the package contents:
-
-     .. code-block:: console
-
-        $ tar -tzf dist/earth_data_kit-X.Y.Z.tar.gz
-
-3. **Create a GitHub Release**
-
-   * Tag the release in git:
+   * Release the package using the tag. Note that the tag is the version number without the ``v`` prefix:
 
      .. code-block:: console
 
-        $ git tag -a vX.Y.Z -m "Release vX.Y.Z"
-        $ git push origin vX.Y.Z
+        $ TAG=X.Y.Z make release
 
-   * Create a new release on GitHub
-   * Upload the distribution files from the ``dist/`` directory
-   * Include release notes detailing the changes
+3. **Update Documentation**
 
-4. **Update Documentation**
+   * Install the built package to ensure documentation builds with the latest code:
 
-   * Ensure the documentation reflects the new version
-   * Update installation instructions with the new version number
-   * Rebuild and deploy the documentation
+     .. code-block:: console
 
-5. **Announce the Release**
+        $ make install-package
+
+   * Build the documentation:
+
+     .. code-block:: console
+
+        $ make build-docs
+
+   * Release the documentation:
+
+     .. code-block:: console
+
+        $ make release-docs
+
+4. **Announce the Release**
 
    * Notify the team and users about the new release
+   * Include a link to the changelog
    * Highlight key features, improvements, and bug fixes
 
-Docker Image Updates
--------------------
-
-When releasing a new version, update the Docker image:
-
-1. Update the Dockerfile with the new package version
-2. Build and tag the new Docker image:
-
-   .. code-block:: console
-
-      $ docker build -t earth-data-kit:vX.Y.Z .
-
-3. Push the image to the container registry:
-
-   .. code-block:: console
-
-      $ docker push earth-data-kit:vX.Y.Z
-      $ docker push earth-data-kit:latest
-
 Post-Release
------------
+------------
 
 After completing a release:
 
-1. Increment the version number in the development branch to the next anticipated version with a development suffix (e.g., ``X.Y+1.0.dev0``)
+1. Increment the version number in the development branch to the next anticipated version with a development suffix (e.g., ``X.Y+1.0``)
 2. Create an issue for planning the next release
