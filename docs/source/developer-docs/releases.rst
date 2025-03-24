@@ -112,11 +112,3 @@ Release Checklist
    * Notify the team and users about the new release
    * Include a link to the changelog
    * Highlight key features, improvements, and bug fixes
-
-Post-Release
-------------
-
-After completing a release:
-
-1. Increment the version number in the development branch to the next anticipated version with a development suffix (e.g., ``X.Y+1.0``)
-2. Create an issue for planning the next release
