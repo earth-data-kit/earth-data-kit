@@ -5,7 +5,8 @@ from lxml import etree
 import logging
 from osgeo import osr
 import os
-from earth_data_kit.stitching import geo, helpers
+import earth_data_kit.utilities.helpers as helpers
+import earth_data_kit.utilities.geo as geo
 import earth_data_kit.stitching.constants as constants
 import earth_data_kit.stitching.decorators as decorators
 import earth_data_kit.stitching.engines.earth_engine as earth_engine

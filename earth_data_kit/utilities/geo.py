@@ -1,7 +1,7 @@
-# TODO: move to it's own folder, utilities/geo.py
 from osgeo import gdal
 import logging
 from earth_data_kit.stitching import decorators
+import shapely
 
 logger = logging.getLogger(__name__)
 
@@ -27,3 +27,16 @@ def set_band_descriptions(filepath, bands):
         rb = ds.GetRasterBand(idx + 1)
         rb.SetDescription(bands[idx])
     del ds
+
+def warp_and_get_extent(df_row):
+    ds = gdal.Warp(
+        "/vsimem/reprojected.tif", gdal.Open(df_row.gdal_path), dstSRS="EPSG:4326"
+    )
+    geo_transform = ds.GetGeoTransform()
+    x_min = geo_transform[0]
+    y_max = geo_transform[3]
+    x_max = x_min + geo_transform[1] * ds.RasterXSize
+    y_min = y_max + geo_transform[5] * ds.RasterYSize
+    polygon = shapely.geometry.box(x_min, y_min, x_max, y_max, ccw=True)
+    ds = None
+    return polygon

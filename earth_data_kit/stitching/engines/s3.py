@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import logging
-import earth_data_kit.stitching.helpers as helpers
+import earth_data_kit.utilities.helpers as helpers
 import pathlib
 import Levenshtein as levenshtein
 import geopandas as gpd

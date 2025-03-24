@@ -9,7 +9,7 @@ import logging
 import earth_data_kit.stitching.decorators as decorators
 import affine
 import concurrent.futures
-import earth_data_kit.stitching.helpers as helpers
+import earth_data_kit.utilities.helpers as helpers
 gdal.UseExceptions()
 
 logger = logging.getLogger(__name__)

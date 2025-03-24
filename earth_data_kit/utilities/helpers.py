@@ -2,13 +2,10 @@
 import os
 import sys
 import shutil
-from shapely import Polygon
 import hashlib
 import logging
 import json
 import pandas as pd
-import shapely
-from osgeo import gdal
 import pathlib
 
 logger = logging.getLogger(__name__)
@@ -51,21 +48,6 @@ def delete_dir(dir):
     shutil.rmtree(dir, ignore_errors=True)
 
 
-# TODO: move to geo.py
-def warp_and_get_extent(df_row):
-    ds = gdal.Warp(
-        "/vsimem/reprojected.tif", gdal.Open(df_row.gdal_path), dstSRS="EPSG:4326"
-    )
-    geo_transform = ds.GetGeoTransform()
-    x_min = geo_transform[0]
-    y_max = geo_transform[3]
-    x_max = x_min + geo_transform[1] * ds.RasterXSize
-    y_min = y_max + geo_transform[5] * ds.RasterYSize
-    polygon = shapely.geometry.box(x_min, y_min, x_max, y_max, ccw=True)
-    ds = None
-    return polygon
-
-
 def cheap_hash(input):
     return hashlib.md5(input.encode("utf-8")).hexdigest()[:6]
 
@@ -85,20 +67,20 @@ def get_platform():
 
 
 def get_shared_lib_path():
+    path = os.path.join(
+        pathlib.Path(__file__).parent.parent.resolve(),
+        "stitching",
+        "shared_libs",
+        "builds",
+    )
     if get_platform() == "macos":
-        path = os.path.join(
-            pathlib.Path(__file__).parent.resolve(),
-            "shared_libs",
-            "builds",
-            "go-lib-darwin-arm64",
-        )
+        arch = "go-lib-darwin-arm64"
     elif get_platform() == "linux":
-        path = os.path.join(
-            pathlib.Path(__file__).parent.resolve(),
-            "shared_libs",
-            "builds",
-            "go-lib-linux-amd64",
-        )
-    else:
+        arch = "go-lib-linux-amd64"
+
+    if arch == None:
         raise Exception(f"Unsupported platform: {sys.platform}")
+    
+    path = os.path.join(path, arch)
+        
     return path

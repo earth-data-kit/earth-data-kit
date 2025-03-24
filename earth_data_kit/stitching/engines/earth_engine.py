@@ -3,8 +3,6 @@ import os
 import logging
 from osgeo import ogr
 import pandas as pd
-import earth_data_kit.stitching.helpers as helpers
-import json
 
 logger = logging.getLogger(__name__)
 
