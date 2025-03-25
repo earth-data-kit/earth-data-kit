@@ -711,4 +711,7 @@ class Dataset:
             engine="edk_dataset",
             chunks={"time": 1, "band": "auto", "x": 128, "y": 128},
         )
-        return ds[self.name]
+        self.xr_dataset = ds
+        return self.xr_dataset[self.name]
+    
+
