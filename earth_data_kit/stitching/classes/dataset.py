@@ -557,7 +557,7 @@ class Dataset:
         root.set("source", self.source)
         root.set("engine", self.engine.name)
         root.set("catalog", self.catalog_path)
-        
+
         # Add VRTDataset elements for each VRT file
         for vrt in output_vrts:
             date_str = vrt.split("/")[-1].split(".")[0]
@@ -711,7 +711,41 @@ class Dataset:
             engine="edk_dataset",
             chunks={"time": 1, "band": "auto", "x": 128, "y": 128},
         )
-        self.xr_dataset = ds
-        return self.xr_dataset[self.name]
-    
+        return ds[self.name]
 
+    @staticmethod
+    def from_file(path):
+        """
+        Create a Dataset instance from a file path.
+
+        This method allows you to create a Dataset instance by providing a file path
+        that contains the dataset information.
+
+        Args:
+            path (str): Path to the XML file containing the dataset information.
+        """
+        # Read the XML file
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Dataset file not found: {path}")
+
+        try:
+            tree = etree.parse(path)
+            root = tree.getroot()
+
+            # Extract dataset attributes from the XML
+            name = root.get("name")
+            source = root.get("source")
+            engine_name = root.get("engine")
+            catalog_path = root.get("catalog")
+            logger.info(
+                f"name: {name}, source: {source}, engine_name: {engine_name}, catalog_path: {catalog_path}"
+            )
+            # Create a new Dataset instance
+            dataset = Dataset(name, source, engine_name.lower())
+            dataset.catalog_path = catalog_path
+            dataset.xml_path = path
+
+            return dataset
+
+        except etree.ParseError:
+            raise ValueError(f"Invalid XML file: {path}")
