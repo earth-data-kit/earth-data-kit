@@ -554,7 +554,10 @@ class Dataset:
         # Create root element
         root = etree.Element("EDKDataset")
         root.set("name", self.name)
-
+        root.set("source", self.source)
+        root.set("engine", self.engine.name)
+        root.set("catalog", self.catalog_path)
+        
         # Add VRTDataset elements for each VRT file
         for vrt in output_vrts:
             date_str = vrt.split("/")[-1].split(".")[0]
