@@ -95,31 +95,11 @@ class EDKDatasetBackendArray(BackendArray):
             band_list=[band_num],
             buf_type=get_gdal_dtype(self.dtype),
         )
+        ds = None
         return data
 
-    @decorators.log_time
-    @decorators.log_init
-    def _raw_indexing_method(self, key):
-        """Handle basic indexing (integers and slices only).
-
-        Parameters
-        ----------
-        key : tuple
-            A tuple of integers and/or slices.
-
-        Returns
-        -------
-        numpy.ndarray
-            The indexed data.
-        """
-        df = pd.read_xml(self.filename_or_obj)
-
-        time_coords = self._get_time_coords(key[0])
-
-        band_nums = self._get_band_nums(key[1])
-
-        x_coords, y_coords = self._get_x_y_coords(key[2], key[3])
-
+    @decorators.deprecated
+    def _get_data_parallel(self, df, time_coords, band_nums, x_coords, y_coords):
         data = None
 
         with concurrent.futures.ThreadPoolExecutor(
@@ -193,6 +173,47 @@ class EDKDatasetBackendArray(BackendArray):
                 time_arrays.append(band_arrays)
 
         data = np.array(time_arrays)
+
+        return data
+
+    def _get_data_non_parallel(self, df, time_coords, band_nums, x_coords, y_coords):
+        data = None
+        time_arrays = []
+        for time_coord in time_coords:
+            band_arrays = []
+            for band_num in band_nums:
+                data = self._get_data(df.iloc[time_coord].source, band_num, (x_coords.start, y_coords.start), (x_coords.stop - x_coords.start, y_coords.stop - y_coords.start))
+                band_arrays.append(data)
+            time_arrays.append(band_arrays)
+
+        data = np.array(time_arrays)
+
+        return data
+
+    @decorators.log_time
+    @decorators.log_init
+    def _raw_indexing_method(self, key):
+        """Handle basic indexing (integers and slices only).
+
+        Parameters
+        ----------
+        key : tuple
+            A tuple of integers and/or slices.
+
+        Returns
+        -------
+        numpy.ndarray
+            The indexed data.
+        """
+        df = pd.read_xml(self.filename_or_obj)
+
+        time_coords = self._get_time_coords(key[0])
+
+        band_nums = self._get_band_nums(key[1])
+
+        x_coords, y_coords = self._get_x_y_coords(key[2], key[3])
+
+        data = self._get_data_non_parallel(df, time_coords, band_nums, x_coords, y_coords)
 
         data = np.squeeze(data)
 

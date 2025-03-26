@@ -705,11 +705,12 @@ class Dataset:
         Note:
             This method requires that `to_vrts()` has been called first to generate the VRT file.
         """
-        # TODO: Optimize the chunk size later
+        # TODO: Optimize the chunk size later, 
+        # for now 512 seems to be the sweet spot, atleast for local mac and s3
         ds = xr.open_dataset(
             self.xml_path,
             engine="edk_dataset",
-            chunks={"time": 1, "band": "auto", "x": 128, "y": 128},
+            chunks={"time": 1, "band": "auto", "x": 512, "y": 512},
         )
         return ds[self.name]
 
@@ -737,9 +738,7 @@ class Dataset:
             source = root.get("source")
             engine_name = root.get("engine")
             catalog_path = root.get("catalog")
-            logger.info(
-                f"name: {name}, source: {source}, engine_name: {engine_name}, catalog_path: {catalog_path}"
-            )
+
             # Create a new Dataset instance
             dataset = Dataset(name, source, engine_name.lower())
             dataset.catalog_path = catalog_path

@@ -44,6 +44,8 @@ rioxarray = "^0.18.2"
 pyarrow = "^19.0.1"
 ipycytoscape = "^1.3.3"
 gcsfs = "^2025.3.0"
+dask = {extras = ["distributed"], version = "^2025.3.0"}
+bokeh = "^3.7.0"
 
 [build-system]
 requires = ["poetry-core"]
