@@ -61,6 +61,7 @@ Release Checklist
 1. **Finalize the Release**
 
    * Create a pull request to merge the ``dev`` branch to ``master``:
+     
      1. Create the pull request with a descriptive title and details about the release
      2. Make sure all tests pass
      3. Once approved, merge the pull request
