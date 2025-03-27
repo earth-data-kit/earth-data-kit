@@ -40,12 +40,6 @@ Planning the Release
 3. **Release Preparation**
 
    * Finalize features and fixes for the release
-   * Update version using Poetry:
-
-     .. code-block:: console
-
-        $ poetry version [major|minor|patch]
-
    * Make sure all documentation is updated to reflect the new version
    * Ensure all tests are passing:
 
@@ -53,6 +47,11 @@ Planning the Release
 
         $ make run-tests
 
+   * Update version using Poetry:
+
+     .. code-block:: console
+
+        $ poetry version [major|minor|patch]
    * Update the changelog with all notable changes
    * Merge all changes to the ``dev`` branch
 
@@ -62,6 +61,7 @@ Release Checklist
 1. **Finalize the Release**
 
    * Create a pull request to merge the ``dev`` branch to ``master``:
+     
      1. Create the pull request with a descriptive title and details about the release
      2. Make sure all tests pass
      3. Once approved, merge the pull request
@@ -92,7 +92,7 @@ Release Checklist
 
      .. code-block:: console
 
-        $ make install-package
+        $ pip3 install dist/earth_data_kit-*.tar.gz
 
    * Build the documentation:
 
