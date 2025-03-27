@@ -724,6 +724,15 @@ class Dataset:
 
         Args:
             path (str): Path to the XML file containing the dataset information.
+
+        Returns:
+            Dataset: A Dataset instance created from the provided file path.
+
+        Example:
+            >>> import earth_data_kit as edk
+            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.xml")
+            >>> # Now you can use the dataset instance to perform various operations, like getting the data as a DataArray
+            >>> da = ds.to_dataarray()
         """
         # Read the XML file
         if not os.path.exists(path):
