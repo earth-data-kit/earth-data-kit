@@ -16,11 +16,8 @@ def create_cmap(base_color):
     )
 
     def colormap(x):
-        if x == 32767:
-            return cmap(x, 0)
-        else:
-            return cmap(x, 1)
-
+        return cmap(x, 1)
+            
     return colormap
 
 
