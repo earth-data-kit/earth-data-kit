@@ -705,7 +705,7 @@ class Dataset:
         Note:
             This method requires that `to_vrts()` has been called first to generate the VRT file.
         """
-        # TODO: Optimize the chunk size later, 
+        # TODO: Optimize the chunk size later,
         # for now 512 seems to be the sweet spot, atleast for local mac and s3
         ds = xr.open_dataset(
             self.xml_path,

@@ -73,10 +73,10 @@ class EDKDatasetBackendArray(BackendArray):
     def _mask_nodata(self, data, nodataval):
         if np.isnan(nodataval):
             return data
-            
+
         data[data == nodataval] = np.nan
         return data
-    
+
     def _scale_and_offset(self, data, scale, offset):
         if np.isnan(scale):
             scale = 1.0
@@ -127,7 +127,12 @@ class EDKDatasetBackendArray(BackendArray):
         for time_coord in time_coords:
             band_arrays = []
             for band_num in band_nums:
-                data = self._read_band(df.iloc[time_coord].source, band_num, (x_coords.start, y_coords.start), (x_coords.stop - x_coords.start, y_coords.stop - y_coords.start))
+                data = self._read_band(
+                    df.iloc[time_coord].source,
+                    band_num,
+                    (x_coords.start, y_coords.start),
+                    (x_coords.stop - x_coords.start, y_coords.stop - y_coords.start),
+                )
                 band_arrays.append(data)
             time_arrays.append(band_arrays)
 
