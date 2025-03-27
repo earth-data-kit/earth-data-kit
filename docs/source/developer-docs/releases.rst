@@ -40,12 +40,6 @@ Planning the Release
 3. **Release Preparation**
 
    * Finalize features and fixes for the release
-   * Update version using Poetry:
-
-     .. code-block:: console
-
-        $ poetry version [major|minor|patch]
-
    * Make sure all documentation is updated to reflect the new version
    * Ensure all tests are passing:
 
@@ -53,6 +47,11 @@ Planning the Release
 
         $ make run-tests
 
+   * Update version using Poetry:
+
+     .. code-block:: console
+
+        $ poetry version [major|minor|patch]
    * Update the changelog with all notable changes
    * Merge all changes to the ``dev`` branch
 
