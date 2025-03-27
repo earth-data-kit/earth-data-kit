@@ -554,6 +554,9 @@ class Dataset:
         # Create root element
         root = etree.Element("EDKDataset")
         root.set("name", self.name)
+        root.set("source", self.source)
+        root.set("engine", self.engine.name)
+        root.set("catalog", self.catalog_path)
 
         # Add VRTDataset elements for each VRT file
         for vrt in output_vrts:
@@ -679,15 +682,12 @@ class Dataset:
 
     @decorators.log_time
     @decorators.log_init
-    def to_dataarray(self, xml_path=None):
+    def to_dataarray(self):
         """
         Converts the dataset to an xarray DataArray.
 
         This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
         and returns the DataArray corresponding to this dataset.
-
-        Args:
-            xml_path (str, optional): Path to the XML file to open. If not provided, uses the XML path from the most recent `to_vrts()` call.
 
         Returns:
             xarray.DataArray: A DataArray containing the dataset's data with dimensions for time, bands,
@@ -703,12 +703,48 @@ class Dataset:
             >>> data_array = ds.to_dataarray()
 
         Note:
-            This method requires that `to_vrts()` has been called first to generate the VRT file, unless a custom XML path is provided.
+            This method requires that `to_vrts()` has been called first to generate the VRT file.
         """
-        # TODO: Optimize the chunk size later
+        # TODO: Optimize the chunk size later,
+        # for now 512 seems to be the sweet spot, atleast for local mac and s3
         ds = xr.open_dataset(
-            xml_path or self.xml_path,
+            self.xml_path,
             engine="edk_dataset",
-            chunks={"time": 1, "band": "auto", "x": 128, "y": 128},
+            chunks={"time": 1, "band": "auto", "x": 512, "y": 512},
         )
         return ds[self.name]
+
+    @staticmethod
+    def from_file(path):
+        """
+        Create a Dataset instance from a file path.
+
+        This method allows you to create a Dataset instance by providing a file path
+        that contains the dataset information.
+
+        Args:
+            path (str): Path to the XML file containing the dataset information.
+        """
+        # Read the XML file
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Dataset file not found: {path}")
+
+        try:
+            tree = etree.parse(path)
+            root = tree.getroot()
+
+            # Extract dataset attributes from the XML
+            name = root.get("name")
+            source = root.get("source")
+            engine_name = root.get("engine")
+            catalog_path = root.get("catalog")
+
+            # Create a new Dataset instance
+            dataset = Dataset(name, source, engine_name.lower())
+            dataset.catalog_path = catalog_path
+            dataset.xml_path = path
+
+            return dataset
+
+        except etree.ParseError:
+            raise ValueError(f"Invalid XML file: {path}")

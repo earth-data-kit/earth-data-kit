@@ -24,8 +24,7 @@ To install Earth Data Kit, follow these steps:
 
 2. After downloading the tarball, install the package using pip. For example, within your virtual environment execute:
 
-    * `(.venv) $ wget https://github.com/earth-data-kit/earth-data-kit/releases/download/0.1.1/earth_data_kit-0.1.1.tar.gz`
-    * `(.venv) $ pip3 install earth_data_kit-0.1.1.tar.gz`
+    * `(.venv) $ pip3 install earth_data_kit-*.tar.gz`
 
 ## Example
 

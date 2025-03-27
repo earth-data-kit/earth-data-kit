@@ -5,6 +5,7 @@ from osgeo import gdal
 import earth_data_kit as edk
 import folium
 import matplotlib as mpl
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,8 @@ def create_cmap(base_color):
     )
 
     def colormap(x):
-        if x == 32767:
-            return cmap(x, 0)
-        else:
-            return cmap(x, 1)
-
+        return cmap(x, 1)
+            
     return colormap
 
 
@@ -48,6 +46,32 @@ def get_raster_bounds(fp):
     return lon_min, lat_min, lon_max, lat_max
 
 
+def scale_to_255(arr):
+    np.nanmax(arr)
+    np.nanmin(arr)
+
+    # Scale values between 0-255
+    # First handle NaN values and identify min/max
+    arr_no_nan = arr[~np.isnan(arr)]
+    arr_min = np.min(arr_no_nan)
+    arr_max = np.max(arr_no_nan)
+
+    # Create a copy to avoid modifying the original array
+    arr_scaled = arr.copy()
+
+    # Scale the non-NaN values between 0-255
+    if arr_max > arr_min:  # Avoid division by zero if all values are the same
+        arr_scaled[~np.isnan(arr)] = (
+            (arr_no_nan - arr_min) / (arr_max - arr_min)
+        ) * 255
+
+    # TODO: We need a way to handle the NaN values, are not able to convert to unit8
+    # # Convert to uint8 for proper image representation
+    # arr_scaled = arr_scaled.astype(np.uint8)
+
+    return arr_scaled
+
+
 def plot_xarray_da(da):
     lon_min, lat_min, lon_max, lat_max = get_raster_bounds(da.attrs["source"])
 
@@ -57,7 +81,7 @@ def plot_xarray_da(da):
 
     arr = da.values
     band = folium.raster_layers.ImageOverlay(
-        image=arr.T,
+        image=scale_to_255(arr).T,
         bounds=[[lat_min, lon_min], [lat_max, lon_max]],
         interactive=True,
         colormap=create_cmap("red"),
