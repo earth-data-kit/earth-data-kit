@@ -70,9 +70,23 @@ class EDKDatasetBackendArray(BackendArray):
 
         return x_coords, y_coords
 
+    def _mask_nodata(self, data, nodataval):
+        if np.isnan(nodataval):
+            return data
+            
+        data[data == nodataval] = np.nan
+        return data
+    
+    def _scale_and_offset(self, data, scale, offset):
+        if np.isnan(scale):
+            scale = 1.0
+        if np.isnan(offset):
+            offset = 0.0
+        return (data * scale) + offset
+
     @decorators.log_time
     @decorators.log_init
-    def _get_data(self, fp, band_num, offsets, buf_sizes):
+    def _read_band(self, fp, band_num, offsets, buf_sizes):
         ds = gdal.Open(fp)
 
         x_size = int(
@@ -95,94 +109,25 @@ class EDKDatasetBackendArray(BackendArray):
             band_list=[band_num],
             buf_type=get_gdal_dtype(self.dtype),
         )
+        band = ds.GetRasterBand(band_num)
+        nodataval = band.GetNoDataValue()
+        scale = band.GetScale()
+        offset = band.GetOffset()
+
         ds = None
-        return data
 
-    @decorators.deprecated
-    def _get_data_parallel(self, df, time_coords, band_nums, x_coords, y_coords):
-        data = None
-
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
-        ) as executor:
-            futures = []
-            for time_coord in time_coords:
-                for band_num in band_nums:
-                    for x_coord in range(
-                        x_coords.start, x_coords.stop, self.x_block_size
-                    ):
-                        data_along_x = None
-                        buf_x_size = (
-                            (x_coords.stop - x_coord)
-                            if x_coord + self.x_block_size > x_coords.stop
-                            else self.x_block_size
-                        )
-                        for y_coord in range(
-                            y_coords.start, y_coords.stop, self.y_block_size
-                        ):
-                            buf_y_size = (
-                                (y_coords.stop - y_coord)
-                                if y_coord + self.y_block_size > y_coords.stop
-                                else self.y_block_size
-                            )
-                            # Get chunk data
-                            futures.append(
-                                executor.submit(
-                                    self._get_data,
-                                    df.iloc[time_coord].source,
-                                    band_num,
-                                    (x_coord, y_coord),
-                                    (buf_x_size, buf_y_size),
-                                )
-                            )
-
-            executor.shutdown(wait=True)
-
-            time_arrays = []
-            counter = 0
-            for time_coord in time_coords:
-                band_arrays = []
-                for band_num in band_nums:
-                    band_data = None
-                    for x_coord in range(
-                        x_coords.start, x_coords.stop, self.x_block_size
-                    ):
-                        data_along_x = None
-                        for y_coord in range(
-                            y_coords.start, y_coords.stop, self.y_block_size
-                        ):
-                            chunk_data = futures[counter].result()
-                            counter += 1
-
-                            # Concatenate along y-axis
-                            if data_along_x is None:
-                                data_along_x = chunk_data
-                            else:
-                                data_along_x = np.concatenate(
-                                    (data_along_x, chunk_data), axis=0
-                                )
-
-                        # Concatenate along x-axis
-                        if band_data is None:
-                            band_data = data_along_x
-                        else:
-                            band_data = np.concatenate(
-                                (band_data, data_along_x), axis=1
-                            )
-                    band_arrays.append(band_data)
-                time_arrays.append(band_arrays)
-
-        data = np.array(time_arrays)
+        data = self._mask_nodata(data, nodataval)
+        data = self._scale_and_offset(data, scale, offset)
 
         return data
 
-    def _get_data_non_parallel(self, df, time_coords, band_nums, x_coords, y_coords):
+    def _read_bands(self, df, time_coords, band_nums, x_coords, y_coords):
         data = None
         time_arrays = []
         for time_coord in time_coords:
             band_arrays = []
             for band_num in band_nums:
-                data = self._get_data(df.iloc[time_coord].source, band_num, (x_coords.start, y_coords.start), (x_coords.stop - x_coords.start, y_coords.stop - y_coords.start))
+                data = self._read_band(df.iloc[time_coord].source, band_num, (x_coords.start, y_coords.start), (x_coords.stop - x_coords.start, y_coords.stop - y_coords.start))
                 band_arrays.append(data)
             time_arrays.append(band_arrays)
 
@@ -213,7 +158,7 @@ class EDKDatasetBackendArray(BackendArray):
 
         x_coords, y_coords = self._get_x_y_coords(key[2], key[3])
 
-        data = self._get_data_non_parallel(df, time_coords, band_nums, x_coords, y_coords)
+        data = self._read_bands(df, time_coords, band_nums, x_coords, y_coords)
 
         data = np.squeeze(data)
 
@@ -233,6 +178,8 @@ class EDKDatasetBackendArray(BackendArray):
 
 
 def get_numpy_dtype(gdal_dtype):
+    # Hardcoding dtype to float32 for now as we need to handle nodata values and they are only possible for float types
+    return np.float32
     # Map GDAL data types to numpy data types
     gdal_to_numpy_dtype = {
         gdal.GDT_Byte: np.uint8,
@@ -351,7 +298,7 @@ def open_edk_dataset(filename_or_obj):
         }
         dims = ("time", "band", "x", "y")
 
-        # TODO: Make this dynamic
+        # TODO: Make the block size dynamic
         BLOCK_SIZE = 512
         da = xr.DataArray(
             data=xr.core.indexing.LazilyIndexedArray(
