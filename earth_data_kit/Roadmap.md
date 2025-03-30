@@ -10,7 +10,7 @@ Earth Data Kit's
             eg: https://registry.opendata.aws/copernicus-dem/
             Source specificed will be s3://copernicus-dem-30m/\*/\*.tif
             In this case, the dataset will be stitched together by listing all the files in the directory. Band selection will still be done.
-            VRT will be created for each band and they will be stacked together in single vrt file. 
+            VRT will be created for each band and they will be stacked together in single vrt file. As we don't have date informatation in the source we will hardcode the date as current date.
             The vrt file will have a name format of {dataset_name}.vrt
         3. Direct file paths to the raster files -- multiple files.
             eg: https://github.com/globalmaps/gm_lc_v3

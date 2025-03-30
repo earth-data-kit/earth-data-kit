@@ -20,6 +20,7 @@ import json
 import xarray as xr
 from osgeo import gdal
 from tqdm import tqdm
+from datetime import datetime
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -332,7 +333,6 @@ class Dataset:
         df["x_res"] = df.apply(lambda row: row.tile.get_res()[0], axis=1)
         df["y_res"] = df.apply(lambda row: row.tile.get_res()[1], axis=1)
         df["crs"] = df.apply(lambda row: row.tile.crs, axis=1)
-
         # Group the bands by columns: idx, description, dtype, x_res, y_res, and crs.
         by = ["idx", "description", "dtype", "x_res", "y_res", "crs"]
         df["x_res"] = df["x_res"].astype(np.float32)
@@ -569,6 +569,12 @@ class Dataset:
             vrt_element.set("source", vrt)
             vrt_element.set("time", date_str)
 
+            # Check if the date string is "NoDate" or represents epoch time (Jan 1, 1970)
+            if date_str != "1970-01-01-00:00:00":
+                vrt_element.set("has_time_dim", "true")
+            else:
+                vrt_element.set("has_time_dim", "false")
+
         # Create XML tree and write to file
         tree = etree.ElementTree(root)
         xml_path = f"{self.__get_ds_tmp_path__()}/{self.name}.xml"
@@ -592,7 +598,7 @@ class Dataset:
         4. Set appropriate band descriptions
 
         Args:
-            date (tuple): A tuple containing the date for which to create the VRT
+            date (datetime): A tuple containing the date for which to create the VRT
             band_tiles (DataFrame): DataFrame containing band tile information
             bands (list): List of band descriptions to include in the VRT
 
@@ -604,7 +610,6 @@ class Dataset:
             by default unless overridden by options set via set_gdal_options.
         """
         curr_date = date[0]
-
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
@@ -662,7 +667,11 @@ class Dataset:
         # Filter bands based on the user-supplied list.
         df = df[df["description"].isin(bands)]
 
-        outputs_by_dates = df.groupby(by=["date"])
+        # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
+        epoch_date = datetime(1970, 1, 1, 0, 0, 0)
+        df['date'] = df['date'].fillna(epoch_date)
+
+        outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []
 
         with concurrent.futures.ThreadPoolExecutor(
