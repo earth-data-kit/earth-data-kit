@@ -586,9 +586,7 @@ class Dataset:
             vrt_dataset = {
                 "source": vrt,
                 "time": date_str,
-                "has_time_dim": (
-                    True if date_str != "1970-01-01-00:00:00" else False
-                ),
+                "has_time_dim": (True if date_str != "1970-01-01-00:00:00" else False),
             }
             dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
@@ -638,13 +636,13 @@ class Dataset:
             # Create arrays to store futures and their corresponding indices
             futures = []
             indices = []
-            
+
             # Submit all band extraction tasks to the executor
             for _bt in _band_tiles.itertuples():
                 future = executor.submit(self.__extract_band__, _bt)
                 futures.append(future)
                 indices.append(_bt.Index)
-            
+
             # Process results as they complete
             for i, future in enumerate(futures):
                 vrt_path = future.result()
