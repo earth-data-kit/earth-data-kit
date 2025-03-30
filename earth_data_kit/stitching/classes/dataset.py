@@ -631,10 +631,24 @@ class Dataset:
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
         # unless overridden by options configured via set_gdal_options.
-        for _bt in _band_tiles.itertuples():
-            # TODO: Add multiprocessing for performance boost.
-            vrt_path = self.__extract_band__(_bt)
-            _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
+        # Use concurrent.futures to process band tiles in parallel
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            # Create arrays to store futures and their corresponding indices
+            futures = []
+            indices = []
+            
+            # Submit all band extraction tasks to the executor
+            for _bt in _band_tiles.itertuples():
+                future = executor.submit(self.__extract_band__, _bt)
+                futures.append(future)
+                indices.append(_bt.Index)
+            
+            # Process results as they complete
+            for i, future in enumerate(futures):
+                vrt_path = future.result()
+                _band_tiles.at[indices[i], "vrt_path"] = vrt_path
 
         # Combine single-band VRTs to create mosaic VRTs per band.
         # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
