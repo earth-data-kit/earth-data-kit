@@ -107,6 +107,8 @@ class S3:
 
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
+        if 'date' not in patterns_df.columns:
+            patterns_df['date'] = None
 
         # go-lib expects paths in unix style
         patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
@@ -149,5 +151,4 @@ class S3:
         # Removing extra files created
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
-
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]
