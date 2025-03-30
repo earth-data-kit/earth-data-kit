@@ -752,7 +752,7 @@ class Dataset:
         ds = xr.open_dataset(
             self.json_path,
             engine="edk_dataset",
-            chunks={"time": 1, "band": "auto", "x": 512, "y": 512},
+            chunks={"time": 1, "band": 1, "x": 512, "y": 512},
         )
 
         # Check if this is a non-temporal dataset (single time value at epoch)
