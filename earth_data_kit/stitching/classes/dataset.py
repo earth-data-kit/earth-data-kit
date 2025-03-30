@@ -1,7 +1,6 @@
 import pandas as pd
 import ast
 import geopandas as gpd
-from lxml import etree
 import logging
 from osgeo import osr
 import os
@@ -258,7 +257,7 @@ class Dataset:
         df = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.__get_ds_tmp_path__()
         )
-
+        
         # Concurrently fetch metadata and construct Tile objects for each tile.
         futures = []
         tiles = []
@@ -529,13 +528,13 @@ class Dataset:
     @decorators.log_init
     def __combine_timestamped_vrts__(self, output_vrts):
         """
-        Combine multiple timestamped VRT files into a single XML file.
+        Combine multiple timestamped VRT files into a single JSON file.
 
-        This method creates an XML file that references all the VRTs with their corresponding timestamps.
-        The XML structure follows the EDKDataset format, where each VRT is represented as a VRTDataset
+        This method creates a JSON file that references all the VRTs with their corresponding timestamps.
+        The JSON structure follows the EDKDataset format, where each VRT is represented as a VRTDataset
         element with source and time attributes. The time attribute is extracted from the VRT filename.
 
-        The resulting XML file serves as a temporal index for the dataset, allowing for time-based
+        The resulting JSON file serves as a temporal index for the dataset, allowing for time-based
         queries and operations on the collection of VRTs.
 
         Args:
@@ -543,46 +542,62 @@ class Dataset:
                                 a timestamp in the format YYYY-MM-DD-HH:MM:SS in its filename.
 
         Returns:
-            str: Path to the created XML file, or None if output_vrts is empty.
+            str: Path to the created JSON file, or None if output_vrts is empty.
 
-        Example XML structure:
-            <?xml version='1.0' encoding='UTF-8'?>
-            <EDKDataset name="dataset_name">
-              <VRTDataset source="/path/to/2017-01-01-00:00:00.vrt" time="2017-01-01-00:00:00"/>
-              <VRTDataset source="/path/to/2017-01-02-00:00:00.vrt" time="2017-01-02-00:00:00"/>
-            </EDKDataset>
+        Example JSON structure:
+            {
+              "EDKDataset": {
+                "name": "dataset_name",
+                "source": "source_identifier",
+                "engine": "engine_name",
+                "catalog": "path/to/catalog.csv",
+                "VRTDatasets": [
+                  {
+                    "source": "/path/to/2017-01-01-00:00:00.vrt",
+                    "time": "2017-01-01-00:00:00",
+                    "has_time_dim": "true"
+                  },
+                  {
+                    "source": "/path/to/2017-01-02-00:00:00.vrt",
+                    "time": "2017-01-02-00:00:00",
+                    "has_time_dim": "true"
+                  }
+                ]
+              }
+            }
         """
         if not output_vrts:
             return None
 
-        # Create root element
-        root = etree.Element("EDKDataset")
-        root.set("name", self.name)
-        root.set("source", self.source)
-        root.set("engine", self.engine.name)
-        root.set("catalog", self.catalog_path)
+        # Create a dictionary structure for JSON
+        dataset_dict = {
+            "EDKDataset": {
+                "name": self.name,
+                "source": self.source,
+                "engine": self.engine.name,
+                "catalog": self.catalog_path,
+                "VRTDatasets": []
+            }
+        }
 
-        # Add VRTDataset elements for each VRT file
+        # Add VRTDataset entries for each VRT file
         for vrt in output_vrts:
             date_str = vrt.split("/")[-1].split(".")[0]
-            vrt_element = etree.SubElement(root, "VRTDataset")
-            vrt_element.set("source", vrt)
-            vrt_element.set("time", date_str)
+            vrt_dataset = {
+                "source": vrt,
+                "time": date_str,
+                "has_time_dim": "true" if date_str != "1970-01-01-00:00:00" else "false"
+            }
+            dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
-            # Check if the date string is "NoDate" or represents epoch time (Jan 1, 1970)
-            if date_str != "1970-01-01-00:00:00":
-                vrt_element.set("has_time_dim", "true")
-            else:
-                vrt_element.set("has_time_dim", "false")
+        # Create JSON file path
+        json_path = f"{self.__get_ds_tmp_path__()}/{self.name}.json"
 
-        # Create XML tree and write to file
-        tree = etree.ElementTree(root)
-        xml_path = f"{self.__get_ds_tmp_path__()}/{self.name}.xml"
+        # Write the JSON file with pretty formatting
+        with open(json_path, 'w') as json_file:
+            json.dump(dataset_dict, json_file, indent=2)
 
-        # Write with pretty formatting
-        tree.write(xml_path, pretty_print=True, xml_declaration=True, encoding="utf-8")
-
-        return xml_path
+        return json_path
 
     @decorators.log_time
     @decorators.log_init
@@ -690,8 +705,8 @@ class Dataset:
                 result = future.result()
                 output_vrts.append(result)
 
-        xml_path = self.__combine_timestamped_vrts__(output_vrts)
-        self.xml_path = xml_path
+        json_path = self.__combine_timestamped_vrts__(output_vrts)
+        self.json_path = json_path
 
     @decorators.log_time
     @decorators.log_init
@@ -721,7 +736,7 @@ class Dataset:
         # TODO: Optimize the chunk size later,
         # for now 512 seems to be the sweet spot, atleast for local mac and s3
         ds = xr.open_dataset(
-            self.xml_path,
+            self.json_path,
             engine="edk_dataset",
             chunks={"time": 1, "band": "auto", "x": 512, "y": 512},
         )
@@ -753,37 +768,38 @@ class Dataset:
         that contains the dataset information.
 
         Args:
-            path (str): Path to the XML file containing the dataset information.
+            path (str): Path to the JSON file containing the dataset information.
 
         Returns:
             Dataset: A Dataset instance created from the provided file path.
 
         Example:
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.xml")
+            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.json")
             >>> # Now you can use the dataset instance to perform various operations, like getting the data as a DataArray
             >>> da = ds.to_dataarray()
         """
-        # Read the XML file
+        # Read the JSON file
         if not os.path.exists(path):
             raise FileNotFoundError(f"Dataset file not found: {path}")
 
         try:
-            tree = etree.parse(path)
-            root = tree.getroot()
-
-            # Extract dataset attributes from the XML
-            name = root.get("name")
-            source = root.get("source")
-            engine_name = root.get("engine")
-            catalog_path = root.get("catalog")
+            with open(path, 'r') as f:
+                data = json.load(f)
+            
+            # Extract dataset attributes from the JSON
+            edk_dataset = data.get("EDKDataset", {})
+            name = edk_dataset.get("name")
+            source = edk_dataset.get("source")
+            engine_name = edk_dataset.get("engine")
+            catalog_path = edk_dataset.get("catalog")
 
             # Create a new Dataset instance
             dataset = Dataset(name, source, engine_name.lower())
             dataset.catalog_path = catalog_path
-            dataset.xml_path = path
+            dataset.json_path = path
 
             return dataset
 
-        except etree.ParseError:
-            raise ValueError(f"Invalid XML file: {path}")
+        except json.JSONDecodeError:
+            raise ValueError(f"Invalid JSON file: {path}")

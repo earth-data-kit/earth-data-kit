@@ -5,7 +5,7 @@ Earth Data Kit's
         1. Raster datasets with multiple bands kept across multiple scene files. Directory structure has spatial and temporal dimensions.
             eg: https://registry.opendata.aws/sentinel-2/
             Source specified will be s3://sentinel-2/tiles/{utm_code}/{lat_band}/{square}/%Y/%m/%d/\*/*.tif
-            In this case, the dataset will be stitched by first stitching the tiles for a given date and then by date. VRTs are created for each date and then listed together in a xml file.
+            In this case, the dataset will be stitched by first stitching the tiles for a given date and then by date. VRTs are created for each date and then listed together in a json file.
         2. Raster datasets kept in a folder and user knows the directory structure. Single wildcard (*). Doesn't have temporal dimension.
             eg: https://registry.opendata.aws/copernicus-dem/
             Source specificed will be s3://copernicus-dem-30m/\*/\*.tif

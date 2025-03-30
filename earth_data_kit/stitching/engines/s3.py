@@ -102,7 +102,10 @@ class S3:
             logger.warning(
                 "Expansion failed. Will search according to source directly."
             )
-            patterns_df = pd.DataFrame({"search_path": [source]})
+            if isinstance(source, list):
+                patterns_df = pd.DataFrame({"search_path": source})
+            else:
+                patterns_df = pd.DataFrame({"search_path": [source]})
 
         return patterns_df
 

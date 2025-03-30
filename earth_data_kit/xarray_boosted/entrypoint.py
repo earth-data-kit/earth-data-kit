@@ -159,8 +159,9 @@ class EDKDatasetBackendArray(BackendArray):
         numpy.ndarray
             The indexed data.
         """
-        df = pd.read_xml(self.filename_or_obj)
-
+        _df = pd.read_json(self.filename_or_obj)
+        df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
+        
         time_coords = self._get_time_coords(key[0])
 
         band_nums = self._get_band_nums(key[1])
@@ -269,8 +270,9 @@ def get_gdal_dtype(numpy_dtype):
 def open_edk_dataset(filename_or_obj):
     """Open an EDK dataset directly as an xarray Dataset without using DataArray."""
     try:
-        # Read metadata from XML
-        df = pd.read_xml(filename_or_obj)
+        # Read metadata from JSON
+        _df = pd.read_json("/Users/siddhantgupta3/Desktop/Work/project-planet-bench/repos/private/edk/edk-tmp/tmp/gm-lc-v3/gm-lc-v3.json")
+        df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
 
         if len(df) == 0:
             raise ValueError("No raster data found in the input file")
