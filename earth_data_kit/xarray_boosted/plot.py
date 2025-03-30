@@ -97,6 +97,9 @@ class EDKAccessor:
     def __init__(self, xarray_obj, *args, **kwargs):
         self._da = xarray_obj
 
-    def plot(self, time, band, *args, **kwargs):
-        _da = self._da.sel(time=time, band=band)
+    def plot(self, time=None, band=None, *args, **kwargs):
+        if time in self._da.coords:
+            _da = self._da.sel(time=time, band=band)
+        else:
+            _da = self._da.sel(band=band)
         return plot_xarray_da(_da)
