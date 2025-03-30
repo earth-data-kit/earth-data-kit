@@ -587,7 +587,7 @@ class Dataset:
                 "source": vrt,
                 "time": date_str,
                 "has_time_dim": (
-                    "true" if date_str != "1970-01-01-00:00:00" else "false"
+                    True if date_str != "1970-01-01-00:00:00" else False
                 ),
             }
             dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)

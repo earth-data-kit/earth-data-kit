@@ -133,6 +133,7 @@ class Tile:
         # Get source coordinate system
         src_srs = osr.SpatialReference()
         src_srs.ImportFromWkt(self.projection)
+        src_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 
         # Get target coordinate system (WGS84)
         tgt_srs = osr.SpatialReference()

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class S3:
     def __init__(self) -> None:
-        self.name = "S3"
+        self.name = "s3"
         no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
         request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
         profile_flag = os.getenv("AWS_PROFILE")

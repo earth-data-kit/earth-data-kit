@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class EarthEngine:
     def __init__(self) -> None:
-        self.name = "Earth Engine"
+        self.name = "earth_engine"
         self.app_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         self.service_account = os.getenv("GOOGLE_SERVICE_ACCOUNT")
 
