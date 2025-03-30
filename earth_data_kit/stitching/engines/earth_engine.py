@@ -25,7 +25,7 @@ class EarthEngine:
             space_opts["bbox"][3],
         )
 
-        if time_opts and 'start' in time_opts and 'end' in time_opts:
+        if time_opts and "start" in time_opts and "end" in time_opts:
             layer.SetAttributeFilter(
                 f"startTime >= '{time_opts['start']}' and endTime <= '{time_opts['end']}'"
             )

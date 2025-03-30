@@ -73,7 +73,9 @@ class EDKDatasetBackendArray(BackendArray):
     def _mask_nodata(self, data, nodataval):
         # np.isnan fails if nodataval is None because None cannot be converted to a numpy array
         # It also fails for other non-numeric types
-        if nodataval is None or (isinstance(nodataval, (int, float)) and np.isnan(nodataval)):
+        if nodataval is None or (
+            isinstance(nodataval, (int, float)) and np.isnan(nodataval)
+        ):
             return data
 
         data[data == nodataval] = np.nan

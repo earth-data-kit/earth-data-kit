@@ -277,7 +277,7 @@ class Dataset:
                 )
                 for row in df.itertuples()
             ]
-            
+
             # Create a progress bar and iterate directly through futures
             for future in tqdm(futures, desc="Processing tiles", unit="tile"):
                 try:
@@ -669,7 +669,7 @@ class Dataset:
 
         # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
-        df['date'] = df['date'].fillna(epoch_date)
+        df["date"] = df["date"].fillna(epoch_date)
 
         outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []
@@ -725,18 +725,23 @@ class Dataset:
             engine="edk_dataset",
             chunks={"time": 1, "band": "auto", "x": 512, "y": 512},
         )
-        
+
         # Check if this is a non-temporal dataset (single time value at epoch)
-        if 'time' in ds.dims and len(ds['time']) == 1:
+        if "time" in ds.dims and len(ds["time"]) == 1:
             # Check if the time value is epoch (1970-01-01)
-            time_value = ds['time'].values[0]
-            epoch_time = np.datetime64('1970-01-01T00:00:00')
-            
-            if time_value == epoch_time or pd.Timestamp(time_value).strftime('%Y-%m-%d') == '1970-01-01':
-                logger.debug("Detected non-temporal dataset with epoch time. Returning 3D array without time dimension.")
+            time_value = ds["time"].values[0]
+            epoch_time = np.datetime64("1970-01-01T00:00:00")
+
+            if (
+                time_value == epoch_time
+                or pd.Timestamp(time_value).strftime("%Y-%m-%d") == "1970-01-01"
+            ):
+                logger.debug(
+                    "Detected non-temporal dataset with epoch time. Returning 3D array without time dimension."
+                )
                 # Return the data array without the time dimension (squeeze it out)
-                return ds[self.name].squeeze('time')
-        
+                return ds[self.name].squeeze("time")
+
         return ds[self.name]
 
     @staticmethod

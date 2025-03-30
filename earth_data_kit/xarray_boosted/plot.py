@@ -17,7 +17,7 @@ def create_cmap(base_color):
 
     def colormap(x):
         return cmap(x, 1)
-            
+
     return colormap
 
 

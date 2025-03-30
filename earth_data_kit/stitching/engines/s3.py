@@ -44,22 +44,24 @@ class S3:
             return df
         if "start" not in time_opts or "end" not in time_opts:
             # If time options are incomplete, log a warning and return df unchanged
-            logger.warning("Incomplete time options provided. Both 'start' and 'end' are required for time expansion.")
+            logger.warning(
+                "Incomplete time options provided. Both 'start' and 'end' are required for time expansion."
+            )
             return df
-            
+
         start = time_opts["start"]
         end = time_opts["end"]
         df["date"] = pd.date_range(start=start, end=end, inclusive="both")
         df["search_path"] = df["date"].dt.strftime(source)
         return df
-    
+
     def _expand_space(self, df, space_opts):
         if ("grid_file" not in space_opts) or (
             ("grid_file" in space_opts) and (space_opts["grid_file"] is None)
         ):
             # Doing nothing if grid_file is not passed
             return df
-        
+
         # Expanding for space dimension
         bbox = space_opts["bbox"]
         grid_file = space_opts["grid_file"]
@@ -87,19 +89,21 @@ class S3:
             return new_patterns_df
         else:
             raise Exception("drivers other than kml are not supported")
-        
+
     def get_patterns(self, source, time_opts, space_opts):
         patterns_df = pd.DataFrame()
 
         patterns_df = self._expand_time(patterns_df, source, time_opts)
-        
+
         patterns_df = self._expand_space(patterns_df, space_opts)
 
         # If expansion failed we send source as it is
         if patterns_df.empty:
-            logger.warning("Expansion failed. Will search according to source directly.")
+            logger.warning(
+                "Expansion failed. Will search according to source directly."
+            )
             patterns_df = pd.DataFrame({"search_path": [source]})
-        
+
         return patterns_df
 
     def scan(self, source, time_opts, space_opts, tmp_base_dir):
@@ -107,8 +111,8 @@ class S3:
 
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
-        if 'date' not in patterns_df.columns:
-            patterns_df['date'] = None
+        if "date" not in patterns_df.columns:
+            patterns_df["date"] = None
 
         # go-lib expects paths in unix style
         patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
