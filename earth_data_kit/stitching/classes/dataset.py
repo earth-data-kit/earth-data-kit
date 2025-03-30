@@ -257,7 +257,7 @@ class Dataset:
         df = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.__get_ds_tmp_path__()
         )
-        
+
         # Concurrently fetch metadata and construct Tile objects for each tile.
         futures = []
         tiles = []
@@ -576,7 +576,7 @@ class Dataset:
                 "source": self.source,
                 "engine": self.engine.name,
                 "catalog": self.catalog_path,
-                "VRTDatasets": []
+                "VRTDatasets": [],
             }
         }
 
@@ -586,7 +586,9 @@ class Dataset:
             vrt_dataset = {
                 "source": vrt,
                 "time": date_str,
-                "has_time_dim": "true" if date_str != "1970-01-01-00:00:00" else "false"
+                "has_time_dim": (
+                    "true" if date_str != "1970-01-01-00:00:00" else "false"
+                ),
             }
             dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
@@ -594,7 +596,7 @@ class Dataset:
         json_path = f"{self.__get_ds_tmp_path__()}/{self.name}.json"
 
         # Write the JSON file with pretty formatting
-        with open(json_path, 'w') as json_file:
+        with open(json_path, "w") as json_file:
             json.dump(dataset_dict, json_file, indent=2)
 
         return json_path
@@ -784,9 +786,9 @@ class Dataset:
             raise FileNotFoundError(f"Dataset file not found: {path}")
 
         try:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 data = json.load(f)
-            
+
             # Extract dataset attributes from the JSON
             edk_dataset = data.get("EDKDataset", {})
             name = edk_dataset.get("name")

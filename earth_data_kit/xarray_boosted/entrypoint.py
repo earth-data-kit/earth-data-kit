@@ -161,7 +161,7 @@ class EDKDatasetBackendArray(BackendArray):
         """
         _df = pd.read_json(self.filename_or_obj)
         df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
-        
+
         time_coords = self._get_time_coords(key[0])
 
         band_nums = self._get_band_nums(key[1])
@@ -271,7 +271,9 @@ def open_edk_dataset(filename_or_obj):
     """Open an EDK dataset directly as an xarray Dataset without using DataArray."""
     try:
         # Read metadata from JSON
-        _df = pd.read_json("/Users/siddhantgupta3/Desktop/Work/project-planet-bench/repos/private/edk/edk-tmp/tmp/gm-lc-v3/gm-lc-v3.json")
+        _df = pd.read_json(
+            "/Users/siddhantgupta3/Desktop/Work/project-planet-bench/repos/private/edk/edk-tmp/tmp/gm-lc-v3/gm-lc-v3.json"
+        )
         df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
 
         if len(df) == 0:

@@ -10,23 +10,25 @@ import pathlib
 
 logger = logging.getLogger(__name__)
 
+
 def has_wildcards(path):
     """
     Check if a path contains wildcard characters (* or ?).
-    
+
     Args:
         path (str): The path to check for wildcards.
-        
+
     Returns:
         bool: True if the path contains wildcards, False otherwise.
-        
+
     Raises:
         ValueError: If the path contains '**' which is not supported.
     """
     if "**" in path:
         raise ValueError("Double asterisk '**' wildcard is not supported")
-    
+
     return "*" in path or "?" in path
+
 
 def make_sure_dir_exists(dir):
     if not os.path.exists(dir):
