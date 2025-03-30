@@ -19,6 +19,7 @@ import fiona
 import json
 import xarray as xr
 from osgeo import gdal
+from tqdm import tqdm
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -264,22 +265,25 @@ class Dataset:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
-            for row in df.itertuples():
-                futures.append(
-                    executor.submit(
-                        Tile,
-                        row.engine_path,
-                        row.gdal_path,
-                        row.date,
-                        row.tile_name,
-                    )
+            # Submit all tasks and store them in a list
+            futures = [
+                executor.submit(
+                    Tile,
+                    row.engine_path,
+                    row.gdal_path,
+                    row.date,
+                    row.tile_name,
                 )
-
-        # Collect results from the thread pool.
-        for idx in range(len(futures)):
-            future = futures[idx]
-            result = future.result()
-            tiles.append(result)
+                for row in df.itertuples()
+            ]
+            
+            # Create a progress bar and iterate directly through futures
+            for future in tqdm(futures, desc="Processing tiles", unit="tile"):
+                try:
+                    result = future.result()
+                    tiles.append(result)
+                except Exception as e:
+                    logger.error(f"Error processing tile: {e}")
 
         # Define the user-specified bounding box as a Shapely polygon for intersection tests.
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore

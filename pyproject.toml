@@ -29,6 +29,7 @@ folium = "^0.19.5"
 matplotlib = "^3.10.1"
 xarray = "^2025.1.2"
 dask = "^2025.2.0"
+tqdm = "^4.67.1"
 
 
 [tool.poetry.group.dev.dependencies]
