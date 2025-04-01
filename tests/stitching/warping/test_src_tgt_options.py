@@ -46,7 +46,9 @@ def _run():
 
 
 def _test():
-    output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/global-land-cover/pre-processing"
+    output_base_vrt = (
+        f"{os.getenv('TMP_DIR')}/tmp/global-land-cover-4326/pre-processing"
+    )
 
     output_vrt = f"{output_base_vrt}/1970-01-01-00:00:00.vrt"
 

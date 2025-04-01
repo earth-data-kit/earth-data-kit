@@ -452,10 +452,18 @@ class Dataset:
 
         t_srs = self._get_target_srs() or "EPSG:3857"
 
-        tr = self._get_target_res().split(" ") or (
-            self.__to_meter__(band_tile.tile.get_res()[0], band_tile.tile.length_unit),
-            self.__to_meter__(band_tile.tile.get_res()[1], band_tile.tile.length_unit),
-        )
+        if self._get_target_res() is not None:
+            tr = self._get_target_res().split(" ")
+        else:
+            tr = (
+                self.__to_meter__(
+                    band_tile.tile.get_res()[0], band_tile.tile.length_unit
+                ),
+                self.__to_meter__(
+                    band_tile.tile.get_res()[1], band_tile.tile.length_unit
+                ),
+            )
+
         options = gdal.WarpOptions(
             outputBounds=self.space_opts["bbox"],
             outputBoundsSRS="EPSG:4326",
