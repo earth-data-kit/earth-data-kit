@@ -2,11 +2,15 @@ Earth Data Kit's
 
 1. edk.stitching.Dataset -- A class to initialize a remote dataset, either raster or vector. 
     * Should be able to support the following raster layouts
-        1. Raster datasets with multiple bands kept across multiple scene files. Directory structure has spatial and temporal dimensions.
+        1. Raster datasets with multiple bands kept across multiple scene files. Directory structure has spatial and temporal dimensions. User knows the directory structure.
             eg: https://registry.opendata.aws/sentinel-2/
             Source specified will be s3://sentinel-2/tiles/{utm_code}/{lat_band}/{square}/%Y/%m/%d/\*/*.tif
             In this case, the dataset will be stitched by first stitching the tiles for a given date and then by date. VRTs are created for each date and then listed together in a json file.
-        2. Raster datasets kept in a folder and user knows the directory structure. Single wildcard (*). Doesn't have temporal dimension.
+        2. Raster datasets kept remotely with spatial and temporal dimensions. User knows the directory structure but only for temporal dimension. Single wildcard (*) cases.
+            eg: https://registry.opendata.aws/sentinel-2/
+            Source specified will be s3://sentinel-2/tiles/\*/\*/\*/%Y/%m/%d/\*/*.tif
+            Follows case 1 for stitching. For discovery lists all the metadata for all the tiles and then runs and intersection query on it.
+        3. Raster datasets kept in a folder and has only spatial dimension, no temporal dimension. User knows the directory structure. Single wildcard (*) cases.
             eg: https://registry.opendata.aws/copernicus-dem/
             Source specificed will be s3://copernicus-dem-30m/\*/\*.tif
             In this case, the dataset will be stitched together by listing all the files in the directory. Band selection will still be done.
