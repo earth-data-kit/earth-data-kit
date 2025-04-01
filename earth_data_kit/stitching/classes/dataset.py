@@ -404,7 +404,7 @@ class Dataset:
         Returns:
             float: Value converted to meters.
         """
-        if (unit == "metre") or (unit == "meter"):
+        if (unit == "metre") or (unit == "meter") or (unit == "m"):
             return val
         elif unit == "degree":
             conversion_factor = 111320  # approximate conversion factor: meters per degree at the equator
