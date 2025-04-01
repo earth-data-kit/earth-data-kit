@@ -20,11 +20,17 @@ TAG ?= $(tag)
 
 # Install the built Python package
 install-package:
-	@echo "Installing package..."
+	@echo "Installing EDK..."
 	@echo "Fetching latest release tarball URL..."
 	@TARBALL_URL=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.tarball_url'); \
-	echo "Installing from $$TARBALL_URL"; \
-	$(PIP) install "$$TARBALL_URL"
+	VERSION_NUM=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.tag_name'); \
+	if [ -z "$$VERSION_NUM" ] || [ "$$VERSION_NUM" = "null" ]; then \
+		echo "\033[0;31mError: Unable to fetch the latest version information.\033[0m"; \
+		exit 1; \
+	fi; \
+	echo "Found version $$VERSION_NUM from $$TARBALL_URL"; \
+	$(PIP) install "$$TARBALL_URL"; \
+	echo "\033[0;32mYou can now use EDK $$VERSION_NUM in your Python environment.\033[0m"
 
 # Run tests using pytest
 run-tests:
@@ -35,14 +41,16 @@ run-tests:
 build-shared-libs:
 	@echo "Building shared libraries..."
 	@echo "Bulding for macos/arm64"
-	cd $(SHARED_LIBS_DIR) && env GOOS=darwin GOARCH=arm64 go build -o $(GO_LIB_OUTPUT)-darwin-arm64 main.go
+	@cd $(SHARED_LIBS_DIR) && env GOOS=darwin GOARCH=arm64 go build -o $(GO_LIB_OUTPUT)-darwin-arm64 main.go
 	@echo "Bulding for linux/amd64"
-	cd $(SHARED_LIBS_DIR) && env GOOS=linux GOARCH=amd64 go build -o $(GO_LIB_OUTPUT)-linux-amd64 main.go
+	@cd $(SHARED_LIBS_DIR) && env GOOS=linux GOARCH=amd64 go build -o $(GO_LIB_OUTPUT)-linux-amd64 main.go
+	@echo "\033[0;32mShared libraries built successfully.\033[0m"
 
 # Build the Python package with Poetry
 build-package:
 	@echo "Building Python package..."
-	$(POETRY) build
+	@$(POETRY) build -q
+	@echo "\033[0;32mPython package built successfully.\033[0m"
 
 # Build project documentation using Sphinx
 build-docs:
@@ -52,9 +60,9 @@ build-docs:
 
 # Builds the shared-libs and package
 build:
-	@echo "Rebuilding shared libraries and package..."
-	$(MAKE) build-shared-libs
-	$(MAKE) build-package
+	@$(MAKE) build-shared-libs
+	@echo ""
+	@$(MAKE) build-package
 
 # Create a new release
 release:
