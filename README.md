@@ -76,16 +76,14 @@ def extract_grid_components(row):
 ds.set_spacebounds(bbox, grid_fp, extract_grid_components)
 
 # Running discover to get the bands available in the dataset, you can also set gdal options if needed
-# ds.set_gdal_options(["-srcnodata 32767"])
+# ds.set_src_options({"-srcnodata": "32767"})
 ds.discover()
 
 # Get the bands discovered in the dataset
 ds.get_bands()
 
 # Optionally, configure GDAL options (e.g., setting the target spatial reference).
-ds.set_gdal_options([
-    "-t_srs EPSG:3857",
-])
+ds.set_target_options({"-t_srs": "EPSG:3857"})
 # Stitches the scene files into VRTs using the defined band arrangement.
 ds.to_vrts(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band4"])
 

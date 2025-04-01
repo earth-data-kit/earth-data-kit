@@ -43,10 +43,11 @@ This example demonstrates how to use the Earth Data Kit to stitch together a col
     # Retrieve and display the list of available bands from the dataset.
     available_bands = ds.get_bands()
     print("Discovered bands:", available_bands)
+    
     # Optionally, configure GDAL options (e.g., setting the target spatial reference).
-    ds.set_gdal_options([
-        "-t_srs EPSG:3857",
-    ])
+    ds.set_target_options({
+        "-t_srs": "EPSG:3857",
+    })
 
     # Define the ordered list of band descriptions you wish to stitch together.
     bands = ["red", "green", "blue"]
