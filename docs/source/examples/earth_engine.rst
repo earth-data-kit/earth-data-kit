@@ -32,9 +32,9 @@ This example demonstrates how to use the Earth Data Kit to stitch together a Ear
     ds.discover()
 
     # Optionally, configure GDAL options (e.g., setting the target spatial reference).
-    ds.set_gdal_options([
-        "-t_srs EPSG:3857",
-    ])
+    ds.set_target_options({
+        "-t_srs": "EPSG:3857",
+    })
 
     # Define the ordered list of band descriptions you wish to stitch together.
     bands = ["B4", "B3", "B2"]

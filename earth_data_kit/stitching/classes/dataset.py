@@ -61,13 +61,13 @@ class Dataset:
         self.name = name
         self.time_opts = {}
         self.space_opts = {}
-        self.gdal_options = {}
         if engine == "s3":
             self.engine = s3.S3()
         if engine == "earth_engine":
             self.engine = earth_engine.EarthEngine()
         self.source = source
-
+        self.src_options = {}
+        self.target_options = {}
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
         if clean:
             helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
@@ -118,6 +118,49 @@ class Dataset:
             "end": end,
         }
 
+    def set_src_options(self, options):
+        """
+        Sets options for the source dataset.
+
+        This method allows setting various options for the source dataset,
+        including source nodata values that can be used during processing.
+
+        Args:
+            options (dict): A dictionary containing source options.
+                Can include '-srcnodata' which may be either:
+                - A single value to be applied to all bands
+                - An array of values, one for each band in the dataset
+
+        Example:
+            >>> ds = Dataset("example", "path/to/data", "file_system")
+            >>> # Set a single nodata value for all bands
+            >>> ds.set_src_options({"-srcnodata": -9999})
+            >>> # Or set different nodata values for each band
+            >>> ds.set_src_options({"-srcnodata": [-9999, 0, 255]})
+        """
+        self.src_options = options
+
+    def set_target_options(self, options):
+        """
+        Sets options for the target dataset.
+
+        This method allows setting various GDAL options for the output dataset,
+        which influence the gdalwarp process during VRT creation.
+
+        Args:
+            options (dict): A dictionary containing GDAL options.
+                Common options include:
+                - '-t_srs': Target spatial reference system (projection)
+                - '-tr': Target resolution (x y, in target projection units)
+                - '-r': Resampling method (nearest, bilinear, cubic, etc.)
+
+        Example:
+            >>> ds = Dataset("example", "path/to/data", "file_system")
+            >>> # Set target projection, resolution and resampling method
+            >>> ds.set_target_options({"-t_srs": "EPSG:3857", "-tr": "30 30", "-r": "bilinear"})
+        """
+        self.target_options = options
+
     def set_spacebounds(self, bbox, grid_file=None, matcher=None):
         """
         Configure spatial constraints for the dataset using a bounding box and, optionally, a grid file.
@@ -151,66 +194,32 @@ class Dataset:
         }
         self.space_opts["bbox"] = bbox
 
-    def set_gdal_options(self, options):
+    def _get_target_res(self):
         """
-        Sets GDAL options for the dataset. These options are passed directly to GDAL commands (e.g., gdalwarp and gdalbuildvrt)
-        and allow customization of the processing pipeline.
-
-        Supported GDAL options include:
-         - **-t_srs**: Define the target spatial reference system (defaults to EPSG:3857 if not provided).
-         - **-tr**: Specify the output resolution (in target units; if -t_srs is not provided, resolution is calculated in meters).
-         - **-r**: Set the resampling method.
-         - **-srcnodata**: Indicate the source no-data value.
-
-        For more details on these options, please refer to:
-        https://gdal.org/programs/gdalwarp.html
-
-        Args:
-            options (list[str]): Array of GDAL command-line options.
-
-        Example:
-            >>> # Configure GDAL options for target SRS, resolution, resampling method, and source no-data value.
-            >>> ds.set_gdal_options([
-            ...     "-t_srs EPSG:4326",
-            ...     "-tr 30 30",
-            ...     "-r bilinear",
-            ...     "-srcnodata 0"
-            ... ])
-        """
-        self.gdal_options = options
-
-    def get_target_resolution(self):
-        """
-        Retrieves the target resolution option from GDAL options.
+        Retrieves the target resolution option from target options.
 
         Returns:
             str: The target resolution option if found, otherwise None.
         """
-        for opt in self.gdal_options:
-            if opt.startswith("-tr"):
-                return opt
+        return self.target_options.get("-tr", None)
 
-    def get_target_srs(self):
+    def _get_target_srs(self):
         """
-        Retrieves the target spatial reference system (SRS) option from GDAL options.
+        Retrieves the target spatial reference system (SRS) option from target options.
 
         Returns:
             str: The target SRS option if found, otherwise None.
         """
-        for opt in self.gdal_options:
-            if opt.startswith("-t_srs"):
-                return opt
+        return self.target_options.get("-t_srs", None)
 
-    def get_srcnodata(self):
+    def _get_srcnodata(self):
         """
-        Retrieves the source no-data value option from GDAL options.
+        Retrieves the source no-data value option from source options.
 
         Returns:
             str: The source no-data value option if found, otherwise None.
         """
-        for opt in self.gdal_options:
-            if opt.startswith("-srcnodata"):
-                return opt
+        return self.src_options.get("-srcnodata", None)
 
     @decorators.log_time
     @decorators.log_init
@@ -425,37 +434,43 @@ class Dataset:
         """
         warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
 
-        if (
-            self.get_target_resolution() is None and self.get_target_srs() is not None
-        ) or (
-            self.get_target_resolution() is not None and self.get_target_srs() is None
-        ):
-            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system converts the resolution in wrong units
-            logger.warning("either supply both -tr and -t_srs or supply nothing")
-
         nodataval = (
-            f"-srcnodata {band_tile.nodataval}"
+            band_tile.nodataval
             if band_tile.nodataval is not None
-            else self.get_srcnodata()
+            else self._get_srcnodata()
         )
-        t_srs = self.get_target_srs() or "-t_srs EPSG:3857"
-        tr = (
-            self.get_target_resolution()
-            or f"-tr {self.__to_meter__(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self.__to_meter__(band_tile.tile.get_res()[1], band_tile.tile.length_unit)}"
-        )
-
         if nodataval is None:
             logger.warning(
                 "no data val set as None. it's advised to provide a nodataval"
             )
 
+        if (self._get_target_res() is None and self._get_target_srs() is not None) or (
+            self._get_target_res() is not None and self._get_target_srs() is None
+        ):
+            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system converts the resolution in wrong units
+            logger.warning("either supply both -tr and -t_srs or supply nothing")
+
+        t_srs = self._get_target_srs() or "EPSG:3857"
+
+        if self._get_target_res() is not None:
+            tr = self._get_target_res().split(" ")
+        else:
+            tr = (
+                self.__to_meter__(
+                    band_tile.tile.get_res()[0], band_tile.tile.length_unit
+                ),
+                self.__to_meter__(
+                    band_tile.tile.get_res()[1], band_tile.tile.length_unit
+                ),
+            )
+
         options = gdal.WarpOptions(
             outputBounds=self.space_opts["bbox"],
             outputBoundsSRS="EPSG:4326",
-            xRes=tr.split(" ")[1],
-            yRes=tr.split(" ")[2],
-            dstSRS=t_srs.split(" ")[1],
-            srcNodata=nodataval.split(" ")[1] if nodataval is not None else None,
+            xRes=tr[0],
+            yRes=tr[1],
+            dstSRS=t_srs,
+            srcNodata=nodataval,
             srcBands=[band_tile.idx],
             dstBands=[1],
             errorThreshold=0,
@@ -622,13 +637,13 @@ class Dataset:
 
         Note:
             The function creates temporary single-band VRTs that are reprojected to EPSG:3857
-            by default unless overridden by options set via set_gdal_options.
+            by default unless overridden by options set via set_target_options.
         """
         curr_date = date[0]
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
-        # unless overridden by options configured via set_gdal_options.
+        # unless overridden by options configured via set_target_options.
         # Use concurrent.futures to process band tiles in parallel
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
@@ -671,7 +686,8 @@ class Dataset:
         creates individual single-band VRTs that are reprojected to EPSG:3857 by default (if no target spatial reference
         is specified). These single-band VRTs are then mosaiced per band and finally stacked into a multi-band VRT.
 
-        GDAL options influencing the gdalwarp process can be configured using the :meth:`edk.stitching.Dataset.set_gdal_options` function.
+        GDAL options influencing the gdalwarp process can be configured using the :meth:`edk.stitching.Dataset.set_target_options` function.
+        Also look at :meth:`edk.stitching.Dataset.set_src_options` for source dataset related options influencing the gdalwarp process, eg: srcnodataval.
 
         Args:
             bands (list[string]): Ordered list of band descriptions to output as VRTs.
