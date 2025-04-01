@@ -71,5 +71,8 @@ def _test():
 
 
 def test_grid_file():
+    os.environ["AWS_REGION"] = "us-west-2"
+    os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
+
     _run()
     _test()

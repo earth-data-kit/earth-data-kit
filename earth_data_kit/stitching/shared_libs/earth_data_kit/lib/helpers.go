@@ -32,7 +32,7 @@ func get_first_wildcard_idx(path_parts []string) int {
 			return idx
 		}
 	}
-	return -1
+	return len(path_parts) - 1
 }
 
 func has_wildcard(fp custom_file_path) bool {

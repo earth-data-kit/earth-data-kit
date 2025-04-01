@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class EarthEngine:
     def __init__(self) -> None:
-        self.name = "Earth Engine"
+        self.name = "earth_engine"
         self.app_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         self.service_account = os.getenv("GOOGLE_SERVICE_ACCOUNT")
 
@@ -25,9 +25,10 @@ class EarthEngine:
             space_opts["bbox"][3],
         )
 
-        layer.SetAttributeFilter(
-            f"startTime >= '{time_opts['start']}' and endTime <= '{time_opts['end']}'"
-        )
+        if time_opts and "start" in time_opts and "end" in time_opts:
+            layer.SetAttributeFilter(
+                f"startTime >= '{time_opts['start']}' and endTime <= '{time_opts['end']}'"
+            )
         tiles = []
         for feature in layer:
             tiles.append([feature["gdal_dataset"], feature["id"], feature["startTime"]])

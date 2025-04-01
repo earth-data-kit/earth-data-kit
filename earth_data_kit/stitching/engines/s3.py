@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class S3:
     def __init__(self) -> None:
-        self.name = "S3"
+        self.name = "s3"
         no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
         request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
         profile_flag = os.getenv("AWS_PROFILE")
@@ -37,23 +37,33 @@ class S3:
             f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
         )
 
-    def get_patterns(self, source, time_opts, space_opts):
-        patterns_df = pd.DataFrame()
-
+    def _expand_time(self, df, source, time_opts):
         # Expanding for time dimension
+        if not time_opts:
+            # If time options don't exist, return df unchanged
+            return df
+        if "start" not in time_opts or "end" not in time_opts:
+            # If time options are incomplete, log a warning and return df unchanged
+            logger.warning(
+                "Incomplete time options provided. Both 'start' and 'end' are required for time expansion."
+            )
+            return df
+
         start = time_opts["start"]
         end = time_opts["end"]
-        patterns_df["date"] = pd.date_range(start=start, end=end, inclusive="both")
-        patterns_df["search_path"] = patterns_df["date"].dt.strftime(source)
+        df["date"] = pd.date_range(start=start, end=end, inclusive="both")
+        df["search_path"] = df["date"].dt.strftime(source)
+        return df
 
-        # Expanding for space dimension
-        bbox = space_opts["bbox"]
+    def _expand_space(self, df, space_opts):
         if ("grid_file" not in space_opts) or (
             ("grid_file" in space_opts) and (space_opts["grid_file"] is None)
         ):
             # Doing nothing if grid_file is not passed
-            return patterns_df
+            return df
 
+        # Expanding for space dimension
+        bbox = space_opts["bbox"]
         grid_file = space_opts["grid_file"]
         matcher = space_opts["matcher"]
         if grid_file.endswith(".kml") or grid_file.endswith(".KML"):
@@ -63,7 +73,7 @@ class S3:
                 space_vars.append(matcher(grid))
 
             new_patterns = []
-            for row in patterns_df.itertuples():
+            for row in df.itertuples():
                 matches = re.findall(r"({.[^}]*})", row.search_path)  # type: ignore
                 # Now we replace matches and with all space_variables
                 for var in space_vars:
@@ -80,10 +90,32 @@ class S3:
         else:
             raise Exception("drivers other than kml are not supported")
 
+    def get_patterns(self, source, time_opts, space_opts):
+        patterns_df = pd.DataFrame()
+
+        patterns_df = self._expand_time(patterns_df, source, time_opts)
+
+        patterns_df = self._expand_space(patterns_df, space_opts)
+
+        # If expansion failed we send source as it is
+        if patterns_df.empty:
+            logger.warning(
+                "Expansion failed. Will search according to source directly."
+            )
+            if isinstance(source, list):
+                patterns_df = pd.DataFrame({"search_path": source})
+            else:
+                patterns_df = pd.DataFrame({"search_path": [source]})
+
+        return patterns_df
+
     def scan(self, source, time_opts, space_opts, tmp_base_dir):
         patterns_df = self.get_patterns(source, time_opts, space_opts)
+
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
+        if "date" not in patterns_df.columns:
+            patterns_df["date"] = None
 
         # go-lib expects paths in unix style
         patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
@@ -126,5 +158,4 @@ class S3:
         # Removing extra files created
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
-
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]

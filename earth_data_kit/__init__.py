@@ -20,7 +20,9 @@ logging.basicConfig(level=LOG_LEVEL)
 logging.addLevelName(logging.INFO, "info")
 logging.addLevelName(logging.ERROR, "error")
 logging.addLevelName(logging.DEBUG, "debug")
+logging.addLevelName(logging.WARNING, "warning")
 logging.addLevelName(logging.CRITICAL, "critical")
+
 
 logging.getLogger().handlers.clear()
 handler = logging.StreamHandler()

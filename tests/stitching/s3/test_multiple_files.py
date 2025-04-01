@@ -12,17 +12,13 @@ load_dotenv(CONFIG_FILE_PATH)
 
 
 def _test():
-    output_base_vrt = (
-        f"{os.getenv('TMP_DIR')}/tmp/modis-pds-wo-grid-file/pre-processing"
-    )
+    output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/global-land-cover/pre-processing"
 
     output_vrts = [
-        f"{output_base_vrt}/2017-01-01-00:00:00.vrt",
-        f"{output_base_vrt}/2017-01-02-00:00:00.vrt",
+        f"{output_base_vrt}/1970-01-01-00:00:00.vrt",
     ]
     golden_files = [
-        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/without-grid-file.tar.gz/2017-01-01-00:00:00.vrt",
-        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/without-grid-file.tar.gz/2017-01-02-00:00:00.vrt",
+        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/multiple-files.tar.gz/1970-01-01-00:00:00.vrt",
     ]
 
     for output_vrt, golden_file in zip(output_vrts, golden_files):
@@ -34,21 +30,22 @@ def _test():
 
 
 def _run():
-    source = "s3://modis-pds/MCD43A4.006/*/*/%Y%j/*_B07.TIF"
+    source = [
+        "s3://test-land-cover/gm_lc_v3_1_1.tif",
+        "s3://test-land-cover/gm_lc_v3_1_2.tif",
+        "s3://test-land-cover/gm_lc_v3_2_1.tif",
+        "s3://test-land-cover/gm_lc_v3_2_2.tif",
+    ]
 
-    bbox = country_bounding_boxes["AL"]
-    date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
+    bbox = country_bounding_boxes["IN"]
 
     # Creating a dataset
     ds = edk.stitching.Dataset(
-        "modis-pds-wo-grid-file",
+        "global-land-cover",
         source,
         "s3",
         clean=True,
     )
-
-    # Setting time bounds
-    ds.set_timebounds(date_range[0], date_range[1])
 
     # Setting spatial extent
     ds.set_spacebounds(bbox[1])
@@ -58,13 +55,14 @@ def _run():
 
     # Stitching data together as VRTs
     ds.to_vrts(
-        bands=["Nadir_Reflectance_Band7"],
+        bands=["NoDescription"],
     )
 
 
-def test_wo_grid_file():
-    os.environ["AWS_REGION"] = "us-west-2"
-    os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
+def test_multiple_files():
+    # Setting the region to ap-south-1 as we are using test-land-cover bucket which is in ap-south-1
+    os.environ["AWS_REGION"] = "ap-south-1"
+    os.environ["AWS_NO_SIGN_REQUEST"] = "NO"
 
     _run()
     _test()

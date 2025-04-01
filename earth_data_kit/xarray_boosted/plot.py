@@ -17,12 +17,13 @@ def create_cmap(base_color):
 
     def colormap(x):
         return cmap(x, 1)
-            
+
     return colormap
 
 
 def get_raster_bounds(fp):
-    df = pd.read_xml(fp)
+    _df = pd.read_json(fp)
+    df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
 
     # Getting first vrt to figure out raster bounds
     vrt_fp = df.loc[0, "source"]

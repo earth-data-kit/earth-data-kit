@@ -1,7 +1,6 @@
 import pandas as pd
 import ast
 import geopandas as gpd
-from lxml import etree
 import logging
 from osgeo import osr
 import os
@@ -19,6 +18,8 @@ import fiona
 import json
 import xarray as xr
 from osgeo import gdal
+from tqdm import tqdm
+from datetime import datetime
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -264,22 +265,25 @@ class Dataset:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
-            for row in df.itertuples():
-                futures.append(
-                    executor.submit(
-                        Tile,
-                        row.engine_path,
-                        row.gdal_path,
-                        row.date,
-                        row.tile_name,
-                    )
+            # Submit all tasks and store them in a list
+            futures = [
+                executor.submit(
+                    Tile,
+                    row.engine_path,
+                    row.gdal_path,
+                    row.date,
+                    row.tile_name,
                 )
+                for row in df.itertuples()
+            ]
 
-        # Collect results from the thread pool.
-        for idx in range(len(futures)):
-            future = futures[idx]
-            result = future.result()
-            tiles.append(result)
+            # Create a progress bar and iterate directly through futures
+            for future in tqdm(futures, desc="Processing tiles", unit="tile"):
+                try:
+                    result = future.result()
+                    tiles.append(result)
+                except Exception as e:
+                    logger.error(f"Error processing tile: {e}")
 
         # Define the user-specified bounding box as a Shapely polygon for intersection tests.
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -328,7 +332,6 @@ class Dataset:
         df["x_res"] = df.apply(lambda row: row.tile.get_res()[0], axis=1)
         df["y_res"] = df.apply(lambda row: row.tile.get_res()[1], axis=1)
         df["crs"] = df.apply(lambda row: row.tile.crs, axis=1)
-
         # Group the bands by columns: idx, description, dtype, x_res, y_res, and crs.
         by = ["idx", "description", "dtype", "x_res", "y_res", "crs"]
         df["x_res"] = df["x_res"].astype(np.float32)
@@ -401,7 +404,7 @@ class Dataset:
         Returns:
             float: Value converted to meters.
         """
-        if (unit == "metre") or (unit == "meter"):
+        if (unit == "metre") or (unit == "meter") or (unit == "m"):
             return val
         elif unit == "degree":
             conversion_factor = 111320  # approximate conversion factor: meters per degree at the equator
@@ -525,13 +528,13 @@ class Dataset:
     @decorators.log_init
     def __combine_timestamped_vrts__(self, output_vrts):
         """
-        Combine multiple timestamped VRT files into a single XML file.
+        Combine multiple timestamped VRT files into a single JSON file.
 
-        This method creates an XML file that references all the VRTs with their corresponding timestamps.
-        The XML structure follows the EDKDataset format, where each VRT is represented as a VRTDataset
+        This method creates a JSON file that references all the VRTs with their corresponding timestamps.
+        The JSON structure follows the EDKDataset format, where each VRT is represented as a VRTDataset
         element with source and time attributes. The time attribute is extracted from the VRT filename.
 
-        The resulting XML file serves as a temporal index for the dataset, allowing for time-based
+        The resulting JSON file serves as a temporal index for the dataset, allowing for time-based
         queries and operations on the collection of VRTs.
 
         Args:
@@ -539,40 +542,62 @@ class Dataset:
                                 a timestamp in the format YYYY-MM-DD-HH:MM:SS in its filename.
 
         Returns:
-            str: Path to the created XML file, or None if output_vrts is empty.
+            str: Path to the created JSON file, or None if output_vrts is empty.
 
-        Example XML structure:
-            <?xml version='1.0' encoding='UTF-8'?>
-            <EDKDataset name="dataset_name">
-              <VRTDataset source="/path/to/2017-01-01-00:00:00.vrt" time="2017-01-01-00:00:00"/>
-              <VRTDataset source="/path/to/2017-01-02-00:00:00.vrt" time="2017-01-02-00:00:00"/>
-            </EDKDataset>
+        Example JSON structure:
+            {
+              "EDKDataset": {
+                "name": "dataset_name",
+                "source": "source_identifier",
+                "engine": "engine_name",
+                "catalog": "path/to/catalog.csv",
+                "VRTDatasets": [
+                  {
+                    "source": "/path/to/2017-01-01-00:00:00.vrt",
+                    "time": "2017-01-01-00:00:00",
+                    "has_time_dim": "true"
+                  },
+                  {
+                    "source": "/path/to/2017-01-02-00:00:00.vrt",
+                    "time": "2017-01-02-00:00:00",
+                    "has_time_dim": "true"
+                  }
+                ]
+              }
+            }
         """
         if not output_vrts:
             return None
 
-        # Create root element
-        root = etree.Element("EDKDataset")
-        root.set("name", self.name)
-        root.set("source", self.source)
-        root.set("engine", self.engine.name)
-        root.set("catalog", self.catalog_path)
+        # Create a dictionary structure for JSON
+        dataset_dict = {
+            "EDKDataset": {
+                "name": self.name,
+                "source": self.source,
+                "engine": self.engine.name,
+                "catalog": self.catalog_path,
+                "VRTDatasets": [],
+            }
+        }
 
-        # Add VRTDataset elements for each VRT file
+        # Add VRTDataset entries for each VRT file
         for vrt in output_vrts:
             date_str = vrt.split("/")[-1].split(".")[0]
-            vrt_element = etree.SubElement(root, "VRTDataset")
-            vrt_element.set("source", vrt)
-            vrt_element.set("time", date_str)
+            vrt_dataset = {
+                "source": vrt,
+                "time": date_str,
+                "has_time_dim": (True if date_str != "1970-01-01-00:00:00" else False),
+            }
+            dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
-        # Create XML tree and write to file
-        tree = etree.ElementTree(root)
-        xml_path = f"{self.__get_ds_tmp_path__()}/{self.name}.xml"
+        # Create JSON file path
+        json_path = f"{self.__get_ds_tmp_path__()}/{self.name}.json"
 
-        # Write with pretty formatting
-        tree.write(xml_path, pretty_print=True, xml_declaration=True, encoding="utf-8")
+        # Write the JSON file with pretty formatting
+        with open(json_path, "w") as json_file:
+            json.dump(dataset_dict, json_file, indent=2)
 
-        return xml_path
+        return json_path
 
     @decorators.log_time
     @decorators.log_init
@@ -588,7 +613,7 @@ class Dataset:
         4. Set appropriate band descriptions
 
         Args:
-            date (tuple): A tuple containing the date for which to create the VRT
+            date (datetime): A tuple containing the date for which to create the VRT
             band_tiles (DataFrame): DataFrame containing band tile information
             bands (list): List of band descriptions to include in the VRT
 
@@ -600,15 +625,28 @@ class Dataset:
             by default unless overridden by options set via set_gdal_options.
         """
         curr_date = date[0]
-
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
         # unless overridden by options configured via set_gdal_options.
-        for _bt in _band_tiles.itertuples():
-            # TODO: Add multiprocessing for performance boost.
-            vrt_path = self.__extract_band__(_bt)
-            _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
+        # Use concurrent.futures to process band tiles in parallel
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            # Create arrays to store futures and their corresponding indices
+            futures = []
+            indices = []
+
+            # Submit all band extraction tasks to the executor
+            for _bt in _band_tiles.itertuples():
+                future = executor.submit(self.__extract_band__, _bt)
+                futures.append(future)
+                indices.append(_bt.Index)
+
+            # Process results as they complete
+            for i, future in enumerate(futures):
+                vrt_path = future.result()
+                _band_tiles.at[indices[i], "vrt_path"] = vrt_path
 
         # Combine single-band VRTs to create mosaic VRTs per band.
         # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
@@ -658,7 +696,11 @@ class Dataset:
         # Filter bands based on the user-supplied list.
         df = df[df["description"].isin(bands)]
 
-        outputs_by_dates = df.groupby(by=["date"])
+        # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
+        epoch_date = datetime(1970, 1, 1, 0, 0, 0)
+        df["date"] = df["date"].fillna(epoch_date)
+
+        outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []
 
         with concurrent.futures.ThreadPoolExecutor(
@@ -677,8 +719,8 @@ class Dataset:
                 result = future.result()
                 output_vrts.append(result)
 
-        xml_path = self.__combine_timestamped_vrts__(output_vrts)
-        self.xml_path = xml_path
+        json_path = self.__combine_timestamped_vrts__(output_vrts)
+        self.json_path = json_path
 
     @decorators.log_time
     @decorators.log_init
@@ -708,10 +750,11 @@ class Dataset:
         # TODO: Optimize the chunk size later,
         # for now 512 seems to be the sweet spot, atleast for local mac and s3
         ds = xr.open_dataset(
-            self.xml_path,
+            self.json_path,
             engine="edk_dataset",
-            chunks={"time": 1, "band": "auto", "x": 512, "y": 512},
+            chunks={"time": 1, "band": 1, "x": 512, "y": 512},
         )
+
         return ds[self.name]
 
     @staticmethod
@@ -723,37 +766,38 @@ class Dataset:
         that contains the dataset information.
 
         Args:
-            path (str): Path to the XML file containing the dataset information.
+            path (str): Path to the JSON file containing the dataset information.
 
         Returns:
             Dataset: A Dataset instance created from the provided file path.
 
         Example:
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.xml")
+            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.json")
             >>> # Now you can use the dataset instance to perform various operations, like getting the data as a DataArray
             >>> da = ds.to_dataarray()
         """
-        # Read the XML file
+        # Read the JSON file
         if not os.path.exists(path):
             raise FileNotFoundError(f"Dataset file not found: {path}")
 
         try:
-            tree = etree.parse(path)
-            root = tree.getroot()
+            with open(path, "r") as f:
+                data = json.load(f)
 
-            # Extract dataset attributes from the XML
-            name = root.get("name")
-            source = root.get("source")
-            engine_name = root.get("engine")
-            catalog_path = root.get("catalog")
+            # Extract dataset attributes from the JSON
+            edk_dataset = data.get("EDKDataset", {})
+            name = edk_dataset.get("name")
+            source = edk_dataset.get("source")
+            engine_name = edk_dataset.get("engine")
+            catalog_path = edk_dataset.get("catalog")
 
             # Create a new Dataset instance
             dataset = Dataset(name, source, engine_name.lower())
             dataset.catalog_path = catalog_path
-            dataset.xml_path = path
+            dataset.json_path = path
 
             return dataset
 
-        except etree.ParseError:
-            raise ValueError(f"Invalid XML file: {path}")
+        except json.JSONDecodeError:
+            raise ValueError(f"Invalid JSON file: {path}")

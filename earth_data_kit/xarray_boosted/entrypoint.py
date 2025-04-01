@@ -71,16 +71,20 @@ class EDKDatasetBackendArray(BackendArray):
         return x_coords, y_coords
 
     def _mask_nodata(self, data, nodataval):
-        if np.isnan(nodataval):
+        # np.isnan fails if nodataval is None because None cannot be converted to a numpy array
+        # It also fails for other non-numeric types
+        if nodataval is None or (
+            isinstance(nodataval, (int, float)) and np.isnan(nodataval)
+        ):
             return data
 
         data[data == nodataval] = np.nan
         return data
 
     def _scale_and_offset(self, data, scale, offset):
-        if np.isnan(scale):
+        if scale is None or (isinstance(scale, (int, float)) and np.isnan(scale)):
             scale = 1.0
-        if np.isnan(offset):
+        if offset is None or (isinstance(offset, (int, float)) and np.isnan(offset)):
             offset = 0.0
         return (data * scale) + offset
 
@@ -155,7 +159,8 @@ class EDKDatasetBackendArray(BackendArray):
         numpy.ndarray
             The indexed data.
         """
-        df = pd.read_xml(self.filename_or_obj)
+        _df = pd.read_json(self.filename_or_obj)
+        df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
 
         time_coords = self._get_time_coords(key[0])
 
@@ -265,8 +270,9 @@ def get_gdal_dtype(numpy_dtype):
 def open_edk_dataset(filename_or_obj):
     """Open an EDK dataset directly as an xarray Dataset without using DataArray."""
     try:
-        # Read metadata from XML
-        df = pd.read_xml(filename_or_obj)
+        # Read metadata from JSON
+        _df = pd.read_json(filename_or_obj)
+        df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
 
         if len(df) == 0:
             raise ValueError("No raster data found in the input file")
