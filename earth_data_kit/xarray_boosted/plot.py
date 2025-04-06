@@ -6,7 +6,7 @@ import earth_data_kit as edk
 import folium
 import matplotlib as mpl
 import numpy as np
-
+import earth_data_kit.stitching.decorators as decorators
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +98,8 @@ class EDKAccessor:
     def __init__(self, xarray_obj, *args, **kwargs):
         self._da = xarray_obj
 
+    @decorators.log_time
+    @decorators.log_init
     def plot(self, time, band, *args, **kwargs):
         _da = self._da.sel(time=time, band=band)
         return plot_xarray_da(_da)

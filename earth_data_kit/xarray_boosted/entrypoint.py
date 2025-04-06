@@ -159,6 +159,7 @@ class EDKDatasetBackendArray(BackendArray):
         numpy.ndarray
             The indexed data.
         """
+        # TODO: Add code to handle reads at block boundaries
         _df = pd.read_json(self.filename_or_obj)
         df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
 
