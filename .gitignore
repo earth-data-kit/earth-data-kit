@@ -25,3 +25,5 @@ example.ipynb
 
 # Created by tests
 *.tar.gz.properties
+
+node_modules

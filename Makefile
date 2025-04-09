@@ -2,6 +2,7 @@
 
 # Variables
 SHARED_LIBS_DIR := earth_data_kit/stitching/shared_libs/earth_data_kit
+VIZ_UI_DIR := earth_data_kit/viz_ui/viz-ui
 GO_LIB_OUTPUT := ../builds/go-lib
 PYTHON ?= python3
 PIP ?= pip3
@@ -46,6 +47,11 @@ build-shared-libs:
 	@cd $(SHARED_LIBS_DIR) && env GOOS=linux GOARCH=amd64 go build -o $(GO_LIB_OUTPUT)-linux-amd64 main.go
 	@echo "\033[0;32mShared libraries built successfully.\033[0m"
 
+build-viz-ui:
+	@echo "Building viz ui..."
+	@cd $(VIZ_UI_DIR) && npm run build
+	@echo "\033[0;32mViz UI built successfully.\033[0m"
+
 # Build the Python package with Poetry
 build-package:
 	@echo "Building Python package..."
@@ -61,6 +67,8 @@ build-docs:
 # Builds the shared-libs and package
 build:
 	@$(MAKE) build-shared-libs
+	@echo ""
+	@$(MAKE) build-viz-ui
 	@echo ""
 	@$(MAKE) build-package
 
