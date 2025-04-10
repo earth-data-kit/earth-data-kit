@@ -1,6 +1,7 @@
 from osgeo import gdal
 import logging
 from earth_data_kit.stitching import decorators
+import earth_data_kit as edk
 import shapely
 
 logger = logging.getLogger(__name__)
@@ -41,3 +42,24 @@ def warp_and_get_extent(df_row):
     polygon = shapely.geometry.box(x_min, y_min, x_max, y_max, ccw=True)
     ds = None
     return polygon
+
+
+def get_bbox_from_raster(raster_path):
+    gdal_ds = gdal.Open(raster_path)
+    gt = gdal_ds.GetGeoTransform()
+    width = gdal_ds.RasterXSize
+    height = gdal_ds.RasterYSize
+
+    # Get the coordinates of the corners
+    ulx = gt[0]
+    uly = gt[3]
+    lrx = gt[0] + width * gt[1] + height * gt[2]
+    lry = gt[3] + width * gt[4] + height * gt[5]
+    xmin, ymax, xmax, ymin = ulx, uly, lrx, lry
+
+    # TODO: Make the fetching of CRS dynamic instead of hardcoding it to 3857
+    lon_min, lat_min, lon_max, lat_max = edk.utilities.transform.transform_bbox(
+        xmin, ymin, xmax, ymax, 3857, 4326
+    )
+
+    return lon_min, lat_min, lon_max, lat_max

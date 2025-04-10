@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory
 import time
 import datetime
-from earth_data_kit.viz_server.tile import get_tile, get_image_data, get_image_bounds
+from earth_data_kit.viz_server.tile import get_image_data, get_image_bounds
 import logging
 from flask_cors import CORS
 import os

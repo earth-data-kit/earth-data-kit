@@ -311,11 +311,9 @@ class Dataset:
 
         logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
 
-        self._discover_overviews()
-
     @decorators.log_time
     @decorators.log_init
-    def _discover_overviews(self):
+    def __discover_overviews__(self):
         """
         Retrieve overview information from one tile of each band configuration group.
 
@@ -514,23 +512,22 @@ class Dataset:
             val = val * conversion_factor
             return val
 
-    def __add_overview_list__(self, vrt_path, overview_levels=['2', '4', '8']):
+    def __add_overview_list__(self, vrt_path, overview_levels=["2", "4", "8"]):
         """
         Add an OverviewList element to the VRT file.
 
-        This function reads the VRT file, adds an OverviewList element with the specified   
+        This function reads the VRT file, adds an OverviewList element with the specified
         """
         tree = ET.parse(vrt_path)
         root = tree.getroot()
-        
+
         # Check if OverviewList already exists
-        existing_overview = root.find('OverviewList')
+        existing_overview = root.find("OverviewList")
         if existing_overview is None:
             # Only add if it doesn't exist
-            overview_list = ET.SubElement(root, 'OverviewList')
-            overview_list.text = ' '.join(overview_levels)
+            overview_list = ET.SubElement(root, "OverviewList")
+            overview_list.text = " ".join(overview_levels)
             tree.write(vrt_path)
-    
 
     @decorators.log_time
     @decorators.log_init
@@ -592,7 +589,6 @@ class Dataset:
 
         gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options)
 
-        self.__add_overview_list__(warped_vrt_path)
         return warped_vrt_path
 
     @decorators.log_time
@@ -624,8 +620,6 @@ class Dataset:
             )
             # This saves the vrt file
             ds.Close()
-            
-            self.__add_overview_list__(band_mosaic_path)
 
             band_mosaics.append(band_mosaic_path)
         return band_mosaics

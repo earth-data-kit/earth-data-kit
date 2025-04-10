@@ -90,3 +90,12 @@ release-docs:
 	cp -R $(DOCUMENTATION_SRC)/* $(GITHUB_PAGES_DIR)/docs/
 	touch $(GITHUB_PAGES_DIR)/docs/.nojekyll
 	cd $(GITHUB_PAGES_DIR) && $(GIT) add . && $(GIT) commit -m "$(TAG)" && $(GIT) push origin master
+
+# Format Python code with Black and JavaScript/CSS with Prettier
+prettify:
+	@echo "Formatting Python code with Black..."
+	@black .
+	@echo "\033[0;32mPython code formatted successfully.\033[0m"
+	@echo "Formatting JavaScript/CSS with Prettier..."
+	@prettier ./earth_data_kit/viz_ui/viz-ui/ -w
+	@echo "\033[0;32mJavaScript/CSS formatted successfully.\033[0m"
