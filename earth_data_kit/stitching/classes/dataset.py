@@ -241,6 +241,7 @@ class Dataset:
           4. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
              self.catalog_path.
           5. Discovers the overview information for the dataset.
+
         Returns:
             None
 
@@ -262,7 +263,7 @@ class Dataset:
             ... )
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
             >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
-            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path.
+            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path
         """
         # Retrieve tile metadata using the engine's scan function.
         df = self.engine.scan(

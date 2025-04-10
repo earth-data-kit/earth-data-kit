@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --outDir ./../../dist/ --emptyOutDir",
+    "build": "vite build --outDir ./../../dist/ --emptyOutDir --logLevel silent",
     "preview": "vite preview"
   },
   "keywords": [],
