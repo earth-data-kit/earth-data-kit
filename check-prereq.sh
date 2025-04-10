@@ -29,6 +29,7 @@ else
     echo -e "${GREEN}GDAL version $GDAL_VERSION found. ✓${NC}"
 fi
 
+echo ""
 # Check s5cmd installation
 echo "Checking s5cmd installation..."
 if ! command_exists s5cmd; then
@@ -44,6 +45,7 @@ else
     echo -e "${GREEN}s5cmd found. ✓${NC}"
 fi
 
+echo ""
 # Check operating system
 echo "Checking operating system..."
 OS=$(uname -s)
@@ -55,4 +57,5 @@ else
     echo -e "${GREEN}Operating system: macOS (Darwin) ✓${NC}"
 fi
 
+echo ""
 echo -e "${GREEN}All pre-requisites installed. ✓${NC}"
