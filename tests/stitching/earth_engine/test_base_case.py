@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import os
+import pytest
 
 CONFIG_FILE_PATH = "tests/config.env"
 load_dotenv(CONFIG_FILE_PATH)
@@ -50,7 +51,7 @@ def _test():
 
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
-
+@pytest.mark.order(0)
 def test_base_case():
     _run()
     _test()

@@ -1,8 +1,4 @@
-from rio_tiler.io import Reader
-from rio_tiler.errors import TileOutsideBounds
 from flask import Response, jsonify
-from rio_tiler.profiles import img_profiles
-from rio_tiler.io import XarrayReader
 import time
 import earth_data_kit as edk
 import logging

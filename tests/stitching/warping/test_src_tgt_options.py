@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import earth_data_kit as edk
-
+import pytest
 CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
 load_dotenv(CONFIG_FILE_PATH)
@@ -65,7 +65,7 @@ def _test():
     epsg = ds.GetSpatialRef().GetAuthorityCode(None)
     assert epsg == "4326"
 
-
+@pytest.mark.order(0)
 def test_src_tgt_options():
     # Setting the region to ap-south-1 as we are using test-land-cover bucket which is in ap-south-1
     os.environ["AWS_REGION"] = "ap-south-1"
