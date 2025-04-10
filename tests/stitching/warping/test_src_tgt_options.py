@@ -7,6 +7,7 @@ from osgeo import gdal
 from osgeo_utils import gdalcompare
 import earth_data_kit as edk
 import pytest
+
 CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
 load_dotenv(CONFIG_FILE_PATH)
@@ -64,6 +65,7 @@ def _test():
 
     epsg = ds.GetSpatialRef().GetAuthorityCode(None)
     assert epsg == "4326"
+
 
 @pytest.mark.order(0)
 def test_src_tgt_options():

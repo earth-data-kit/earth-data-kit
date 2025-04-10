@@ -51,6 +51,7 @@ def _test():
 
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
+
 @pytest.mark.order(0)
 def test_base_case():
     _run()

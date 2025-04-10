@@ -70,6 +70,7 @@ def _test():
 
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
+
 @pytest.mark.order(0)
 def test_grid_file():
     os.environ["AWS_REGION"] = "us-west-2"

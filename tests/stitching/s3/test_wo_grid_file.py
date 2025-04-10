@@ -62,6 +62,7 @@ def _run():
         bands=["Nadir_Reflectance_Band7"],
     )
 
+
 @pytest.mark.order(0)
 def test_wo_grid_file():
     os.environ["AWS_REGION"] = "us-west-2"

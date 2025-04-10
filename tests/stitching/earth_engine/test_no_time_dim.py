@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 from osgeo import gdal
 import pytest
+
 CONFIG_FILE_PATH = "tests/config.env"
 load_dotenv(CONFIG_FILE_PATH)
 FIXTURES_DIR = "tests/fixtures"
@@ -44,6 +45,7 @@ def _test():
         ds_golden = gdal.Open(golden_file)
 
         assert gdalcompare.compare_db(ds_golden, ds) == 0
+
 
 @pytest.mark.order(0)
 def test_no_time_dim():

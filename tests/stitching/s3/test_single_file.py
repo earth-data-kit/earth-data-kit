@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import pytest
+
 CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
 load_dotenv(CONFIG_FILE_PATH)
@@ -52,6 +53,7 @@ def _run():
     ds.to_vrts(
         bands=["NoDescription"],
     )
+
 
 @pytest.mark.order(0)
 def test_multiple_files():
