@@ -34,9 +34,9 @@ def init_dataset_cache(filepath, time_value, band_value):
         da = ds.to_dataarray()
 
         # Select the specific time and band and store in the nested cache
-        selected_da = da.sel(time=time_value, band=int(band_value))
+        selected_da = da.sel(time=time_value, band=int(band_value)).edk.read_as_array()
         _cached_dataarray = xr.DataArray(
-            selected_da.values,
+            selected_da,
             dims=["x", "y"],
             coords={"x": da.x, "y": da.y},
             attrs={"crs": da.crs},
