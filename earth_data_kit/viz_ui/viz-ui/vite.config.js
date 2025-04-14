@@ -1,7 +1,7 @@
 export default {
-  root: "src",
-  base: "./",
-  server: {
-    open: true,
-  },
+    root: "src",
+    base: "./",
+    server: {
+        open: true,
+    },
 };

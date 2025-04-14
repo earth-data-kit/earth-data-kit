@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory
 import time
 import datetime
-from earth_data_kit.viz_server.tile import get_image_data, get_image_bounds
+from earth_data_kit.viz_server.tile import get_image_data, get_image_bounds, get_tile
 import logging
 from flask_cors import CORS
 import os
@@ -72,6 +72,14 @@ def get_bounds():
 
     return get_image_bounds(filepath, band, time)
 
+@app.route("/image/tile/<int:z>/<int:x>/<int:y>.png", methods=["GET"])
+def tile(z, x, y):
+    try:
+        filepath, band, time = validate_os_params()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+    return get_tile(filepath, band, time, z, x, y)
 
 @app.route("/", methods=["GET"])
 @app.route("/<path:filepath>", methods=["GET"])

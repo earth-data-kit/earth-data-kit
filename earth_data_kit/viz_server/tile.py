@@ -2,7 +2,9 @@ from flask import Response, jsonify
 import time
 import earth_data_kit as edk
 import logging
-
+from rio_tiler.io import XarrayReader, Reader
+from rio_tiler.profiles import img_profiles
+import rio_tiler
 # Convert numpy array to image
 from flask import Response, send_file
 import numpy as np
@@ -61,18 +63,30 @@ def get_image_data(filepath, band_value, time_value):
 
     return send_file(rawBytes, mimetype="image/png")
 
-
 def get_image_bounds(filepath, band, time):
     ds = edk.stitching.Dataset.from_file(filepath)
     da = ds.to_dataarray()
     da = da.sel(time=time, band=int(band))
     bounds = da.attrs["bbox"]
-    transformed_bounds = None
 
-    # Transform bounds from EPSG:3857 to EPSG:4326
-    if bounds and len(bounds) == 4:
-        # Use edk.utilities.transform_bbox function to transform from EPSG:3857 to EPSG:4326
-        transformed_bounds = edk.utilities.transform.transform_bbox(
-            *bounds, source_epsg=3857, target_epsg=4326
-        )
-    return jsonify({"bbox": transformed_bounds}), 200
+    return jsonify({"bbox": bounds}), 200
+
+# Create a global XarrayReader instance if it doesn't exist
+global xarray_reader
+
+def get_tile(filepath, band, time, z, x, y):
+    ds = edk.stitching.Dataset.from_file(filepath)
+    da = ds.to_dataarray()
+    da = da.sel(time=time, band=int(band))
+    da = da.transpose("y", "x")
+
+    with XarrayReader(da) as dst:
+        try:
+            img = dst.tile(x, y, z)
+            content = img.render(img_format="PNG", **img_profiles.get("png"))
+            return Response(content, mimetype="image/png")
+        except rio_tiler.errors.TileOutsideBounds as e:
+            return jsonify({"error": str(e)}), 404
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
