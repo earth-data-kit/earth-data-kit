@@ -1,12 +1,7 @@
 #!/bin/bash
 
-source ./colors.sh
+source ./helpers.sh
 # Script to check the pre-requisites for the earth-data-kit
-
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
 
 # Check GDAL installation
 echo "Checking GDAL installation..."
@@ -36,10 +31,18 @@ if ! command_exists s5cmd; then
     echo -e "${YELLOW}s5cmd not found. This is required for optimal S3 operations.${NC}"
     echo "Installation instructions: https://github.com/peak/s5cmd#installation"
     
-    read -p "Do you want to continue without s5cmd? (y/n) " -n 1 -r
+    read -p "Do you want to install s5cmd now? (y/n) " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        # Source the install script and call the function
+        source ./install-s5cmd.sh
+        install_s5cmd
+    else
+        read -p "Do you want to continue without s5cmd? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
     fi
 else
     echo -e "${GREEN}s5cmd found. ✓${NC}"
