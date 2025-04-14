@@ -12,6 +12,7 @@ from PIL import Image
 import io
 import os
 import cv2
+from earth_data_kit.viz_server.cache import get_cached_array
 
 logger = logging.getLogger(__name__)
 
@@ -71,22 +72,32 @@ def get_image_bounds(filepath, band, time):
 
     return jsonify({"bbox": bounds}), 200
 
-# Create a global XarrayReader instance if it doesn't exist
-global xarray_reader
+def __transparent_tile__():
+    # Create a transparent image of 256x256 pixels
+    transparent_img = np.zeros((256, 256, 4), dtype=np.uint8)
+    # Set alpha channel to 0 (fully transparent)
+    transparent_img[:, :, 3] = 0
+    
+    # Encode the transparent image to PNG format
+    success, encoded_img = cv2.imencode(".png", transparent_img)
+    if not success:
+        return jsonify({"error": "Failed to encode transparent image"}), 500
+        
+    # Create an in-memory file-like object to store the PNG
+    content = io.BytesIO(encoded_img.tobytes()).getvalue()
 
-def get_tile(filepath, band, time, z, x, y):
-    ds = edk.stitching.Dataset.from_file(filepath)
-    da = ds.to_dataarray()
-    da = da.sel(time=time, band=int(band))
-    da = da.transpose("y", "x")
+    return content
 
+def get_tile(z, x, y):
+    da = get_cached_array()
     with XarrayReader(da) as dst:
         try:
             img = dst.tile(x, y, z)
             content = img.render(img_format="PNG", **img_profiles.get("png"))
             return Response(content, mimetype="image/png")
         except rio_tiler.errors.TileOutsideBounds as e:
-            return jsonify({"error": str(e)}), 404
+            
+            return Response(__transparent_tile__(), mimetype="image/png")
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

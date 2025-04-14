@@ -7,6 +7,7 @@ from flask_cors import CORS
 import os
 import requests
 import threading
+from earth_data_kit.viz_server.cache import init_dataset_cache
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +75,7 @@ def get_bounds():
 
 @app.route("/image/tile/<int:z>/<int:x>/<int:y>.png", methods=["GET"])
 def tile(z, x, y):
-    try:
-        filepath, band, time = validate_os_params()
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-    return get_tile(filepath, band, time, z, x, y)
+    return get_tile(z, x, y)
 
 @app.route("/", methods=["GET"])
 @app.route("/<path:filepath>", methods=["GET"])
@@ -119,7 +115,9 @@ def open_browser():
         if response.status_code == 200:
             break
         time.sleep(1)
+    filepath, band, time = validate_os_params()
 
+    init_dataset_cache(filepath, time, int(band))
     logger.info("Server started. Open http://localhost:5432/ to view the UI.")
 
 

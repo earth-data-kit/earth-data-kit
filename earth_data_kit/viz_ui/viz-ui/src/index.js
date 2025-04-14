@@ -1,9 +1,8 @@
 import { Deck } from "@deck.gl/core";
 import GetOSMLayer from "./layers/osm";
-import GetRasterBitmapLayer from "./layers/raster-bitmap";
+import GetRasterTileLayer from "./layers/raster-tilelayer";
 
 const BASE_URL = "http://localhost:5432";
-const layers = [GetOSMLayer()];
 
 var deckInstance;
 
@@ -23,12 +22,6 @@ fetch(`${BASE_URL}/bounds`)
       getTooltip: ({ bitmap }) => {
         return bitmap && `${bitmap.pixel}`;
       },
-      layers: [GetOSMLayer()],
-    });
-
-    GetRasterBitmapLayer(`${BASE_URL}/image`, bbox.bbox).then((layer) => {
-      layers.push(layer);
-      deckInstance.setProps({ layers: layers });
-      setLoaded();
+      layers: [GetOSMLayer(), GetRasterTileLayer(`${BASE_URL}/image`)],
     });
   });
