@@ -5,6 +5,7 @@ import logging
 from rio_tiler.io import XarrayReader, Reader
 from rio_tiler.profiles import img_profiles
 import rio_tiler
+
 # Convert numpy array to image
 from flask import Response, send_file
 import numpy as np
@@ -64,6 +65,7 @@ def get_image_data(filepath, band_value, time_value):
 
     return send_file(rawBytes, mimetype="image/png")
 
+
 def get_image_bounds(filepath, band, time):
     ds = edk.stitching.Dataset.from_file(filepath)
     da = ds.to_dataarray()
@@ -72,21 +74,23 @@ def get_image_bounds(filepath, band, time):
 
     return jsonify({"bbox": bounds}), 200
 
+
 def __transparent_tile__():
     # Create a transparent image of 256x256 pixels
     transparent_img = np.zeros((256, 256, 4), dtype=np.uint8)
     # Set alpha channel to 0 (fully transparent)
     transparent_img[:, :, 3] = 0
-    
+
     # Encode the transparent image to PNG format
     success, encoded_img = cv2.imencode(".png", transparent_img)
     if not success:
         return jsonify({"error": "Failed to encode transparent image"}), 500
-        
+
     # Create an in-memory file-like object to store the PNG
     content = io.BytesIO(encoded_img.tobytes()).getvalue()
 
     return content
+
 
 def get_tile(z, x, y):
     da = get_cached_array()
@@ -96,8 +100,7 @@ def get_tile(z, x, y):
             content = img.render(img_format="PNG", **img_profiles.get("png"))
             return Response(content, mimetype="image/png")
         except rio_tiler.errors.TileOutsideBounds as e:
-            
+
             return Response(__transparent_tile__(), mimetype="image/png")
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-

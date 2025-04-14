@@ -73,9 +73,11 @@ def get_bounds():
 
     return get_image_bounds(filepath, band, time)
 
+
 @app.route("/image/tile/<int:z>/<int:x>/<int:y>.png", methods=["GET"])
 def tile(z, x, y):
     return get_tile(z, x, y)
+
 
 @app.route("/", methods=["GET"])
 @app.route("/<path:filepath>", methods=["GET"])
