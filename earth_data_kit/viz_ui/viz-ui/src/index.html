@@ -15,21 +15,6 @@
             href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
             rel="stylesheet"
         />
-        <div
-            id="loading-indicator"
-            class="fixed top-5 right-5 bg-gray-800 bg-opacity-70 text-white px-4 py-2 rounded shadow-md transition-all duration-300 z-50"
-        >
-            Loading...
-        </div>
-        <script>
-            // This can be used to update the loading state
-            function setLoaded() {
-                const indicator = document.getElementById("loading-indicator");
-                indicator.textContent = "Loaded";
-                indicator.classList.remove("bg-gray-800");
-                indicator.classList.add("bg-green-600");
-            }
-        </script>
     </head>
     <body></body>
     <script type="module" src="./index.js"></script>
