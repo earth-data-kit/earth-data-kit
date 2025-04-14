@@ -846,7 +846,8 @@ class Dataset:
                     )
                 )
 
-            for future in futures:
+            # Create a progress bar and iterate through futures
+            for future in tqdm(futures, desc="Creating VRTs", unit="vrt"):
                 result = future.result()
                 output_vrts.append(result)
 
