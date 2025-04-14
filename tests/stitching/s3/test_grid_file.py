@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import earth_data_kit as edk
+import pytest
 
 CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
@@ -70,6 +71,7 @@ def _test():
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
 
+@pytest.mark.order(0)
 def test_grid_file():
     os.environ["AWS_REGION"] = "us-west-2"
     os.environ["AWS_NO_SIGN_REQUEST"] = "YES"

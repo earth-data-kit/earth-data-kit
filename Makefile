@@ -1,7 +1,8 @@
-.PHONY: build-shared-libs run-tests build build-package install-package build-docs rebuild-docs release release-docs
+.PHONY: build-shared-libs run-tests build build-package install-package build-docs rebuild-docs release release-docs prettify
 
 # Variables
 SHARED_LIBS_DIR := earth_data_kit/stitching/shared_libs/earth_data_kit
+VIZ_UI_DIR := earth_data_kit/viz_ui/viz-ui
 GO_LIB_OUTPUT := ../builds/go-lib
 PYTHON ?= python3
 PIP ?= pip3
@@ -46,6 +47,11 @@ build-shared-libs:
 	@cd $(SHARED_LIBS_DIR) && env GOOS=linux GOARCH=amd64 go build -o $(GO_LIB_OUTPUT)-linux-amd64 main.go
 	@echo "\033[0;32mShared libraries built successfully.\033[0m"
 
+build-viz-ui:
+	@echo "Building viz ui..."
+	@cd $(VIZ_UI_DIR) && npm run build
+	@echo "\033[0;32mViz UI built successfully.\033[0m"
+
 # Build the Python package with Poetry
 build-package:
 	@echo "Building Python package..."
@@ -61,6 +67,8 @@ build-docs:
 # Builds the shared-libs and package
 build:
 	@$(MAKE) build-shared-libs
+	@echo ""
+	@$(MAKE) build-viz-ui
 	@echo ""
 	@$(MAKE) build-package
 
@@ -82,3 +90,12 @@ release-docs:
 	cp -R $(DOCUMENTATION_SRC)/* $(GITHUB_PAGES_DIR)/docs/
 	touch $(GITHUB_PAGES_DIR)/docs/.nojekyll
 	cd $(GITHUB_PAGES_DIR) && $(GIT) add . && $(GIT) commit -m "$(TAG)" && $(GIT) push origin master
+
+# Format Python code with Black and JavaScript/CSS with Prettier
+prettify:
+	@echo "Formatting Python code with Black..."
+	@black .
+	@echo "\033[0;32mPython code formatted successfully.\033[0m"
+	@echo "Formatting JavaScript/CSS with Prettier..."
+	@prettier ./earth_data_kit/viz_ui/viz-ui/ -w
+	@echo "\033[0;32mJavaScript/CSS formatted successfully.\033[0m"

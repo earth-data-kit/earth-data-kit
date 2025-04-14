@@ -20,6 +20,7 @@ import xarray as xr
 from osgeo import gdal
 from tqdm import tqdm
 from datetime import datetime
+from xml.etree import ElementTree as ET
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -69,6 +70,7 @@ class Dataset:
         self.src_options = {}
         self.target_options = {}
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
+        self.overviews_path = f"{self.__get_ds_tmp_path__()}/overviews.csv"
         if clean:
             helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
 
@@ -238,6 +240,7 @@ class Dataset:
              bounding box using an intersection test.
           4. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
              self.catalog_path.
+          5. Discovers the overview information for the dataset.
 
         Returns:
             None
@@ -260,7 +263,7 @@ class Dataset:
             ... )
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
             >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
-            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path.
+            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path
         """
         # Retrieve tile metadata using the engine's scan function.
         df = self.engine.scan(
@@ -309,14 +312,95 @@ class Dataset:
 
         logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
 
+    @decorators.log_time
+    @decorators.log_init
+    def __discover_overviews__(self):
+        """
+        Retrieve overview information from one tile of each band configuration group.
+
+        This method uses the get_bands function to identify unique band configurations,
+        then examines one tile from each group to extract overview information.
+        This is useful for understanding the pyramid structure of the raster data.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing overview information with columns:
+                - description: Description of the band
+                - x_size: Width of the overview
+                - y_size: Height of the overview
+        """
+        # Get unique band configurations
+        band_groups = self.get_bands()
+        overviews = []
+
+        # Set GDAL to not scan directories for performance
+        gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "YES")
+
+        # Process one tile from each unique band configuration
+        for bg in band_groups.itertuples():
+            # TODO: Add multi processing
+            # Get the first tile in this group
+            tile = bg.tiles[0]
+            ds = gdal.Open(tile.gdal_path)
+            if ds is None:
+                logger.warning(f"Could not open {tile.gdal_path}")
+                continue
+
+            for band_idx in range(len(tile.bands)):
+                band = ds.GetRasterBand(int(band_idx) + 1)
+                overview_count = band.GetOverviewCount()
+                overview_sizes = []
+
+                for i in range(overview_count):
+                    overview = band.GetOverview(i)
+                    if overview:
+                        logger.debug(
+                            f"Overview found for band {bg.description} at idx {bg.source_idx}. Overview size: {overview.XSize} x {overview.YSize}"
+                        )
+                        overview_sizes.append(
+                            [bg.description, overview.XSize, overview.YSize]
+                        )
+
+                if len(overview_sizes) > 0:
+                    overviews += overview_sizes
+
+            # Close the dataset
+            ds = None
+
+        # Reset GDAL configuration to default
+        gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
+
+        # Create a DataFrame with unique overview sizes
+        df = (
+            pd.DataFrame(overviews, columns=["description", "x_size", "y_size"])
+            .groupby(by=["description", "x_size", "y_size"])
+            .size()
+            .reset_index()[["description", "x_size", "y_size"]]
+        )
+
+        # Save the overview information to a CSV file
+        df.to_csv(self.overviews_path, index=False, header=True)
+
+        logger.debug(f"Overview information saved to {self.overviews_path}")
+
     def get_bands(self):
         """
         Retrieve unique band configurations from tile metadata.
 
         Aggregates metadata from each tile by extracting attributes such as resolution
         (x_res, y_res) and coordinate reference system (crs). The data is then grouped
-        by columns: band index inside tile (idx), band description, data type (dtype),
+        by columns: band index inside tile (source_idx), band description, data type (dtype),
         x_res, y_res, and crs.
+
+        Returns:
+            pd.DataFrame: A DataFrame with unique band configurations, where each row represents
+                          a unique band configuration with the following columns:
+                          - source_idx: Band index within the source files
+                          - description: Band description
+                          - dtype: Data type of the band
+                          - x_res: X resolution
+                          - y_res: Y resolution
+                          - crs: Coordinate reference system
+                          - tiles: List of Tile objects that contain this band configuration
 
         Example:
             >>> import datetime
@@ -328,25 +412,34 @@ class Dataset:
             >>> ds.discover()
             >>> bands_df = ds.get_bands()
             >>> print(bands_df.head())
-               idx                description    dtype  x_res  y_res         crs
-            0    0  Nadir_Reflectance_Band1  uint16   30.0   30.0   EPSG:4326
-            1    1  Nadir_Reflectance_Band2  uint16   30.0   30.0   EPSG:4326
-            2    2  Nadir_Reflectance_Band3  uint16   30.0   30.0   EPSG:4326
+               source_idx                description    dtype  x_res  y_res         crs                                              tiles
+            0           1  Nadir_Reflectance_Band1  uint16   30.0   30.0   EPSG:4326  [<earth_data_kit.stitching.classes.tile.Tile object...
+            1           1  Nadir_Reflectance_Band2  uint16   30.0   30.0   EPSG:4326  [<earth_data_kit.stitching.classes.tile.Tile object...
+            2           1  Nadir_Reflectance_Band3  uint16   30.0   30.0   EPSG:4326  [<earth_data_kit.stitching.classes.tile.Tile object...
 
-        Returns:
-            pd.DataFrame: A DataFrame with unique band configurations.
+        Notes:
+            The 'source_idx' column typically represents the band index within the source files.
+            In some cases, this value will be 1 for all bands, especially when each band
+            is stored in a separate file.
         """
         tile_bands = self.__get_tile_bands__()
         df = pd.DataFrame(tile_bands)
         df["x_res"] = df.apply(lambda row: row.tile.get_res()[0], axis=1)
         df["y_res"] = df.apply(lambda row: row.tile.get_res()[1], axis=1)
         df["crs"] = df.apply(lambda row: row.tile.crs, axis=1)
-        # Group the bands by columns: idx, description, dtype, x_res, y_res, and crs.
-        by = ["idx", "description", "dtype", "x_res", "y_res", "crs"]
+        # Group the bands by columns: source_idx, description, dtype, x_res, y_res, and crs.
+        by = ["source_idx", "description", "dtype", "x_res", "y_res", "crs"]
         df["x_res"] = df["x_res"].astype(np.float32)
         df["y_res"] = df["y_res"].astype(np.float32)
 
-        return df.groupby(by=by).size().reset_index()[by]
+        # Group by the specified columns and collect tiles in each group
+        grouped = df.groupby(by=by)
+        # Create a new dataframe with the grouped columns and a new 'tiles' column
+        result = grouped.agg({"tile": lambda x: list(x)}).reset_index()
+        # Rename the aggregated column to 'tiles'
+        result = result.rename(columns={"tile": "tiles"})
+        # Add back the original columns from the groupby
+        return result
 
     def __get_tile_bands__(self):
         """
@@ -420,6 +513,23 @@ class Dataset:
             val = val * conversion_factor
             return val
 
+    def __add_overview_list__(self, vrt_path, overview_levels=["2", "4", "8"]):
+        """
+        Add an OverviewList element to the VRT file.
+
+        This function reads the VRT file, adds an OverviewList element with the specified
+        """
+        tree = ET.parse(vrt_path)
+        root = tree.getroot()
+
+        # Check if OverviewList already exists
+        existing_overview = root.find("OverviewList")
+        if existing_overview is None:
+            # Only add if it doesn't exist
+            overview_list = ET.SubElement(root, "OverviewList")
+            overview_list.text = " ".join(overview_levels)
+            tree.write(vrt_path)
+
     @decorators.log_time
     @decorators.log_init
     def __extract_band__(self, band_tile):
@@ -432,7 +542,7 @@ class Dataset:
         Returns:
             str: Path to the generated warped VRT.
         """
-        warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
+        warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.source_idx}-warped.vrt"
 
         nodataval = (
             band_tile.nodataval
@@ -471,7 +581,7 @@ class Dataset:
             yRes=tr[1],
             dstSRS=t_srs,
             srcNodata=nodataval,
-            srcBands=[band_tile.idx],
+            srcBands=[band_tile.source_idx],
             dstBands=[1],
             errorThreshold=0,
             targetAlignedPixels=True,
@@ -479,6 +589,7 @@ class Dataset:
         )
 
         gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options)
+
         return warped_vrt_path
 
     @decorators.log_time
@@ -566,6 +677,7 @@ class Dataset:
                 "source": "source_identifier",
                 "engine": "engine_name",
                 "catalog": "path/to/catalog.csv",
+                "overviews": "path/to/overviews.csv",
                 "VRTDatasets": [
                   {
                     "source": "/path/to/2017-01-01-00:00:00.vrt",
@@ -591,6 +703,8 @@ class Dataset:
                 "source": self.source,
                 "engine": self.engine.name,
                 "catalog": self.catalog_path,
+                "overviews": self.overviews_path,
+                "bbox": self.space_opts["bbox"],
                 "VRTDatasets": [],
             }
         }
@@ -709,6 +823,7 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
+        # TODO: Might need code to handle case when band descriptions are not so unique like NoDescription. Hopefully will be less
         # Filter bands based on the user-supplied list.
         df = df[df["description"].isin(bands)]
 
@@ -731,7 +846,8 @@ class Dataset:
                     )
                 )
 
-            for future in futures:
+            # Create a progress bar and iterate through futures
+            for future in tqdm(futures, desc="Creating VRTs", unit="vrt"):
                 result = future.result()
                 output_vrts.append(result)
 

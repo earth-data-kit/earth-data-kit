@@ -3,6 +3,7 @@ from osgeo_utils import gdalcompare
 from dotenv import load_dotenv
 import os
 from osgeo import gdal
+import pytest
 
 CONFIG_FILE_PATH = "tests/config.env"
 load_dotenv(CONFIG_FILE_PATH)
@@ -46,6 +47,7 @@ def _test():
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
 
+@pytest.mark.order(0)
 def test_no_time_dim():
     _run()
     _test()
