@@ -5,7 +5,8 @@ description = "Making GIS data analysis cheap and easy"
 license = "Apache-2.0"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
 readme = "README.md"
-include = ["earth_data_kit/stitching/shared_libs/builds/*"]
+include = ["earth_data_kit/stitching/shared_libs/builds/*", "earth_data_kit/viz_ui/dist/**"]
+exclude = ["earth_data_kit/stitching/shared_libs/earth_data_kit/*", "earth_data_kit/viz_ui/viz-ui/*"]
 
 [tool.poetry_bumpversion.file."earth_data_kit/__init__.py"]
 search = '__version__ = "{current_version}"'
@@ -30,6 +31,10 @@ matplotlib = "^3.10.1"
 xarray = "^2025.1.2"
 dask = "^2025.2.0"
 tqdm = "^4.67.1"
+flask-cors = "^5.0.1"
+opencv-python = "^4.11.0.86"
+flask = "^3.1.0"
+rio-tiler = "^7.6.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -47,6 +52,7 @@ ipycytoscape = "^1.3.3"
 gcsfs = "^2025.3.0"
 dask = {extras = ["distributed"], version = "^2025.3.0"}
 bokeh = "^3.7.0"
+pytest-order = "^1.3.0"
 
 [build-system]
 requires = ["poetry-core"]

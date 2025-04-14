@@ -10,6 +10,7 @@ import earth_data_kit.stitching.decorators as decorators
 import affine
 import concurrent.futures
 import earth_data_kit.utilities.helpers as helpers
+import earth_data_kit.utilities.geo as geo
 
 gdal.UseExceptions()
 
@@ -159,6 +160,7 @@ class EDKDatasetBackendArray(BackendArray):
         numpy.ndarray
             The indexed data.
         """
+        # TODO: Add code to handle reads at block boundaries
         _df = pd.read_json(self.filename_or_obj)
         df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
 
@@ -329,6 +331,7 @@ def open_edk_dataset(filename_or_obj):
             attrs={
                 "source": filename_or_obj,
                 "crs": src_ds.GetProjection() if src_ds.GetProjection() else None,
+                "bbox": geo.get_bbox_from_raster(source_path),
             },
         )
 
