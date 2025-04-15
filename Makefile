@@ -14,6 +14,8 @@ DOCUMENTATION_SRC := $(DOCS_BUILD_DIR)/html
 TMP_DIR := tmp
 GITHUB_PAGES_REPO := git@github.com:earth-data-kit/earth-data-kit.github.io.git
 GITHUB_PAGES_DIR := build/earth-data-kit.github.io
+DEV_GITHUB_PAGES_REPO := git@github.com:earth-data-kit/dev-docs.git
+DEV_GITHUB_PAGES_DIR := build/dev-docs
 GIT ?= git
 GH ?= gh
 # Prefer using TAG over tag for consistency; fall back to tag if TAG is not set.
@@ -90,6 +92,17 @@ release-docs:
 	cp -R $(DOCUMENTATION_SRC)/* $(GITHUB_PAGES_DIR)/docs/
 	touch $(GITHUB_PAGES_DIR)/docs/.nojekyll
 	cd $(GITHUB_PAGES_DIR) && $(GIT) add . && $(GIT) commit -m "$(TAG)" && $(GIT) push origin master
+
+release-dev-docs:
+	@echo "Releasing development documentation..."
+	rm -rf $(DEV_GITHUB_PAGES_DIR)
+	$(MAKE) build-docs
+	$(GIT) clone $(DEV_GITHUB_PAGES_REPO) $(DEV_GITHUB_PAGES_DIR)
+	rm -rf $(DEV_GITHUB_PAGES_DIR)/docs
+	mkdir -p $(DEV_GITHUB_PAGES_DIR)/docs
+	cp -R $(DOCUMENTATION_SRC)/* $(DEV_GITHUB_PAGES_DIR)/docs/
+	touch $(DEV_GITHUB_PAGES_DIR)/docs/.nojekyll
+	cd $(DEV_GITHUB_PAGES_DIR) && $(GIT) add . && $(GIT) commit -m "$(TAG)" && $(GIT) push origin master
 
 # Format Python code with Black and JavaScript/CSS with Prettier
 prettify:

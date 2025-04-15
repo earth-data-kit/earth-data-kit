@@ -129,18 +129,30 @@ For development releases, follow these steps:
      This will create a version like ``X.Y.Z.devYYYYMMDD`` based on the current version.
 
 2. **Build and Release the Development Package**
-
+   
    * Build the package:
 
      .. code-block:: console
 
         $ make build
+   
+   * Install the development package:
+
+     .. code-block:: console
+
+        $ pip install dist/earth_data_kit-*.tar.gz
 
    * Create a GitHub release with the development tag:
 
      .. code-block:: console
 
         $ TAG=$(poetry version -s) make release
+
+   * Release the development documentation (hosted at https://earth-data-kit.github.io/dev-docs):
+
+     .. code-block:: console
+
+        $ TAG=$(poetry version -s) make release-dev-docs
 
 .. note::
    Development releases use version numbers that are lower than stable releases (e.g. ``0.1.2.dev20240501`` < ``0.1.2``), ensuring proper upgrades.
