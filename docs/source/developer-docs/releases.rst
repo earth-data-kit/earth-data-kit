@@ -143,4 +143,4 @@ For development releases, follow these steps:
         $ TAG=$(poetry version -s) make release
 
 .. note::
-   Development releases use version numbers that are lower than stable releases (e.g., `0.1.2.dev20240501` < `0.1.2`), ensuring proper upgrades.
+   Development releases use version numbers that are lower than stable releases (e.g. ``0.1.2.dev20240501`` < ``0.1.2``), ensuring proper upgrades.
