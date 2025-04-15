@@ -17,12 +17,37 @@ logger = logging.getLogger(__name__)
 
 @xr.register_dataarray_accessor("edk")
 class EDKAccessor:
+    """
+    The EDK Accessor extends xarray's functionality by providing additional methods for working with Earth Data Kit datasets.
+    This accessor is automatically registered with xarray when edk is imported, allowing you to access these extended capabilities through the `.edk` namespace on xarray objects.
+    """
+
     def __init__(self, xarray_obj, *args, **kwargs):
         self.da = xarray_obj
 
     @decorators.log_time
     @decorators.log_init
-    def plot(self, engine="folium", *args, **kwargs):
+    def plot(self, engine="folium"):
+        """
+        Plot the DataArray using the specified visualization engine.
+
+        This function visualizes geospatial data contained in the DataArray.
+        Currently supports two visualization engines: folium and deck.gl.
+
+        Args:
+            engine (str, optional): The visualization engine to use. Defaults to "folium". Possible values are "folium" and "deck".
+
+        Returns:
+            object: The map object from the selected visualization engine. For "folium" engine, returns a folium.Map object. For "deck" engine, returns None as the visualization is displayed in browser.
+
+        Notes:
+            - Currently does not support plotting time series data
+            - Currently does not support plotting multi-band data
+            - Requires the DataArray to have spatial dimensions (x, y)
+
+        Raises:
+            ValueError: If an invalid engine is specified
+        """
         # Handle time and band selection with defaults if not specified
         if "time" in self.da.dims:
             logger.error(

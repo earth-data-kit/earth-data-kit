@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 class Dataset:
     """
-    The main class implemented by stitching module. Acts as a wrapper above a single remote dataset
+    The Dataset class is the main class implemented by the stitching module. It acts as a dataset wrapper and maps to a single remote dataset. A remote dataset can contain multiple files.
     """
 
     def __init__(self, name, source, engine, clean=False) -> None:
