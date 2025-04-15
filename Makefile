@@ -99,3 +99,19 @@ prettify:
 	@echo "Formatting JavaScript/CSS with Prettier..."
 	@prettier ./earth_data_kit/viz_ui/viz-ui/ -w
 	@echo "\033[0;32mJavaScript/CSS formatted successfully.\033[0m"
+
+# Bump version for development
+bump-dev:
+	@echo "Bumping to development version..."
+	@VERSION=$$($(POETRY) version -s) && \
+	DEV_VERSION="$${VERSION}.dev$$(date +%Y%m%d)" && \
+	echo "Updating version to $${DEV_VERSION}..." && \
+	$(POETRY) version $${DEV_VERSION} && \
+	echo "\033[0;32mVersion bumped to $${DEV_VERSION}\033[0m"
+
+# Bump version (patch, minor, major)
+bump-version:
+	@echo "Bumping version..."
+	@read -p "Enter version type (patch, minor, major): " VERSION_TYPE && \
+	NEW_VERSION=$$($(POETRY) version $${VERSION_TYPE} -s) && \
+	echo "\033[0;32mVersion bumped to $${NEW_VERSION}\033[0m"
