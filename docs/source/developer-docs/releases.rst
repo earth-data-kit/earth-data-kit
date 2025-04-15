@@ -47,11 +47,11 @@ Planning the Release
 
         $ make run-tests
 
-   * Update version using Poetry:
+   * Update version using the make command:
 
      .. code-block:: console
 
-        $ poetry version [major|minor|patch]
+        $ make bump-version # You will be prompted to enter version type (patch, minor, major)
    * Update the changelog with all notable changes
    * Merge all changes to the ``dev`` branch
 
@@ -112,3 +112,35 @@ Release Checklist
    * Notify the team and users about the new release
    * Include a link to the changelog
    * Highlight key features, improvements, and bug fixes
+
+Development Releases
+--------------------
+
+For development releases, follow these steps:
+
+1. **Create a Development Version**
+
+   * After merging changes that need to be tested in a development environment, create a development version:
+
+     .. code-block:: console
+
+        $ make bump-dev
+
+     This will create a version like ``X.Y.Z.devYYYYMMDD`` based on the current version.
+
+2. **Build and Release the Development Package**
+
+   * Build the package:
+
+     .. code-block:: console
+
+        $ make build
+
+   * Create a GitHub release with the development tag:
+
+     .. code-block:: console
+
+        $ TAG=$(poetry version -s) make release
+
+.. note::
+   Development releases use version numbers that are lower than stable releases (e.g., `0.1.2.dev20240501` < `0.1.2`), ensuring proper upgrades.
