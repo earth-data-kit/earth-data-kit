@@ -77,7 +77,6 @@ build:
 # Create a new release
 release:
 	@echo "Creating release $(TAG)..."
-	$(MAKE) build
 	$(GH) release create $(TAG) --title $(TAG) --generate-notes
 	$(GH) release upload $(TAG) dist/earth_data_kit-$(TAG).tar.gz
 
@@ -85,7 +84,6 @@ release:
 release-docs:
 	@echo "Releasing documentation..."
 	rm -rf $(GITHUB_PAGES_DIR)
-	$(MAKE) build-docs
 	$(GIT) clone $(GITHUB_PAGES_REPO) $(GITHUB_PAGES_DIR)
 	rm -rf $(GITHUB_PAGES_DIR)/docs
 	mkdir -p $(GITHUB_PAGES_DIR)/docs
@@ -96,7 +94,6 @@ release-docs:
 release-dev-docs:
 	@echo "Releasing development documentation..."
 	rm -rf $(DEV_GITHUB_PAGES_DIR)
-	$(MAKE) build-docs
 	$(GIT) clone $(DEV_GITHUB_PAGES_REPO) $(DEV_GITHUB_PAGES_DIR)
 	rm -rf $(DEV_GITHUB_PAGES_DIR)/docs
 	mkdir -p $(DEV_GITHUB_PAGES_DIR)/docs
