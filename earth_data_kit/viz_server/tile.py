@@ -6,6 +6,7 @@ from rio_tiler.io import XarrayReader, Reader
 from rio_tiler.profiles import img_profiles
 import rio_tiler
 from rio_tiler.colormap import cmap
+
 # Convert numpy array to image
 from flask import Response, send_file
 import numpy as np
@@ -98,7 +99,9 @@ def get_tile(z, x, y):
     with XarrayReader(da) as dst:
         try:
             img = dst.tile(x, y, z)
-            content = img.render(img_format="PNG", **img_profiles.get("png"), colormap=viridis)
+            content = img.render(
+                img_format="PNG", **img_profiles.get("png"), colormap=viridis
+            )
             return Response(content, mimetype="image/png")
         except rio_tiler.errors.TileOutsideBounds as e:
 
