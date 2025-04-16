@@ -163,36 +163,38 @@ class Dataset:
         """
         self.target_options = options
 
-    def set_spacebounds(self, bbox, grid_file=None, matcher=None):
+    def set_spacebounds(self, bbox, grid_dataframe=None):
         """
-        Configure spatial constraints for the dataset using a bounding box and, optionally, a grid file.
+        Configure spatial constraints for the dataset using a bounding box and, optionally, a grid dataframe.
 
         This method sets up the spatial filtering parameters by specifying a bounding box defined by
-        four coordinates in EPSG:4326. Additionally, if a grid file is provided (currently only KML files are supported),
-        along with a corresponding matcher function, the method will utilize these to accurately pinpoint the scene files to download.
-        The matcher function is expected to extract the necessary spatial components from each grid element to tailor the scene selection.
-
-        For more details on grid file utilization, please refer to :ref:`Using a grid file`.
+        four coordinates in EPSG:4326. Additionally, if a grid dataframe is provided, the method will
+        utilize it to accurately pinpoint the scene files to download based on the spatial variables
+        in the source path.
 
         Args:
             bbox (tuple[float, float, float, float]): A tuple of four coordinates in the order
                 (min_longitude, min_latitude, max_longitude, max_latitude)/(xmin, ymin, xmax, ymax) defining the spatial extent.
-            grid_file (str, optional): Path to the grid file (only KML files are currently supported). Defaults to None.
-            matcher (function, optional): A lambda or function used to extract spatial parameters from grid elements
-                for matching scene file paths. Defaults to None.
+            grid_dataframe (geopandas.GeoDataFrame, optional): A GeoDataFrame containing grid cells with columns that match
+                the spatial variables in the source path (e.g., 'h', 'v' for MODIS grid). Each row should have a geometry
+                column defining the spatial extent of the grid cell.
 
         Example:
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>> import geopandas as gpd
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path/{h}/{v}", "s3")
             >>>
             >>> # Setting spatial bounds using a bounding box:
             >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
             >>>
-            >>> # For more examples, please refer to the edk-examples repository
+            >>> # Setting spatial bounds with a grid dataframe:
+            >>> gdf = gpd.GeoDataFrame()
+            >>> # Assume gdf has columns 'h', 'v' that match the spatial variables in the source path
+            >>> # and a 'geometry' column with the spatial extent of each grid cell
+            >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822), grid_dataframe=gdf)
         """
         self.space_opts = {
-            "grid_file": grid_file,
-            "matcher": matcher,
+            "grid_dataframe": grid_dataframe,
         }
         self.space_opts["bbox"] = bbox
 
@@ -252,9 +254,7 @@ class Dataset:
         Example:
             >>> import datetime
             >>> import earth_data_kit as edk
-            >>> # Dummy grid extraction function.
-            >>> def fn(x):
-            ...     return x
+            >>> import geopandas as gpd
             >>> ds = edk.stitching.Dataset(
             ...     "modis-pds",
             ...     "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF",
@@ -262,7 +262,11 @@ class Dataset:
             ...     True
             ... )
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
-            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
+            >>> # Load grid dataframe
+            >>> gdf = gpd.read_file("tests/fixtures/modis.kml")
+            >>> gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), grid_dataframe=gdf)
             >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path
         """
         # Retrieve tile metadata using the engine's scan function.
@@ -405,10 +409,15 @@ class Dataset:
         Example:
             >>> import datetime
             >>> import earth_data_kit as edk
-            >>> # Initialize the dataset (ensure 'source' and 'fn' are defined appropriately)
-            >>> ds = edk.stitching.Dataset("modis-pds", source, "s3", True)
+            >>> import geopandas as gpd
+            >>> # Initialize the dataset
+            >>> ds = edk.stitching.Dataset("modis-pds", "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF", "s3", True)
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
-            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
+            >>> # Load grid dataframe
+            >>> gdf = gpd.read_file("tests/fixtures/modis.kml")
+            >>> gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), grid_dataframe=gdf)
             >>> ds.discover()
             >>> bands_df = ds.get_bands()
             >>> print(bands_df.head())
