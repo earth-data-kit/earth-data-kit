@@ -8,6 +8,8 @@ This example demonstrates how to use the Earth Data Kit to stitch together a col
 .. code-block:: python
 
     import earth_data_kit as edk
+    import geopandas as gpd
+    import datetime
 
     # Initialize the Dataset using the S3 engine.
     dataset_id = "example_s3_dataset"
@@ -26,16 +28,9 @@ This example demonstrates how to use the Earth Data Kit to stitch together a col
     bbox = (19.3044861183, 39.624997667, 21.0200403175, 42.6882473822)
     # Specify the grid file that maps the dataset's grid system (e.g., a KML file)
     grid_file = "path/to/grid/file.kml"
+    grid_df = gpd.read_file(grid_file)
 
-    # Define a function to extract grid components (horizontal 'h' and vertical 'v') from a grid file row.
-    def extract_grid_components(row):
-        import re
-        match = re.search(r"h:(\d+)\s+v:(\d+)", row.Name)
-        if match:
-            return {"h": f"{int(match.group(1)):02d}", "v": f"{int(match.group(2)):02d}"}
-        return {}
-
-    ds.set_spacebounds(bbox, grid_file, extract_grid_components)
+    ds.set_spacebounds(bbox, grid_df)
 
     # Discover the available scene files within the defined spatial and temporal bounds.
     ds.discover()

@@ -141,6 +141,12 @@ For development releases, follow these steps:
      .. code-block:: console
 
         $ pip install dist/earth_data_kit-*.tar.gz
+   
+   * Build the documentation:
+
+     .. code-block:: console
+
+        $ make build-docs
 
    * Create a GitHub release with the development tag:
 
