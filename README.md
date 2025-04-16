@@ -60,20 +60,15 @@ ds.set_timebounds(start_date, end_date)
 # Specify the grid file that maps the dataset's grid system to world coordinates (e.g., a KML/KMZ file)
 # kmz is a zipped kml file, so we need to use the vsizip driver to unzip it and curl driver as it's hosted on the web
 grid_fp = "/vsizip/vsicurl/https://modis.ornl.gov/files/modis_sin.kmz"
+gdf = gpd.read_file(grid_fp)
+# Creating grid dataframe with h and v columns
+gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
 
 # Bounding box for Albania, you can change it to any other bbox.
 bbox = (19.3044861183, 39.624997667, 21.0200403175, 42.6882473822)
 
-# Define a function to extract grid components (horizontal 'h' and vertical 'v') from a grid file row. 
-# This is specific to the modis dataset.
-def extract_grid_components(row):
-    import re
-    match = re.search(r"h:(\d+)\s+v:(\d+)", row.Name)
-    if match:
-        return {"h": f"{int(match.group(1)):02d}", "v": f"{int(match.group(2)):02d}"}
-    return {}
-
-ds.set_spacebounds(bbox, grid_fp, extract_grid_components)
+ds.set_spacebounds(bbox, grid_dataframe=gdf)
 
 # Running discover to get the bands available in the dataset, you can also set gdal options if needed
 # ds.set_src_options({"-srcnodata": "32767"})
