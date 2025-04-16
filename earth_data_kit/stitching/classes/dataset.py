@@ -182,7 +182,7 @@ class Dataset:
         Example:
             >>> import earth_data_kit as edk
             >>> import geopandas as gpd
-            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path/{h}/{v}", "s3")
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path/{h}/{v}/B01.TIF", "s3")
             >>>
             >>> # Setting spatial bounds using a bounding box:
             >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
