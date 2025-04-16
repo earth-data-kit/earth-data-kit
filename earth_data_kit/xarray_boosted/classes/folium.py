@@ -4,21 +4,25 @@ from osgeo import gdal
 import numpy as np
 import pandas as pd
 import earth_data_kit as edk
+import branca.colormap as cm
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Folium:
     def __init__(self, da):
         self.da = da
 
-    def _create_cmap(self, base_color):
-        cmap = mpl.colors.LinearSegmentedColormap.from_list(
-            "custom_red", ["white", base_color]
-        )
+    def _create_cmap(self, vmin, vmax):
+        viridis = cm.LinearColormap(cm.linear.viridis.colors, vmin=vmin, vmax=vmax)
 
-        def colormap(x):
-            return cmap(x, 1)
+        def get_color(x):
+            if np.isnan(x):
+                return (1, 1, 1, 0)
+            return viridis.rgba_floats_tuple(x)
 
-        return colormap
+        return get_color
 
     def plot(self):
         # Reading the index/catalog file
@@ -38,10 +42,10 @@ class Folium:
 
         arr = self.da.values
         band = folium.raster_layers.ImageOverlay(
-            image=edk.utilities.helpers.scale_to_255(arr).T,
+            image=arr.T,
             bounds=[[lat_min, lon_min], [lat_max, lon_max]],
             interactive=True,
-            colormap=self._create_cmap("red"),
+            colormap=self._create_cmap(vmin=np.nanmin(arr), vmax=np.nanmax(arr)),
         )
 
         band.add_to(m)
