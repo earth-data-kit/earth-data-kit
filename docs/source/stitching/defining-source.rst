@@ -42,7 +42,7 @@ For storage-based engines, you can include time and spatial components in your s
 
     source = "s3://my-bucket/data/%Y/%m/%d/*.tif"  # Matches year/month/day folders
 
-- **Spatial Components**: Use placeholders like ``{h}`` and ``{v}`` for horizontal and vertical grid coordinates. Note that you will have to provide the grid file for the remote dataset too::
+- **Spatial Components**: Use placeholders like ``{h}`` and ``{v}`` for horizontal and vertical grid coordinates. Note that you will have to provide a grid dataframe with the appropriate columns that match your placeholders::
 
     source = "s3://landsat-pds/c1/L8/{p}/{r}/%Y/%m/%d/*.TIF"  # {p} for path, {r} for row
 
