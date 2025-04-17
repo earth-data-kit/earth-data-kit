@@ -16,6 +16,10 @@ replace = '__version__ = "{new_version}"'
 search = 'release = "{current_version}"'
 replace = 'release = "{new_version}"'
 
+[tool.poetry_bumpversion.file."docs/source/getting-started.rst"]
+search = '{current_version}'
+replace = '{new_version}'
+
 [tool.poetry.dependencies]
 python = "^3.12"
 geopandas = "^0.14.4"
