@@ -35,7 +35,7 @@ General Options
 
 AWS Options
 ~~~~~~~~~~~
-* ``AWS_REGION``: Specifies the AWS region to use (e.g., us-west-2).
+* ``AWS_REGION``: Specifies the AWS region where the data is stored (e.g., us-west-2). Use the region data is stored in when downloading data from AWS S3.
 * ``AWS_NO_SIGN_REQUEST`` (YES/NO): If set to YES, this option disables request signing, meaning AWS credentials will be bypassed.
 * ``AWS_REQUEST_PAYER`` (requester): Indicates that the requester accepts any charges that may result from the request. Use this when accessing buckets that require payer confirmation.
 
