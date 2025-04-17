@@ -21,7 +21,7 @@ To install Earth Data Kit, follow these steps:
 
    .. code-block:: console
 
-      (.venv) $ wget https://github.com/siddhantgupta3/earth-data-kit/releases/download/0.1.2.dev20250415/earth_data_kit-0.1.2.dev20250415.tar.gz 
+      (.venv) $ wget https://github.com/siddhantgupta3/earth-data-kit/releases/download/0.1.2.dev20250415/earth_data_kit-0.1.2.dev20250415.tar.gz
       (.venv) $ pip3 install earth_data_kit-0.1.2.dev20250415.tar.gz
 
 Environment Configuration
