@@ -12,7 +12,7 @@ Before using Earth Data Kit, ensure that the following are installed:
 
 * GDAL 3.10 or above - [https://gdal.org/en/stable/download.html#binaries](https://gdal.org/en/stable/download.html#binaries)
 
-* s5cmd - [https://github.com/peak/s5cmd](https://github.com/peak/s5cmd)
+* s5cmd (optional) - [https://github.com/peak/s5cmd](https://github.com/peak/s5cmd) - Only required if you plan to query data from S3 buckets
 
 ### Installation
 
