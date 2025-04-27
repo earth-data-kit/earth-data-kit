@@ -43,3 +43,6 @@ html_css_files = [
 ]
 
 master_doc = "contents"
+
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True
