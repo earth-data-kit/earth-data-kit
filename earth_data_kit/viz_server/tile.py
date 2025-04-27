@@ -6,7 +6,7 @@ from rio_tiler.io import XarrayReader, Reader
 from rio_tiler.profiles import img_profiles
 import rio_tiler
 from rio_tiler.colormap import cmap
-
+import pandas as pd
 # Convert numpy array to image
 from flask import Response, send_file
 import numpy as np
@@ -96,15 +96,31 @@ def __transparent_tile__():
 def get_tile(z, x, y):
     da = get_cached_array()
     viridis = cmap.get("viridis")
-    with XarrayReader(da) as dst:
-        try:
-            img = dst.tile(x, y, z)
-            content = img.render(
-                img_format="PNG", **img_profiles.get("png"), colormap=viridis
-            )
-            return Response(content, mimetype="image/png")
-        except rio_tiler.errors.TileOutsideBounds as e:
 
-            return Response(__transparent_tile__(), mimetype="image/png")
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+    if da is not None:
+        with XarrayReader(da) as dst:
+            try:
+                img = dst.tile(x, y, z)
+                content = img.render(
+                    img_format="PNG", **img_profiles.get("png"), colormap=viridis
+                )
+                return Response(content, mimetype="image/png")
+            except rio_tiler.errors.TileOutsideBounds as e:
+                return Response(__transparent_tile__(), mimetype="image/png")
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+    else:
+        df = pd.read_json(os.getenv("SOURCE", None))
+        df = pd.DataFrame(df["EDKDataset"]["VRTDatasets"])
+        vrt_path = df[df["time"] == os.getenv("TIME", None)].iloc[0]["source"]
+        with rio_tiler.io.Reader(vrt_path) as src:
+            try:
+                img = src.tile(x, y, z)
+                content = img.render(
+                    img_format="PNG", **img_profiles.get("png"), colormap=viridis
+                )
+                return Response(content, mimetype="image/png")
+            except rio_tiler.errors.TileOutsideBounds as e:
+                return Response(__transparent_tile__(), mimetype="image/png")
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500

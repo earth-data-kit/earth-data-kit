@@ -7,7 +7,7 @@ import xarray as xr
 logger = logging.getLogger(__name__)
 
 # Global in-memory dataarray cache
-_cached_dataarray = {}
+_cached_dataarray = None
 
 
 def init_dataset_cache(filepath, time_value, band_value):
