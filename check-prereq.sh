@@ -49,6 +49,33 @@ else
 fi
 
 echo ""
+
+# Check GDAL Python installation
+echo "Checking GDAL Python installation..."
+if ! python3 -c "from osgeo import gdal" &>/dev/null; then
+    echo -e "${YELLOW}GDAL Python package not found. This is required for Earth Data Kit.${NC}"
+    
+    read -p "Do you want to install GDAL Python package now? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        # Source the install script and call the function
+        source ./install-gdal.sh
+        install_gdal
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Failed to install GDAL Python package. This is required for Earth Data Kit.${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${RED}GDAL Python package is required for Earth Data Kit. Installation cannot continue.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}GDAL Python package found. ✓${NC}"
+fi
+
+echo ""
+
+
 # Check operating system
 echo "Checking operating system..."
 OS=$(uname -s)

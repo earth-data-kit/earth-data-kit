@@ -1446,20 +1446,6 @@ crc = ["crcmod"]
 gcsfuse = ["fusepy"]
 
 [[package]]
-name = "gdal"
-version = "3.10.2"
-description = "GDAL: Geospatial Data Abstraction Library"
-optional = false
-python-versions = ">=3.8.0"
-groups = ["main"]
-files = [
-    {file = "gdal-3.10.2.tar.gz", hash = "sha256:c0cffa8ce9f9c0fa287fcc20b8271c519ca054958420e5880be8bedb432753f4"},
-]
-
-[package.extras]
-numpy = ["numpy (>1.0.0)"]
-
-[[package]]
 name = "geopandas"
 version = "0.14.4"
 description = "Geographic pandas extensions"
@@ -5212,4 +5198,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "963a8456d973544e3adcf4881fa39dbd6feb0124f205680b1422a88b150e7b22"
+content-hash = "527a7272162c2b08f90970197c78a91936cd8083f3fb72ee57873d193fccfca1"

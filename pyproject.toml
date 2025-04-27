@@ -24,7 +24,6 @@ replace = '{new_version}'
 python = "^3.12"
 geopandas = "^0.14.4"
 python-dotenv = "^1.0.1"
-gdal = "3.10.2"
 zarr = "^2.18.2"
 netcdf4 = "^1.7.1.post2"
 earthengine-api = "^1.5.2"
