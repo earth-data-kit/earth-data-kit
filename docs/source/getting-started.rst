@@ -13,16 +13,26 @@ Installation
 ------------
 To install Earth Data Kit, follow these steps:
 
-1. Download the latest release from the official GitHub releases page:
-   
-   - https://github.com/earth-data-kit/earth-data-kit/releases
-
-2. After downloading the tarball, install the package using pip. For example, within your virtual environment execute:
+1. Clone the GitHub repository:
 
    .. code-block:: console
 
-      (.venv) $ wget https://github.com/siddhantgupta3/earth-data-kit/releases/download/0.1.2.dev20250415/earth_data_kit-0.1.2.dev20250415.tar.gz
-      (.venv) $ pip3 install earth_data_kit-0.1.2.dev20250415.tar.gz
+      $ git clone https://github.com/earth-data-kit/earth-data-kit.git
+      $ cd earth-data-kit
+
+2. Switch to the master branch:
+
+   .. code-block:: console
+
+      $ git checkout master
+
+3. Run the installation script:
+
+   .. code-block:: console
+
+      $ bash install.sh
+
+This will check prerequisites, download the latest tarball from GitHub releases, and install EDK automatically.
 
 Environment Configuration
 -------------------------

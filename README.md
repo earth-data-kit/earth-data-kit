@@ -18,13 +18,26 @@ Before using Earth Data Kit, ensure that the following are installed:
 
 To install Earth Data Kit, follow these steps:
 
-1. Download the latest release from the official GitHub releases page:
+1. Clone the GitHub repository:
 
-    * [https://github.com/earth-data-kit/earth-data-kit/releases](https://github.com/earth-data-kit/earth-data-kit/releases)
+    ```bash
+    git clone https://github.com/earth-data-kit/earth-data-kit.git
+    cd earth-data-kit
+    ```
 
-2. After downloading the tarball, install the package using pip. For example, within your virtual environment execute:
+2. Switch to the master branch:
 
-    * `(.venv) $ pip3 install earth_data_kit-*.tar.gz`
+    ```bash
+    git checkout master
+    ```
+
+3. Run the installation script:
+
+    ```bash
+    bash install.sh
+    ```
+
+This will check prerequisites, download the latest tarball, and install Earth Data Kit automatically.
 
 ## Example
 
