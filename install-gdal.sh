@@ -33,8 +33,3 @@ install_gdal() {
     
     return 0
 }
-
-# Run the installation function
-install_gdal
-
-

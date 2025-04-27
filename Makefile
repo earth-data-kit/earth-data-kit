@@ -25,14 +25,14 @@ TAG ?= $(tag)
 install-package:
 	@echo "Installing EDK..."
 	@echo "Fetching latest release tarball URL..."
-	@TARBALL_URL=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.tarball_url'); \
+	@TARBALL_URL=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.assets[0].browser_download_url'); \
 	VERSION_NUM=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.tag_name'); \
 	if [ -z "$$VERSION_NUM" ] || [ "$$VERSION_NUM" = "null" ]; then \
 		echo "\033[0;31mError: Unable to fetch the latest version information.\033[0m"; \
 		exit 1; \
 	fi; \
 	echo "Found version $$VERSION_NUM from $$TARBALL_URL"; \
-	$(PIP) install "$$TARBALL_URL"; \
+	$(PIP) install "$$TARBALL_URL" --no-cache-dir; \
 	echo "\033[0;32mYou can now use EDK $$VERSION_NUM in your Python environment.\033[0m"
 
 # Run tests using pytest

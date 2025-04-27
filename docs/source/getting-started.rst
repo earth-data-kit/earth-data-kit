@@ -34,6 +34,13 @@ To install Earth Data Kit, follow these steps:
 
 This will check prerequisites, download the latest tarball from GitHub releases, and install EDK automatically.
 
+4. Note: For Linux environments, you might need to install additional dependencies before running the installation script:
+
+   .. code-block:: console
+
+      $ sudo apt-get install libgl1
+
+
 Environment Configuration
 -------------------------
 Earth Data Kit can be customized via environment variables. This approach lets you easily configure settings such as AWS credentials, GDAL options, and other operational parameters. You can maintain these settings in a ``.env`` file and load them using the ``python-dotenv`` package.
