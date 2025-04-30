@@ -27,7 +27,7 @@ class EDKAccessor:
 
     @decorators.log_time
     @decorators.log_init
-    def plot(self, engine="folium"):
+    def plot(self, engine="folium", **kwargs):
         """
         Plot the DataArray using the specified visualization engine.
 
@@ -61,9 +61,9 @@ class EDKAccessor:
             return
 
         if engine == "folium":
-            return Folium(self.da).plot()
+            return Folium(self.da).plot(**kwargs)
         elif engine == "deck":
-            return DeckGL(self.da).plot()
+            return DeckGL(self.da).plot(**kwargs)
         else:
             raise ValueError(f"Invalid engine: {engine}")
 
