@@ -36,4 +36,13 @@ class EarthEngine:
         df = pd.DataFrame(tiles, columns=["gdal_path", "engine_path", "date"])
         df["tile_name"] = df["gdal_path"].str.split("/").str[-1]
         df["date"] = pd.to_datetime(df["date"])
+
+        # Check if time_opts has resolution set to daily
+        if (
+            time_opts
+            and "resolution" in time_opts
+            and time_opts["resolution"] == "daily"
+        ):
+            # Set the time part of the date to 00:00:00
+            df["date"] = df["date"].dt.normalize()
         return df[["gdal_path", "engine_path", "date", "tile_name"]]

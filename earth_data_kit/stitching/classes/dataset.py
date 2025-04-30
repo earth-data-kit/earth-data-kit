@@ -101,13 +101,15 @@ class Dataset:
         )
         return s
 
-    def set_timebounds(self, start, end):
+    def set_timebounds(self, start, end, resolution=None):
         """
         Sets time bounds for which we want to download the data.
 
         Args:
             start (datetime): Start date.
             end (datetime): End date, inclusive.
+            resolution (str, optional): Temporal resolution for combining images.
+                                       Options include 'daily'.
 
         Example:
             >>> from earth_data_kit.stitching import Dataset
@@ -115,10 +117,7 @@ class Dataset:
             >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
             >>> ds.set_timebounds(datetime(2020, 1, 1), datetime(2020, 12, 31))
         """
-        self.time_opts = {
-            "start": start,
-            "end": end,
-        }
+        self.time_opts = {"start": start, "end": end, "resolution": resolution}
 
     def set_src_options(self, options):
         """
@@ -942,3 +941,105 @@ class Dataset:
 
         except json.JSONDecodeError:
             raise ValueError(f"Invalid JSON file: {path}")
+
+    def _create_from_template(self, template_path, output_path):
+        cmd = f"gdal_create -of GTiff -if {template_path} {output_path} -co TILED=YES -co SPARSE_OK=TRUE -co BIGTIFF=YES -co COMPRESS=LZW"
+
+        os.system(cmd)
+
+    @decorators.log_time
+    def _read_block(self, in_file, band_idx, xoff, yoff, xsize, ysize):
+        src_ds = gdal.Open(in_file)
+        src_band = src_ds.GetRasterBand(band_idx)
+        data = src_band.ReadAsArray(xoff, yoff, xsize, ysize)
+        src_ds = None
+
+        return data
+    
+    @decorators.log_time
+    def _write_block(self, out_file, band_idx, xoff, yoff, data):
+        out_ds = gdal.Open(out_file, gdal.GA_Update)
+        out_band = out_ds.GetRasterBand(band_idx)
+        out_band.WriteArray(data, xoff, yoff)
+        out_band.FlushCache()
+
+        out_ds = None
+
+    @decorators.log_time
+    def __read_and_write_block__(self, in_file, band_idx, xoff, yoff, xsize, ysize, out_file):
+        data = self._read_block(in_file, band_idx, xoff, yoff, xsize, ysize)
+        self._write_block(out_file, band_idx, xoff, yoff, data)
+
+    def __vrt_to_cog__(self, vrt_path, output_path):
+        self._create_from_template(vrt_path, output_path)
+
+        ds = gdal.Open(output_path)
+
+        width, height = ds.RasterXSize, ds.RasterYSize
+        num_bands = ds.RasterCount
+        futures = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=helpers.get_threadpool_workers()) as executor:
+            for band_idx in range(1, num_bands + 1):
+                band = ds.GetRasterBand(band_idx)
+                x_block_size, y_block_size = band.GetBlockSize()
+                x_block_size = 1024
+                y_block_size = 1024
+
+                for xoff in range(0, width, x_block_size):
+                    for yoff in range(0, height, y_block_size):
+                        if xoff + x_block_size > width:
+                            xsize = width - xoff
+                        else:
+                            xsize = x_block_size
+
+                        if yoff + y_block_size > height:
+                            ysize = height - yoff
+                        else:
+                            ysize = y_block_size
+
+                        futures.append(executor.submit(self.__read_and_write_block__, vrt_path, band_idx, xoff, yoff, xsize, ysize, output_path))
+
+            
+            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Writing blocks to COG"):
+                future.result()
+        return output_path
+
+    def export(self, of="COG", output_dir=None):
+        if not hasattr(self, "json_path") or not os.path.exists(self.json_path):
+            raise ValueError("Dataset JSON file not found.")
+
+        if not output_dir:
+            output_dir = f"{self.__get_ds_tmp_path__()}/cogs"
+
+        # Read the JSON file to get VRT datasets
+        vrt_datasets = pd.read_json(self.json_path)["EDKDataset"]["VRTDatasets"]
+
+        # Create output directory if it doesn't exist
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        cog_paths = []
+        # Create a list to store futures
+        futures = []
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        ) as executor:
+            # Submit all conversion tasks
+            for vrt_data in vrt_datasets:
+                vrt_path = vrt_data.get("source")
+                # Define output path
+                vrt_filename = os.path.basename(vrt_path)
+                cog_filename = os.path.splitext(vrt_filename)[0] + ".tif"
+                cog_path = os.path.join(output_dir, cog_filename)
+
+                # Submit the task to the executor
+                futures.append(executor.submit(self.__vrt_to_cog__, vrt_path, cog_path))
+
+            # Collect results as they complete
+            for future in futures:
+                result = future.result()
+                if result:
+                    cog_paths.append(result)
+
+        return cog_paths
