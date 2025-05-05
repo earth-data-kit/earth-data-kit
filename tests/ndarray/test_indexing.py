@@ -108,10 +108,9 @@ def test_indexing_operations():
 
     # test_grid_file()
 
-    ds = edk.stitching.Dataset.from_file(
+    da = edk.stitching.Dataset.dataarray_from_file(
         f"{os.getenv('TMP_DIR')}/tmp/modis-pds/modis-pds.json"
     )
-    da = ds.to_dataarray()
 
     _label_based_indexing(da)
     _position_based_indexing(da)

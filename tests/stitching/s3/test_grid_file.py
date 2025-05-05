@@ -61,7 +61,9 @@ def _run():
     ds.discover()
 
     # Stitching data together as VRTs
-    ds.to_vrts(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"])
+    ds.mosaic(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"])
+
+    ds.save()
 
 
 def _test():

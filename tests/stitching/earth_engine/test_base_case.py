@@ -33,7 +33,9 @@ def _run():
     ds.set_spacebounds(bbox[1])
 
     ds.discover()
-    ds.to_vrts(bands=["temperature_2m"])
+    ds.mosaic(bands=["temperature_2m"])
+
+    ds.save()
 
 
 def _test():

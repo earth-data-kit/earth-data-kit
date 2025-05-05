@@ -622,8 +622,16 @@ class Dataset:
                 "catalog": self.catalog_path,
                 "bbox": self.space_opts.get("bbox"),
                 "timebounds": [
-                    self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S") if self.time_opts.get("start") else None,
-                    self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S") if self.time_opts.get("end") else None
+                    (
+                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S")
+                        if self.time_opts.get("start")
+                        else None
+                    ),
+                    (
+                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S")
+                        if self.time_opts.get("end")
+                        else None
+                    ),
                 ],
                 "VRTDatasets": [],
             }
@@ -675,7 +683,7 @@ class Dataset:
         """
         curr_date = date[0]
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
-        
+
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
         # unless overridden by options configured via set_target_options.
@@ -778,10 +786,10 @@ class Dataset:
     def save(self):
         """
         Saves the mosaiced VRTs into a combined JSON file.
-        
+
         This method should be called after the `mosaic()` method to save the generated VRTs.
         The resulting JSON path is stored in the `json_path` attribute.
-        
+
         Returns:
             None
         """
@@ -817,37 +825,45 @@ class Dataset:
         json_path = self.json_path
 
         return Dataset.dataarray_from_file(json_path)
-    
+
     @staticmethod
     def dataarray_from_file(json_path):
         """
         Creates an xarray DataArray from a JSON file created by the `save()` method.
-        
+
         Automatically determines optimal chunking based on the underlying raster block size.
-        
+
         Args:
             json_path (str): Path to the JSON file containing dataset information.
-            
+
         Returns:
             xarray.DataArray: DataArray with dimensions for time, bands, and spatial coordinates.
-            
+
         Example:
             >>> import earth_data_kit as edk
             >>> data_array = edk.stitching.Dataset.dataarray_from_file("path/to/dataset.json")
-            
+
         Note:
             Loads a previously saved dataset without needing to recreate the Dataset object.
         """
         # Extract dataset name from the JSON file
-        with open(json_path, 'r') as f:
+        with open(json_path, "r") as f:
             dataset_info = json.load(f)
-            dataset_name = dataset_info.get('EDKDataset', {}).get('name')
+            dataset_name = dataset_info.get("EDKDataset", {}).get("name")
             if not dataset_name:
                 # If name not found in expected structure, use filename as fallback
                 dataset_name = os.path.basename(os.path.splitext(json_path)[0])
 
+        # Get the first VRT file path from VRTDatasets in EDKDataset
+        first_vrt_path = None
+        if dataset_info.get("EDKDataset", {}).get("VRTDatasets"):
+            vrt_datasets = dataset_info["EDKDataset"]["VRTDatasets"]
+            if vrt_datasets and len(vrt_datasets) > 0:
+                first_vrt = vrt_datasets[0]
+                if isinstance(first_vrt, dict) and "source" in first_vrt:
+                    first_vrt_path = first_vrt["source"]
 
-        ds = gdal.Open(json_path)
+        ds = gdal.Open(first_vrt_path)
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
         ds = xr.open_dataset(
             json_path,
