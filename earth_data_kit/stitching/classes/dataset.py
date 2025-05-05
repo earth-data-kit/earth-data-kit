@@ -34,26 +34,23 @@ class Dataset:
     The Dataset class is the main class implemented by the stitching module. It acts as a dataset wrapper and maps to a single remote dataset. A remote dataset can contain multiple files.
     """
 
-    def __init__(self, name, source, engine, clean=False) -> None:
+    def __init__(self, name, source, engine, clean=True) -> None:
         """
         Initializes a new dataset instance.
 
         Args:
-            name (str): User provided name, should be unique across datasets being opened.
-            source (str): Source identifier, Read more :ref:`Defining source`.
-            engine (str): Remote datasource engine, accepted values - ``s3``, ``earth_engine``.
-            clean (bool, optional): Whether to clean the tmp directory before stitching. Defaults to False.
+            name (str): Unique identifier for the dataset.
+            source (str): Source identifier (S3 URI or Earth Engine collection ID).
+            engine (str): Data source engine - ``s3`` or ``earth_engine``.
+            clean (bool, optional): Whether to clean temporary files before processing. Defaults to True.
 
         Raises:
             Exception: If the provided engine is not supported.
 
         Example:
             >>> from earth_data_kit.stitching.classes.dataset import Dataset
-            >>>
-            >>> # Initialize a dataset using the Earth Engine engine
-            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
-            >>>
-            >>> # Alternatively, initialize a dataset using the S3 engine
+            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine")
+            >>> # Or with S3
             >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3")
         """
         if engine not in constants.ENGINES_SUPPORTED:
@@ -111,10 +108,10 @@ class Dataset:
                                        Options include 'daily'.
 
         Example:
+            >>> import datetime
             >>> from earth_data_kit.stitching import Dataset
-            >>> from datetime import datetime
             >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
-            >>> ds.set_timebounds(datetime(2020, 1, 1), datetime(2020, 12, 31))
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 12, 31))
         """
         self.time_opts = {"start": start, "end": end, "resolution": resolution}
 
@@ -375,7 +372,6 @@ class Dataset:
         result = grouped.agg({"tile": lambda x: list(x)}).reset_index()
         # Rename the aggregated column to 'tiles'
         result = result.rename(columns={"tile": "tiles"})
-        # Add back the original columns from the groupby
         return result
 
     def __get_tile_bands__(self):
@@ -449,23 +445,6 @@ class Dataset:
             conversion_factor = 111320  # approximate conversion factor: meters per degree at the equator
             val = val * conversion_factor
             return val
-
-    def __add_overview_list__(self, vrt_path, overview_levels=["2", "4", "8"]):
-        """
-        Add an OverviewList element to the VRT file.
-
-        This function reads the VRT file, adds an OverviewList element with the specified
-        """
-        tree = ET.parse(vrt_path)
-        root = tree.getroot()
-
-        # Check if OverviewList already exists
-        existing_overview = root.find("OverviewList")
-        if existing_overview is None:
-            # Only add if it doesn't exist
-            overview_list = ET.SubElement(root, "OverviewList")
-            overview_list.text = " ".join(overview_levels)
-            tree.write(vrt_path)
 
     @decorators.log_time
     @decorators.log_init
@@ -614,16 +593,18 @@ class Dataset:
                 "source": "source_identifier",
                 "engine": "engine_name",
                 "catalog": "path/to/catalog.csv",
+                "bbox": [xmin, ymin, xmax, ymax],
+                "timebounds": ["start_date", "end_date"],
                 "VRTDatasets": [
                   {
                     "source": "/path/to/2017-01-01-00:00:00.vrt",
                     "time": "2017-01-01-00:00:00",
-                    "has_time_dim": "true"
+                    "has_time_dim": true
                   },
                   {
                     "source": "/path/to/2017-01-02-00:00:00.vrt",
                     "time": "2017-01-02-00:00:00",
-                    "has_time_dim": "true"
+                    "has_time_dim": true
                   }
                 ]
               }
@@ -639,8 +620,11 @@ class Dataset:
                 "source": self.source,
                 "engine": self.engine.name,
                 "catalog": self.catalog_path,
-                "bbox": self.space_opts["bbox"],
-                "timebounds": self.time_opts["timebounds"],
+                "bbox": self.space_opts.get("bbox"),
+                "timebounds": [
+                    self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S") if self.time_opts.get("start") else None,
+                    self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S") if self.time_opts.get("end") else None
+                ],
                 "VRTDatasets": [],
             }
         }
@@ -651,7 +635,7 @@ class Dataset:
             vrt_dataset = {
                 "source": vrt,
                 "time": date_str,
-                "has_time_dim": (True if date_str != "1970-01-01-00:00:00" else False),
+                "has_time_dim": date_str != "1970-01-01-00:00:00",
             }
             dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
@@ -678,7 +662,7 @@ class Dataset:
         4. Set appropriate band descriptions
 
         Args:
-            date (datetime): A tuple containing the date for which to create the VRT
+            date (tuple): A tuple containing the datetime object for which to create the VRT. First element is the datetime object
             band_tiles (DataFrame): DataFrame containing band tile information
             bands (list): List of band descriptions to include in the VRT
 
@@ -691,10 +675,11 @@ class Dataset:
         """
         curr_date = date[0]
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
+        
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
         # unless overridden by options configured via set_target_options.
-        # Use concurrent.futures to process band tiles in parallel
+        # Process band tiles in parallel using ThreadPoolExecutor
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
@@ -714,15 +699,15 @@ class Dataset:
                 _band_tiles.at[indices[i], "vrt_path"] = vrt_path
 
         # Combine single-band VRTs to create mosaic VRTs per band.
-        # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
-        # due to issues with metadata copying (e.g., ColorInterp). Hence, individual mosaics are created.
-        # Also vrt has better support than gti
+        # Note: Although GDAL Raster Tile Index (GTI) is preferred for large tile counts,
+        # it was avoided here due to issues with metadata copying (e.g., ColorInterp).
+        # VRT format has better support than GTI for preserving metadata.
         band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
 
-        # Stack the band mosaics into a multi-band VRT.
+        # Stack the band mosaics into a multi-band VRT
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
-        # Set the descriptions for the bands in the output VRT.
+        # Set the descriptions for each band in the output VRT
         geo.set_band_descriptions(output_vrt, bands)
 
         return output_vrt
@@ -749,7 +734,8 @@ class Dataset:
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()  # Discover available scene files before stitching
             >>> bands = ["red", "green", "blue"]
-            >>> ds.to_vrts(bands)
+            >>> ds.mosaic(bands)  # Use mosaic instead of to_vrts
+            >>> ds.save()  # Save the output VRTs to a JSON file
         """
         # Ensuring the pre-processing directory exists
         helpers.make_sure_dir_exists(f"{self.__get_ds_tmp_path__()}/pre-processing")
@@ -759,8 +745,8 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
-        # TODO: Might need code to handle case when band descriptions are not so unique like NoDescription. Hopefully will be less
         # Filter bands based on the user-supplied list.
+        # TODO: May need special handling for non-unique band descriptions in the future
         df = df[df["description"].isin(bands)]
 
         # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
@@ -790,16 +776,25 @@ class Dataset:
         self.output_vrts = output_vrts
 
     def save(self):
+        """
+        Saves the mosaiced VRTs into a combined JSON file.
+        
+        This method should be called after the `mosaic()` method to save the generated VRTs.
+        The resulting JSON path is stored in the `json_path` attribute.
+        
+        Returns:
+            None
+        """
         json_path = self.__combine_timestamped_vrts__(self.output_vrts)
         self.json_path = json_path
 
     @decorators.log_time
     @decorators.log_init
-    def to_dataarray(self, json_path=None):
+    def to_dataarray(self):
         """
         Converts the dataset to an xarray DataArray.
 
-        This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
+        This method opens the JSON file created by `save()` using xarray with the 'edk_dataset' engine
         and returns the DataArray corresponding to this dataset.
 
         Returns:
@@ -812,14 +807,27 @@ class Dataset:
             >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()
-            >>> ds.to_vrts(bands=["red", "green", "blue"])
+            >>> ds.mosaic(bands=["red", "green", "blue"])
+            >>> ds.save()
             >>> data_array = ds.to_dataarray()
 
         Note:
-            This method requires that `to_vrts()` has been called first to generate the VRT file.
+            This method requires that `mosaic()` and `save()` have been called first to generate the JSON file.
         """
-        if json_path is None:
-            json_path = self.json_path
+        json_path = self.json_path
+
+        return Dataset.dataarray_from_file(json_path)
+    
+    @staticmethod
+    def dataarray_from_file(json_path):
+        # Extract dataset name from the JSON file
+        with open(json_path, 'r') as f:
+            dataset_info = json.load(f)
+            dataset_name = dataset_info.get('EDKDataset', {}).get('name')
+            if not dataset_name:
+                # If name not found in expected structure, use filename as fallback
+                dataset_name = os.path.basename(os.path.splitext(json_path)[0])
+
 
         ds = gdal.Open(json_path)
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
@@ -829,9 +837,4 @@ class Dataset:
             chunks={"time": 1, "band": 1, "x": x_block_size, "y": y_block_size},
         )
 
-        return ds[self.name]
-
-    @staticmethod
-    def from_file(json_path):
-        ds = Dataset(json_path)
-        return ds.to_dataarray(json_path)
+        return ds[dataset_name]

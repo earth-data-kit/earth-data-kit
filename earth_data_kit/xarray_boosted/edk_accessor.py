@@ -201,7 +201,32 @@ class EDKAccessor:
             raise ValueError("No crs found")
 
     def export(self, output_path, overwrite=False):
-        """Can export a 4D, 3D or 2D dataarray to a set(single) of COG(s)"""
+        """
+        Export an xarray DataArray to Cloud Optimized GeoTIFF (COG) format.
+
+        This method handles different dimensional configurations:
+        - For 4D data (time, band, x, y): Creates separate COGs for each time step
+        - For 3D data (band, x, y): Creates a single COG with multiple bands
+        - For 2D data (x, y): Creates a single COG with one band
+
+        Parameters
+        ----------
+        output_path : str
+            Path where the COG(s) will be saved. For time series data, this should be a directory.
+            For single COG, this should be the full file path.
+        overwrite : bool, optional
+            If True, overwrites existing files at the output path. Default is False.
+
+        Returns
+        -------
+        None
+            Creates COG file(s) at the specified output path and generates an edk.json metadata file.
+
+        Raises
+        ------
+        ValueError
+            If the DataArray dimensions are not valid for COG export.
+        """
         helpers.make_sure_dir_exists(output_path)
 
         dims = self.da.dims
