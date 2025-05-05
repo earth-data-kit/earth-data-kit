@@ -70,7 +70,6 @@ class Dataset:
         self.src_options = {}
         self.target_options = {}
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
-        self.overviews_path = f"{self.__get_ds_tmp_path__()}/overviews.csv"
         if clean:
             helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
 
@@ -314,76 +313,6 @@ class Dataset:
         )
 
         logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
-
-    @decorators.log_time
-    @decorators.log_init
-    def __discover_overviews__(self):
-        """
-        Retrieve overview information from one tile of each band configuration group.
-
-        This method uses the get_bands function to identify unique band configurations,
-        then examines one tile from each group to extract overview information.
-        This is useful for understanding the pyramid structure of the raster data.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing overview information with columns:
-                - description: Description of the band
-                - x_size: Width of the overview
-                - y_size: Height of the overview
-        """
-        # Get unique band configurations
-        band_groups = self.get_bands()
-        overviews = []
-
-        # Set GDAL to not scan directories for performance
-        gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "YES")
-
-        # Process one tile from each unique band configuration
-        for bg in band_groups.itertuples():
-            # TODO: Add multi processing
-            # Get the first tile in this group
-            tile = bg.tiles[0]
-            ds = gdal.Open(tile.gdal_path)
-            if ds is None:
-                logger.warning(f"Could not open {tile.gdal_path}")
-                continue
-
-            for band_idx in range(len(tile.bands)):
-                band = ds.GetRasterBand(int(band_idx) + 1)
-                overview_count = band.GetOverviewCount()
-                overview_sizes = []
-
-                for i in range(overview_count):
-                    overview = band.GetOverview(i)
-                    if overview:
-                        logger.debug(
-                            f"Overview found for band {bg.description} at idx {bg.source_idx}. Overview size: {overview.XSize} x {overview.YSize}"
-                        )
-                        overview_sizes.append(
-                            [bg.description, overview.XSize, overview.YSize]
-                        )
-
-                if len(overview_sizes) > 0:
-                    overviews += overview_sizes
-
-            # Close the dataset
-            ds = None
-
-        # Reset GDAL configuration to default
-        gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-
-        # Create a DataFrame with unique overview sizes
-        df = (
-            pd.DataFrame(overviews, columns=["description", "x_size", "y_size"])
-            .groupby(by=["description", "x_size", "y_size"])
-            .size()
-            .reset_index()[["description", "x_size", "y_size"]]
-        )
-
-        # Save the overview information to a CSV file
-        df.to_csv(self.overviews_path, index=False, header=True)
-
-        logger.debug(f"Overview information saved to {self.overviews_path}")
 
     def get_bands(self):
         """
@@ -685,7 +614,6 @@ class Dataset:
                 "source": "source_identifier",
                 "engine": "engine_name",
                 "catalog": "path/to/catalog.csv",
-                "overviews": "path/to/overviews.csv",
                 "VRTDatasets": [
                   {
                     "source": "/path/to/2017-01-01-00:00:00.vrt",
@@ -711,8 +639,8 @@ class Dataset:
                 "source": self.source,
                 "engine": self.engine.name,
                 "catalog": self.catalog_path,
-                "overviews": self.overviews_path,
                 "bbox": self.space_opts["bbox"],
+                "timebounds": self.time_opts["timebounds"],
                 "VRTDatasets": [],
             }
         }
@@ -801,7 +729,7 @@ class Dataset:
 
     @decorators.log_time
     @decorators.log_init
-    def to_vrts(self, bands):
+    def mosaic(self, bands):
         """
         Stitches the scene files together into VRTs based on the ordered band arrangement provided.
         For each unique date, this function extracts the required bands from the tile metadata and
@@ -859,12 +787,15 @@ class Dataset:
                 result = future.result()
                 output_vrts.append(result)
 
-        json_path = self.__combine_timestamped_vrts__(output_vrts)
+        self.output_vrts = output_vrts
+
+    def save(self):
+        json_path = self.__combine_timestamped_vrts__(self.output_vrts)
         self.json_path = json_path
 
     @decorators.log_time
     @decorators.log_init
-    def to_dataarray(self):
+    def to_dataarray(self, json_path=None):
         """
         Converts the dataset to an xarray DataArray.
 
@@ -887,159 +818,20 @@ class Dataset:
         Note:
             This method requires that `to_vrts()` has been called first to generate the VRT file.
         """
-        # TODO: Optimize the chunk size later,
-        # for now 512 seems to be the sweet spot, atleast for local mac and s3
+        if json_path is None:
+            json_path = self.json_path
+
+        ds = gdal.Open(json_path)
+        x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
         ds = xr.open_dataset(
-            self.json_path,
+            json_path,
             engine="edk_dataset",
-            chunks={"time": 1, "band": 1, "x": 512, "y": 512},
+            chunks={"time": 1, "band": 1, "x": x_block_size, "y": y_block_size},
         )
 
         return ds[self.name]
-
-    @staticmethod
-    def from_file(path):
-        """
-        Create a Dataset instance from a file path.
-
-        This method allows you to create a Dataset instance by providing a file path
-        that contains the dataset information.
-
-        Args:
-            path (str): Path to the JSON file containing the dataset information.
-
-        Returns:
-            Dataset: A Dataset instance created from the provided file path.
-
-        Example:
-            >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.json")
-            >>> # Now you can use the dataset instance to perform various operations, like getting the data as a DataArray
-            >>> da = ds.to_dataarray()
-        """
-        # Read the JSON file
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Dataset file not found: {path}")
-
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-
-            # Extract dataset attributes from the JSON
-            edk_dataset = data.get("EDKDataset", {})
-            name = edk_dataset.get("name")
-            source = edk_dataset.get("source")
-            engine_name = edk_dataset.get("engine")
-            catalog_path = edk_dataset.get("catalog")
-
-            # Create a new Dataset instance
-            dataset = Dataset(name, source, engine_name.lower())
-            dataset.catalog_path = catalog_path
-            dataset.json_path = path
-
-            return dataset
-
-        except json.JSONDecodeError:
-            raise ValueError(f"Invalid JSON file: {path}")
-
-    def _create_from_template(self, template_path, output_path):
-        cmd = f"gdal_create -of GTiff -if {template_path} {output_path} -co TILED=YES -co SPARSE_OK=TRUE -co BIGTIFF=YES -co COMPRESS=LZW"
-
-        os.system(cmd)
-
-    @decorators.log_time
-    def _read_block(self, in_file, band_idx, xoff, yoff, xsize, ysize):
-        src_ds = gdal.Open(in_file)
-        src_band = src_ds.GetRasterBand(band_idx)
-        data = src_band.ReadAsArray(xoff, yoff, xsize, ysize)
-        src_ds = None
-
-        return data
     
-    @decorators.log_time
-    def _write_block(self, out_file, band_idx, xoff, yoff, data):
-        out_ds = gdal.Open(out_file, gdal.GA_Update)
-        out_band = out_ds.GetRasterBand(band_idx)
-        out_band.WriteArray(data, xoff, yoff)
-        out_band.FlushCache()
-
-        out_ds = None
-
-    @decorators.log_time
-    def __read_and_write_block__(self, in_file, band_idx, xoff, yoff, xsize, ysize, out_file):
-        data = self._read_block(in_file, band_idx, xoff, yoff, xsize, ysize)
-        self._write_block(out_file, band_idx, xoff, yoff, data)
-
-    def __vrt_to_cog__(self, vrt_path, output_path):
-        self._create_from_template(vrt_path, output_path)
-
-        ds = gdal.Open(output_path)
-
-        width, height = ds.RasterXSize, ds.RasterYSize
-        num_bands = ds.RasterCount
-        futures = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=helpers.get_threadpool_workers()) as executor:
-            for band_idx in range(1, num_bands + 1):
-                band = ds.GetRasterBand(band_idx)
-                x_block_size, y_block_size = band.GetBlockSize()
-                x_block_size = 1024
-                y_block_size = 1024
-
-                for xoff in range(0, width, x_block_size):
-                    for yoff in range(0, height, y_block_size):
-                        if xoff + x_block_size > width:
-                            xsize = width - xoff
-                        else:
-                            xsize = x_block_size
-
-                        if yoff + y_block_size > height:
-                            ysize = height - yoff
-                        else:
-                            ysize = y_block_size
-
-                        futures.append(executor.submit(self.__read_and_write_block__, vrt_path, band_idx, xoff, yoff, xsize, ysize, output_path))
-
-            
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Writing blocks to COG"):
-                future.result()
-        return output_path
-
-    def export(self, of="COG", output_dir=None):
-        if not hasattr(self, "json_path") or not os.path.exists(self.json_path):
-            raise ValueError("Dataset JSON file not found.")
-
-        if not output_dir:
-            output_dir = f"{self.__get_ds_tmp_path__()}/cogs"
-
-        # Read the JSON file to get VRT datasets
-        vrt_datasets = pd.read_json(self.json_path)["EDKDataset"]["VRTDatasets"]
-
-        # Create output directory if it doesn't exist
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-        cog_paths = []
-        # Create a list to store futures
-        futures = []
-
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_processpool_workers()
-        ) as executor:
-            # Submit all conversion tasks
-            for vrt_data in vrt_datasets:
-                vrt_path = vrt_data.get("source")
-                # Define output path
-                vrt_filename = os.path.basename(vrt_path)
-                cog_filename = os.path.splitext(vrt_filename)[0] + ".tif"
-                cog_path = os.path.join(output_dir, cog_filename)
-
-                # Submit the task to the executor
-                futures.append(executor.submit(self.__vrt_to_cog__, vrt_path, cog_path))
-
-            # Collect results as they complete
-            for future in futures:
-                result = future.result()
-                if result:
-                    cog_paths.append(result)
-
-        return cog_paths
+    @staticmethod
+    def from_file(json_path):
+        ds = Dataset(json_path)
+        return ds.to_dataarray(json_path)
