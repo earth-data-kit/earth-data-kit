@@ -40,4 +40,7 @@ This example demonstrates how to use the Earth Data Kit to stitch together a Ear
     bands = ["B4", "B3", "B2"]
 
     # Create the stitched VRTs from the provided Earth Engine data.
-    ds.to_vrts(bands)
+    ds.mosaic(bands)
+
+    # This returns a dataarray with the stitched bands
+    da = ds.to_dataarray()
