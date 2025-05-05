@@ -820,6 +820,24 @@ class Dataset:
     
     @staticmethod
     def dataarray_from_file(json_path):
+        """
+        Creates an xarray DataArray from a JSON file created by the `save()` method.
+        
+        Automatically determines optimal chunking based on the underlying raster block size.
+        
+        Args:
+            json_path (str): Path to the JSON file containing dataset information.
+            
+        Returns:
+            xarray.DataArray: DataArray with dimensions for time, bands, and spatial coordinates.
+            
+        Example:
+            >>> import earth_data_kit as edk
+            >>> data_array = edk.stitching.Dataset.dataarray_from_file("path/to/dataset.json")
+            
+        Note:
+            Loads a previously saved dataset without needing to recreate the Dataset object.
+        """
         # Extract dataset name from the JSON file
         with open(json_path, 'r') as f:
             dataset_info = json.load(f)
