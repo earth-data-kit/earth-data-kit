@@ -257,7 +257,9 @@ def open_edk_dataset(filename_or_obj):
         gdal_dtype = band.DataType
 
         # Get corresponding numpy dtype
-        dtype = commons.get_numpy_dtype(gdal_dtype)  # Default to float32 if type not found
+        dtype = commons.get_numpy_dtype(
+            gdal_dtype
+        )  # Default to float32 if type not found
 
         spatial_coords = get_spatial_coords(src_ds.GetGeoTransform(), x_size, y_size)
 

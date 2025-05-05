@@ -830,7 +830,7 @@ class Dataset:
         )
 
         return ds[self.name]
-    
+
     @staticmethod
     def from_file(json_path):
         ds = Dataset(json_path)

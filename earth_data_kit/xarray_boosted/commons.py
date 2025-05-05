@@ -1,6 +1,7 @@
 from osgeo import gdal
 import numpy as np
 
+
 def get_numpy_dtype(gdal_dtype):
     # Hardcoding dtype to float32 for now as we need to handle nodata values and they are only possible for float types
     return np.float32
@@ -21,6 +22,7 @@ def get_numpy_dtype(gdal_dtype):
     return gdal_to_numpy_dtype.get(
         gdal_dtype, np.float32
     )  # Default to float32 if type not found
+
 
 def get_gdal_dtype(numpy_dtype):
     # Map numpy data types to GDAL data types
