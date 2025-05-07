@@ -8,12 +8,16 @@ import earth_data_kit.xarray_boosted.commons as commons
 import pandas as pd
 import os
 import concurrent.futures
-from tqdm import tqdm
+
+# from tqdm import tqdm
+from tqdm import tqdm_notebook as tqdm
 import math
 from datetime import datetime
 import glob
 import json
+import uuid
 import numpy as np
+import earth_data_kit.xarray_boosted.io as io
 
 logger = logging.getLogger(__name__)
 
@@ -130,8 +134,8 @@ class EDKAccessor:
 
         ds = gdal.Open(output_path)
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
         ) as executor:
             for band_idx in range(0, num_bands):
                 band = ds.GetRasterBand(band_idx + 1)
@@ -238,20 +242,46 @@ class EDKAccessor:
         ValueError
             If the DataArray dimensions are not valid for COG export.
         """
-        helpers.make_sure_dir_exists(output_path)
+        local_output_dir = os.path.join(
+            helpers.get_tmp_dir(), "exports", str(uuid.uuid4())
+        )
+
+        if io.get_storage_engine(output_path) == "s3":
+            helpers.make_sure_dir_exists(local_output_dir)
+
+            # Get the last part of the output path (filename or directory name)
+            output_name = os.path.basename(os.path.normpath(output_path))
+
+            # If output_path is a directory with trailing slash, basename returns empty string
+            if not output_name:
+                # Get the last directory name
+                output_name = os.path.basename(
+                    os.path.dirname(os.path.normpath(output_path))
+                )
+
+            if output_name.endswith(".tif") or output_name.endswith(".tiff"):
+                _output_path = f"{os.path.join(local_output_dir, output_name)}"
+            else:
+                _output_path = f"{os.path.join(local_output_dir, output_name)}/"
+        else:
+            _output_path = output_path
+
+        # Generate a random folder path if needed
+        helpers.make_sure_dir_exists(_output_path)
 
         dims = self.da.dims
         cogs_path = []
         if "time" in dims:
             # Iterate over each time value and export as separate COG
+            # Hardcoded to 1 worker for now to avoid multi threading issues
             futures = []
-            with concurrent.futures.ProcessPoolExecutor(
-                max_workers=helpers.get_processpool_workers()
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=helpers.get_threadpool_workers()
             ) as executor:
                 for time_idx in range(len(self.da.time)):
                     t = pd.to_datetime(self.da.time[time_idx].values)
                     timestring = t.strftime("%Y-%m-%d-%H:%M:%S")
-                    output_file = f"{os.path.join(output_path, timestring)}.tif"
+                    output_file = f"{os.path.join(_output_path, timestring)}.tif"
 
                     # Submit the export task to the executor
                     futures.append(
@@ -272,8 +302,8 @@ class EDKAccessor:
                 ):
                     cogs_path.append(future.result())
         elif "band" in dims:
-            self._export_to_cog(self.da, output_path, overwrite)
-            cogs_path.append(output_path)
+            self._export_to_cog(self.da, _output_path, overwrite)
+            cogs_path.append(_output_path)
         elif "x" in dims and "y" in dims:
             # If x and y dim exists, export the dataarray as a single cog with 1 band
             # Add a new dimension 'band' with value 1
@@ -283,12 +313,16 @@ class EDKAccessor:
             da_with_band = da_with_band.transpose("band", "x", "y")
 
             # Export as a single COG
-            self._export_to_cog(da_with_band, output_path, overwrite)
-            cogs_path.append(output_path)
+            self._export_to_cog(da_with_band, _output_path, overwrite)
+            cogs_path.append(_output_path)
         else:
             raise ValueError("No valid dims found")
 
-        self._create_edk_json(cogs_path)
+        # self._create_edk_json(cogs_path)
+
+        if io.get_storage_engine(output_path) == "s3":
+            io.sync_to_s3(_output_path, output_path)
+            io.remove_dir_or_file(local_output_dir)
 
     def _create_edk_json(self, cogs_path):
         dataset_dict = {
