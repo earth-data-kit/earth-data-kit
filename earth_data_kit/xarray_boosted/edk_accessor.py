@@ -171,10 +171,11 @@ class EDKAccessor:
                 total=len(futures),
                 desc="Writing blocks to COG",
                 position=1,
-                leave=False,
             ):
                 future.result()
+        return True
 
+        
     def _export_to_cog(self, da, output_file_path, overwrite):
         """Can export a 3D dataarray with dims (band, x, y) to a COG"""
 
