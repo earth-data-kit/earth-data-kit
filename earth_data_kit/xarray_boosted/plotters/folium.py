@@ -14,15 +14,6 @@ class Folium:
     def __init__(self, da):
         self.da = da
 
-    def _get_crs(self):
-        """
-        Get the coordinate reference system (CRS) from the DataArray.
-
-        Returns:
-            int or None: The EPSG code of the CRS if available, otherwise None.
-        """
-        return int(self.da.coords["spatial_ref"].values)
-
     def _create_cmap(self, vmin, vmax):
         viridis = cm.LinearColormap(cm.linear.viridis.colors, vmin=vmin, vmax=vmax)
 
@@ -34,7 +25,7 @@ class Folium:
         return get_color
 
     def plot(self):
-        crs = self._get_crs()
+        crs = self.da.edk._get_epsg_code()
 
         xmin, ymin, xmax, ymax = (
             self.da.coords["x"].values[0],

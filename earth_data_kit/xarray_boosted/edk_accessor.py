@@ -101,7 +101,7 @@ class EDKAccessor:
         ds.SetGeoTransform(transform)
 
         # Set the projection for the dataset
-        ds.SetProjection(da.attrs["crs"])
+        ds.SetProjection(f"EPSG:{self._get_epsg_code()}")
 
         # Finally close the dataset to flush data to disk
         ds = None
@@ -177,29 +177,39 @@ class EDKAccessor:
         if ("band", "x", "y") != da.dims:
             raise ValueError("Invalid dims")
 
-        if "crs" in da.attrs:
-            # Remove the output file if it already exists
-            if overwrite:
-                helpers.remove_file_if_exists(output_file_path)
-
-            try:
-                ds = gdal.Open(output_file_path)
-                if ds is None:
-                    raise FileNotFoundError(f"File {output_file_path} not found")
-            except Exception as e:
-                pass
-
-            # Create a template cog
-            self._create_template_cog(da, output_file_path)
-
-            # Write data to cog parallely
-            self._write_data_to_cog(da, output_file_path)
-
-            # TODO: Add code to use cogger to convert the geotiff to a cog
-
-            return output_file_path
-        else:
+        crs = self._get_epsg_code()
+        if crs is None:
             raise ValueError("No crs found")
+
+        # Remove the output file if it already exists
+        if overwrite:
+            helpers.remove_file_if_exists(output_file_path)
+
+        try:
+            ds = gdal.Open(output_file_path)
+            if ds is None:
+                raise FileNotFoundError(f"File {output_file_path} not found")
+        except Exception as e:
+            pass
+
+        # Create a template cog
+        self._create_template_cog(da, output_file_path)
+
+        # Write data to cog parallely
+        self._write_data_to_cog(da, output_file_path)
+
+        # TODO: Add code to use cogger to convert the geotiff to a cog
+
+        return output_file_path
+
+    def _get_epsg_code(self):
+        """
+        Get the coordinate reference system (CRS) from the DataArray.
+
+        Returns:
+            int or None: The EPSG code of the CRS if available, otherwise None.
+        """
+        return int(self.da.coords["spatial_ref"].values)
 
     def export(self, output_path, overwrite=False):
         """
@@ -305,7 +315,8 @@ class EDKAccessor:
             dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
         with open(
-            os.path.join(f"{os.path.dirname(cogs_path[0])}", "edk.json"), "w"
+            os.path.join(f"{os.path.dirname(cogs_path[0])}", f"{self.da.name}.json"),
+            "w",
         ) as f:
             json.dump(dataset_dict, f, indent=2)
 
