@@ -309,6 +309,57 @@ class EDKAccessor:
         ) as f:
             json.dump(dataset_dict, f, indent=2)
 
+    def __read_chunk__(self, x_start, y_start, x_chunk_size, y_chunk_size):
+        x_end = min(x_start + x_chunk_size, self.da.shape[0])
+        y_end = min(y_start + y_chunk_size, self.da.shape[1])
+
+        return (
+            y_start,
+            x_start,
+            self.da.isel(y=slice(y_start, y_end), x=slice(x_start, x_end)).values,
+        )
+
+    @decorators.log_time
+    @decorators.log_init
+    def read_as_array(self):
+        x_size, y_size = self.da.shape
+        result = np.full((x_size, y_size), np.nan, dtype=self.da.dtype)
+        # Get chunk size from the DataArray if available, otherwise use default
+        x_chunk_size, y_chunk_size = (
+            self.da.chunksizes["x"][0],
+            self.da.chunksizes["y"][0],
+        )
+
+        # Create chunks
+        chunks = [
+            (x, y)
+            for x in range(0, x_size, x_chunk_size)
+            for y in range(0, y_size, y_chunk_size)
+        ]
+
+        # Process chunks in parallel using concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            futures = [
+                executor.submit(self.__read_chunk__, x, y, x_chunk_size, y_chunk_size)
+                for x, y in chunks
+            ]
+
+            for future in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Reading data in chunks",
+                unit="chunk",
+            ):
+                y_start, x_start, chunk = future.result()
+                chunk_x_size, chunk_y_size = chunk.shape
+                result[
+                    x_start : x_start + chunk_x_size, y_start : y_start + chunk_y_size
+                ] = chunk
+
+        return result
+
     def plot(self):
         """
         Plot the data on an interactive map using folium.

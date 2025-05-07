@@ -51,7 +51,7 @@ class Folium:
             location=[(lat_max + lat_min) / 2, (lng_max + lng_min) / 2], zoom_start=9
         )
 
-        arr = self.da.values
+        arr = self.da.edk.read_as_array()
         band = folium.raster_layers.ImageOverlay(
             image=arr.T,
             bounds=[[lat_min, lng_min], [lat_max, lng_max]],
