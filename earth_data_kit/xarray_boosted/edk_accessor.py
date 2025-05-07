@@ -1,6 +1,7 @@
 import xarray as xr
 import logging
 import earth_data_kit.stitching.decorators as decorators
+from earth_data_kit.xarray_boosted.plotters.folium import Folium
 from osgeo import gdal
 import earth_data_kit.utilities.helpers as helpers
 import earth_data_kit.xarray_boosted.commons as commons
@@ -307,3 +308,20 @@ class EDKAccessor:
             os.path.join(f"{os.path.dirname(cogs_path[0])}", "edk.json"), "w"
         ) as f:
             json.dump(dataset_dict, f, indent=2)
+
+    def plot(self):
+        """
+        Plot the data on an interactive map using folium.
+
+        Returns:
+            folium.Map: An interactive map with the data overlaid on OpenStreetMap.
+        """
+        # Check if the DataArray is 2D (excluding time and band dimensions)
+        if len(self.da.dims) != 2 or set(self.da.dims) != {"x", "y"}:
+            raise ValueError(
+                "DataArray must be exactly 2D with 'x' and 'y' dimensions to plot on a map"
+            )
+
+        # Import the Folium plotter and create the map
+        o = Folium(self.da)
+        return o.plot()

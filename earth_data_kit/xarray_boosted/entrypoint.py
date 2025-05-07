@@ -12,6 +12,7 @@ import concurrent.futures
 import earth_data_kit.utilities.helpers as helpers
 import earth_data_kit.utilities.geo as geo
 import earth_data_kit.xarray_boosted.commons as commons
+from osgeo import osr
 
 gdal.UseExceptions()
 
@@ -190,6 +191,21 @@ class EDKDatasetBackendArray(BackendArray):
         return data
 
 
+def get_crs(src_ds):
+    # Get CRS/EPSG information
+    wkt = src_ds.GetProjection()
+    spatial_ref = osr.SpatialReference()
+    spatial_ref.ImportFromWkt(wkt)
+
+    # Try to get EPSG code
+    epsg = None
+    if spatial_ref.AutoIdentifyEPSG() == 0:  # 0 means success
+        epsg = spatial_ref.GetAuthorityCode(None)
+        return int(epsg)
+
+    return None
+
+
 def get_spatial_coords(geotransform, width, height):
     # Extract geotransform parameters
     (
@@ -269,6 +285,7 @@ def open_edk_dataset(filename_or_obj):
             "band": np.arange(1, num_bands + 1, dtype=np.int32),
             "x": spatial_coords["x"],
             "y": spatial_coords["y"],
+            "spatial_ref": get_crs(src_ds),
         }
         dims = ("time", "band", "x", "y")
 
