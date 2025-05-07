@@ -409,6 +409,10 @@ class EDKAccessor:
     def plot(self):
         """
         Plot the data on an interactive map using folium.
+        
+        Note: This implementation currently loads all the data into memory,
+        which may not be suitable for larger datasets. Future optimizations
+        such as tilesets are planned to improve performance with large datasets.
 
         Returns:
             folium.Map: An interactive map with the data overlaid on OpenStreetMap.
