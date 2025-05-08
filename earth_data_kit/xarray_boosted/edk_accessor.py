@@ -175,7 +175,6 @@ class EDKAccessor:
                 future.result()
         return True
 
-        
     def _export_to_cog(self, da, output_file_path, overwrite):
         """Can export a 3D dataarray with dims (band, x, y) to a COG"""
 
@@ -409,7 +408,7 @@ class EDKAccessor:
     def plot(self):
         """
         Plot the data on an interactive map using folium.
-        
+
         Note: This implementation currently loads all the data into memory,
         which may not be suitable for larger datasets. Future optimizations
         such as tilesets are planned to improve performance with large datasets.

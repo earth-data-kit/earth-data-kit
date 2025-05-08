@@ -315,6 +315,43 @@ def open_edk_dataset(filename_or_obj):
         raise
 
 
+def open_edk_dataset_via_rio(filename_or_obj):
+    """Open an EDK dataset directly as an xarray Dataset without using DataArray."""
+    try:
+        # Read metadata from JSON
+        _df = pd.read_json(filename_or_obj)
+        df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
+
+        # Create a list of VRT paths
+        vrt_paths = df.source.tolist()
+        timestamps = pd.to_datetime(df.time)
+
+        datasets = []
+        for i, path in enumerate(vrt_paths):
+            ds_temp = xr.open_dataset(
+                path, engine="rasterio", chunks={"band": "auto", "x": 128, "y": 128}
+            )
+            # Add time coordinate
+            ds_temp = ds_temp.expand_dims(time=[timestamps[i]])
+            datasets.append(ds_temp)
+
+        # Combine datasets along time dimension
+        ds = xr.concat(datasets, dim="time")
+        ds.coords["spatial_ref"] = get_crs(gdal.Open(vrt_paths[0]))
+        # Ensure dimensions are in the correct order: time, band, x, y
+        if list(ds.dims) != ["time", "band", "x", "y"]:
+            # Transpose the dataset to the desired dimension order
+            ds = ds.transpose("time", "band", "x", "y")
+
+            # Log the dimension reordering
+            logger.debug(f"Reordered dimensions to: {list(ds.dims)}")
+        return ds
+    except Exception as e:
+        print(f"Error opening dataset: {e}")
+        traceback.print_exc()
+        raise
+
+
 class EDKDatasetBackend(BackendEntrypoint):
     def open_dataset(
         self,
@@ -324,7 +361,7 @@ class EDKDatasetBackend(BackendEntrypoint):
         # other backend specific keyword arguments
         # `chunks` and `cache` DO NOT go here, they are handled by xarray
     ):
-        return open_edk_dataset(filename_or_obj)
+        return open_edk_dataset_via_rio(filename_or_obj)
 
     open_dataset_parameters = ["filename_or_obj", "drop_variables"]
 
