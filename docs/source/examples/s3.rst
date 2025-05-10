@@ -48,4 +48,7 @@ This example demonstrates how to use the Earth Data Kit to stitch together a col
     bands = ["red", "green", "blue"]
 
     # Create the stitched VRTs from the provided S3 data.
-    ds.to_vrts(bands)
+    ds.mosaic(bands)
+
+    # This returns a dataarray with the stitched bands
+    da = ds.to_dataarray()

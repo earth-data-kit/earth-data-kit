@@ -1,7 +1,6 @@
 from earth_data_kit import stitching
 from earth_data_kit import xarray_boosted
 from earth_data_kit import utilities
-from earth_data_kit import viz_server
 import pandas as pd
 import logging
 import os

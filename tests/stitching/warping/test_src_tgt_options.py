@@ -41,7 +41,7 @@ def _run():
     ds.set_target_options({"-tr": "1 1", "-t_srs": "EPSG:4326"})
 
     # Stitching data together as VRTs
-    ds.to_vrts(
+    ds.mosaic(
         bands=["NoDescription"],
     )
 

@@ -12,7 +12,7 @@ Before using Earth Data Kit, ensure that the following are installed:
 
 * GDAL 3.10 or above - [https://gdal.org/en/stable/download.html#binaries](https://gdal.org/en/stable/download.html#binaries)
 
-* s5cmd (optional) - [https://github.com/peak/s5cmd](https://github.com/peak/s5cmd) - Only required if you plan to query data from S3 buckets
+* s5cmd (optional) - [https://github.com/peak/s5cmd](https://github.com/peak/s5cmd) - Required if you plan to query data from S3 buckets
 
 ### Installation
 
@@ -44,6 +44,7 @@ This will check prerequisites, download the latest tarball, and install Earth Da
 ### Stitching MODIS Dataset from AWS S3
 
 This example demonstrates how to stitch together MODIS satellite imagery from AWS S3 for Albania between January 1-7, 2017. It shows the complete workflow from initializing the dataset to visualizing the results.
+
 ```python
 import earth_data_kit as edk
 import datetime
@@ -93,13 +94,10 @@ ds.get_bands()
 # Optionally, configure GDAL options (e.g., setting the target spatial reference).
 ds.set_target_options({"-t_srs": "EPSG:3857"})
 # Stitches the scene files into VRTs using the defined band arrangement.
-ds.to_vrts(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band4"])
+ds.mosaic(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band4"])
 
 # This returns a dataarray with the stitched bands
 da = ds.to_dataarray()
-
-# Plot the dataarray using folium
-da.edk.plot(time='2017-01-01', band=1)
 ```
 
 ## Warning

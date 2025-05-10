@@ -28,7 +28,8 @@ def _run():
     ds.set_spacebounds(bbox)
 
     ds.discover()
-    ds.to_vrts(bands=["elevation"])
+    ds.mosaic(bands=["elevation"])
+    ds.save()
 
 
 def _test():

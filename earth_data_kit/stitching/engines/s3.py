@@ -166,4 +166,6 @@ class S3:
         # Removing extra files created
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
+
+        # TODO: Add code to handle daily resolution
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]

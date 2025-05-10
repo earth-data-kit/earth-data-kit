@@ -8,9 +8,10 @@ import traceback
 import logging
 import earth_data_kit.stitching.decorators as decorators
 import affine
-import concurrent.futures
 import earth_data_kit.utilities.helpers as helpers
 import earth_data_kit.utilities.geo as geo
+import earth_data_kit.xarray_boosted.commons as commons
+from osgeo import osr
 
 gdal.UseExceptions()
 
@@ -112,7 +113,7 @@ class EDKDatasetBackendArray(BackendArray):
             xsize=x_size,
             ysize=y_size,
             band_list=[band_num],
-            buf_type=get_gdal_dtype(self.dtype),
+            buf_type=commons.get_gdal_dtype(self.dtype),
         )
         band = ds.GetRasterBand(band_num)
         nodataval = band.GetNoDataValue()
@@ -189,26 +190,19 @@ class EDKDatasetBackendArray(BackendArray):
         return data
 
 
-def get_numpy_dtype(gdal_dtype):
-    # Hardcoding dtype to float32 for now as we need to handle nodata values and they are only possible for float types
-    return np.float32
-    # Map GDAL data types to numpy data types
-    gdal_to_numpy_dtype = {
-        gdal.GDT_Byte: np.uint8,
-        gdal.GDT_UInt16: np.uint16,
-        gdal.GDT_Int16: np.int16,
-        gdal.GDT_UInt32: np.uint32,
-        gdal.GDT_Int32: np.int32,
-        gdal.GDT_Float32: np.float32,
-        gdal.GDT_Float64: np.float64,
-        gdal.GDT_CInt16: np.complex64,
-        gdal.GDT_CInt32: np.complex64,
-        gdal.GDT_CFloat32: np.complex64,
-        gdal.GDT_CFloat64: np.complex128,
-    }
-    return gdal_to_numpy_dtype.get(
-        gdal_dtype, np.float32
-    )  # Default to float32 if type not found
+def get_crs(src_ds):
+    # Get CRS/EPSG information
+    wkt = src_ds.GetProjection()
+    spatial_ref = osr.SpatialReference()
+    spatial_ref.ImportFromWkt(wkt)
+
+    # Try to get EPSG code
+    epsg = None
+    if spatial_ref.AutoIdentifyEPSG() == 0:  # 0 means success
+        epsg = spatial_ref.GetAuthorityCode(None)
+        return int(epsg)
+
+    return None
 
 
 def get_spatial_coords(geotransform, width, height):
@@ -247,28 +241,6 @@ def get_spatial_coords(geotransform, width, height):
     return {"x": x_coords, "y": y_coords}
 
 
-def get_gdal_dtype(numpy_dtype):
-    # Map numpy data types to GDAL data types
-    numpy_to_gdal_dtype = {
-        np.uint8: gdal.GDT_Byte,
-        np.uint16: gdal.GDT_UInt16,
-        np.int16: gdal.GDT_Int16,
-        np.uint32: gdal.GDT_UInt32,
-        np.int32: gdal.GDT_Int32,
-        np.float32: gdal.GDT_Float32,
-        np.float64: gdal.GDT_Float64,
-        np.complex64: gdal.GDT_CFloat32,
-        np.complex128: gdal.GDT_CFloat64,
-    }
-    # Convert numpy dtype objects to their type
-    if hasattr(numpy_dtype, "type"):
-        numpy_dtype = numpy_dtype.type
-
-    return numpy_to_gdal_dtype.get(
-        numpy_dtype, gdal.GDT_Float32
-    )  # Default to Float32 if type not found
-
-
 def open_edk_dataset(filename_or_obj):
     """Open an EDK dataset directly as an xarray Dataset without using DataArray."""
     try:
@@ -292,13 +264,17 @@ def open_edk_dataset(filename_or_obj):
         y_size = src_ds.RasterYSize
         num_bands = src_ds.RasterCount
         time_size = df.shape[0]
+        x_block_size = src_ds.GetRasterBand(1).GetBlockSize()[0]
+        y_block_size = src_ds.GetRasterBand(1).GetBlockSize()[1]
 
         # Get data type from GDAL
         band = src_ds.GetRasterBand(1)
         gdal_dtype = band.DataType
 
         # Get corresponding numpy dtype
-        dtype = get_numpy_dtype(gdal_dtype)  # Default to float32 if type not found
+        dtype = commons.get_numpy_dtype(
+            gdal_dtype
+        )  # Default to float32 if type not found
 
         spatial_coords = get_spatial_coords(src_ds.GetGeoTransform(), x_size, y_size)
 
@@ -308,11 +284,10 @@ def open_edk_dataset(filename_or_obj):
             "band": np.arange(1, num_bands + 1, dtype=np.int32),
             "x": spatial_coords["x"],
             "y": spatial_coords["y"],
+            "spatial_ref": get_crs(src_ds),
         }
         dims = ("time", "band", "x", "y")
 
-        # TODO: Make the block size dynamic
-        BLOCK_SIZE = 512
         da = xr.DataArray(
             data=xr.core.indexing.LazilyIndexedArray(
                 EDKDatasetBackendArray(
@@ -321,24 +296,55 @@ def open_edk_dataset(filename_or_obj):
                     dtype=dtype,
                     x_size=x_size,
                     y_size=y_size,
-                    x_block_size=BLOCK_SIZE,
-                    y_block_size=BLOCK_SIZE,
+                    x_block_size=x_block_size,
+                    y_block_size=y_block_size,
                 )
             ),
             name=filename_or_obj.split("/")[-1].split(".")[0],
             dims=dims,
             coords=coords,
-            attrs={
-                "source": filename_or_obj,
-                "crs": src_ds.GetProjection() if src_ds.GetProjection() else None,
-                "bbox": geo.get_bbox_from_raster(source_path),
-            },
         )
 
         # Close the GDAL dataset
         src_ds = None
-        return da.to_dataset(promote_attrs=True)
+        return da.to_dataset(promote_attrs=False)
+    except Exception as e:
+        print(f"Error opening dataset: {e}")
+        traceback.print_exc()
+        raise
 
+
+def open_edk_dataset_via_rio(filename_or_obj):
+    """Open an EDK dataset directly as an xarray Dataset without using DataArray."""
+    try:
+        # Read metadata from JSON
+        _df = pd.read_json(filename_or_obj)
+        df = pd.DataFrame(_df["EDKDataset"]["VRTDatasets"])
+
+        # Create a list of VRT paths
+        vrt_paths = df.source.tolist()
+        timestamps = pd.to_datetime(df.time)
+
+        datasets = []
+        for i, path in enumerate(vrt_paths):
+            ds_temp = xr.open_dataset(
+                path, engine="rasterio", chunks={"band": "auto", "x": 128, "y": 128}
+            )
+            # Add time coordinate
+            ds_temp = ds_temp.expand_dims(time=[timestamps[i]])
+            datasets.append(ds_temp)
+
+        # Combine datasets along time dimension
+        ds = xr.concat(datasets, dim="time")
+        ds.coords["spatial_ref"] = get_crs(gdal.Open(vrt_paths[0]))
+        # Ensure dimensions are in the correct order: time, band, x, y
+        if list(ds.dims) != ["time", "band", "x", "y"]:
+            # Transpose the dataset to the desired dimension order
+            ds = ds.transpose("time", "band", "x", "y")
+
+            # Log the dimension reordering
+            logger.debug(f"Reordered dimensions to: {list(ds.dims)}")
+        return ds
     except Exception as e:
         print(f"Error opening dataset: {e}")
         traceback.print_exc()
