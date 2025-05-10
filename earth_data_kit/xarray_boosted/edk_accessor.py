@@ -8,6 +8,7 @@ import earth_data_kit.xarray_boosted.commons as commons
 import pandas as pd
 import os
 import concurrent.futures
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 # from tqdm import tqdm
 from tqdm import tqdm_notebook as tqdm
@@ -119,7 +120,7 @@ class EDKAccessor:
 
         out_ds = None
 
-    @decorators.log_time
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
     def __read_and_write_block__(
         self, da, band_idx, xoff, yoff, xsize, ysize, out_file
     ):
@@ -132,26 +133,26 @@ class EDKAccessor:
         futures = []
         num_bands, width, height = da.shape
 
-        ds = gdal.Open(output_path)
-
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=helpers.get_processpool_workers()
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
         ) as executor:
             for band_idx in range(0, num_bands):
-                band = ds.GetRasterBand(band_idx + 1)
-                x_block_size, y_block_size = band.GetBlockSize()
+                x_chunk_size, y_chunk_size = (
+                    self.da.chunksizes["x"][0],
+                    self.da.chunksizes["y"][0],
+                )
 
-                for xoff in range(0, width, x_block_size):
-                    for yoff in range(0, height, y_block_size):
-                        if xoff + x_block_size > width:
+                for xoff in range(0, width, x_chunk_size):
+                    for yoff in range(0, height, y_chunk_size):
+                        if xoff + x_chunk_size > width:
                             xsize = width - xoff
                         else:
-                            xsize = x_block_size
+                            xsize = x_chunk_size
 
-                        if yoff + y_block_size > height:
+                        if yoff + y_chunk_size > height:
                             ysize = height - yoff
                         else:
-                            ysize = y_block_size
+                            ysize = y_chunk_size
 
                         futures.append(
                             executor.submit(
@@ -272,35 +273,15 @@ class EDKAccessor:
         dims = self.da.dims
         cogs_path = []
         if "time" in dims:
-            # Iterate over each time value and export as separate COG
-            # Hardcoded to 1 worker for now to avoid multi threading issues
-            futures = []
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=helpers.get_threadpool_workers()
-            ) as executor:
-                for time_idx in range(len(self.da.time)):
-                    t = pd.to_datetime(self.da.time[time_idx].values)
-                    timestring = t.strftime("%Y-%m-%d-%H:%M:%S")
-                    output_file = f"{os.path.join(_output_path, timestring)}.tif"
-
-                    # Submit the export task to the executor
-                    futures.append(
-                        executor.submit(
-                            self._export_to_cog,
-                            self.da.isel(time=time_idx),
-                            output_file,
-                            overwrite,
-                        )
+            for time_idx in range(len(self.da.time)):
+                t = pd.to_datetime(self.da.time[time_idx].values)
+                timestring = t.strftime("%Y-%m-%d-%H:%M:%S")
+                output_file = f"{os.path.join(_output_path, timestring)}.tif"
+                cogs_path.append(
+                    self._export_to_cog(
+                        self.da.isel(time=time_idx), output_file, overwrite
                     )
-
-                # Process results as they complete
-                for future in tqdm(
-                    concurrent.futures.as_completed(futures),
-                    total=len(futures),
-                    desc="Exporting time series to COGs",
-                    position=0,
-                ):
-                    cogs_path.append(future.result())
+                )
         elif "band" in dims:
             self._export_to_cog(self.da, _output_path, overwrite)
             cogs_path.append(_output_path)

@@ -865,10 +865,23 @@ class Dataset:
 
         ds = gdal.Open(first_vrt_path)
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
+
+        # Check if block sizes are powers of 2
+        def is_power_of_two(n):
+            return n > 0 and (n & (n - 1)) == 0
+
+        if is_power_of_two(x_block_size) and is_power_of_two(y_block_size):
+            # Block sizes are powers of 2, ensure minimum size is 512
+            x_chunk_size = max(x_block_size, 512)
+            y_chunk_size = max(y_block_size, 512)
+        else:
+            # Default to 512 if not powers of 2
+            x_chunk_size, y_chunk_size = x_block_size, y_block_size
+
         ds = xr.open_dataset(
             json_path,
             engine="edk_dataset",
-            chunks={"time": 1, "band": 1, "x": x_block_size, "y": y_block_size},
+            chunks={"time": 1, "band": 1, "x": x_chunk_size, "y": y_chunk_size},
         )
 
         return ds[dataset_name]

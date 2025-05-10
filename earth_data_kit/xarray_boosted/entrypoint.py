@@ -8,7 +8,6 @@ import traceback
 import logging
 import earth_data_kit.stitching.decorators as decorators
 import affine
-import concurrent.futures
 import earth_data_kit.utilities.helpers as helpers
 import earth_data_kit.utilities.geo as geo
 import earth_data_kit.xarray_boosted.commons as commons
@@ -361,7 +360,7 @@ class EDKDatasetBackend(BackendEntrypoint):
         # other backend specific keyword arguments
         # `chunks` and `cache` DO NOT go here, they are handled by xarray
     ):
-        return open_edk_dataset_via_rio(filename_or_obj)
+        return open_edk_dataset(filename_or_obj)
 
     open_dataset_parameters = ["filename_or_obj", "drop_variables"]
 

@@ -4756,6 +4756,22 @@ files = [
 ]
 
 [[package]]
+name = "tenacity"
+version = "9.1.2"
+description = "Retry code until it succeeds"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138"},
+    {file = "tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb"},
+]
+
+[package.extras]
+doc = ["reno", "sphinx"]
+test = ["pytest", "tornado (>=4.5)", "typeguard"]
+
+[[package]]
 name = "toolz"
 version = "1.0.0"
 description = "List processing tools and functional utilities"
@@ -5198,4 +5214,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "527a7272162c2b08f90970197c78a91936cd8083f3fb72ee57873d193fccfca1"
+content-hash = "ac9c3a4f53d77c54e8678b75bb09976be88e8f963dd910d8578120b3d8657022"

@@ -38,6 +38,7 @@ flask-cors = "^5.0.1"
 opencv-python = "^4.11.0.86"
 flask = "^3.1.0"
 rio-tiler = "^7.6.0"
+tenacity = "^9.1.2"
 
 
 [tool.poetry.group.dev.dependencies]
