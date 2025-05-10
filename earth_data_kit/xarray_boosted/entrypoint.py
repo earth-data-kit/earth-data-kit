@@ -327,6 +327,7 @@ def open_edk_dataset_via_rio(filename_or_obj):
 
         datasets = []
         for i, path in enumerate(vrt_paths):
+            # TODO: Fix chunk sizes for x and y
             ds_temp = xr.open_dataset(
                 path, engine="rasterio", chunks={"band": "auto", "x": 128, "y": 128}
             )
