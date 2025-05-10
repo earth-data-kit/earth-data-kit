@@ -236,7 +236,7 @@ class EDKAccessor:
         Returns
         -------
         None
-            Creates COG file(s) at the specified output path and generates an edk.json metadata file.
+            Creates COG file(s) at the specified output path.
 
         Raises
         ------
