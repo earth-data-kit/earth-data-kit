@@ -34,12 +34,6 @@ To install Earth Data Kit, follow these steps:
 
 This will check prerequisites, download the latest tarball from GitHub releases, and install EDK automatically.
 
-4. Note: For Linux environments, you might need to install additional dependencies before running the installation script:
-
-   .. code-block:: console
-
-      $ sudo apt-get install libgl1
-
 
 Environment Configuration
 -------------------------
