@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "earth-data-kit"
-version = "0.1.2.dev20250415"
+version = "0.1.2.dev20250512"
 description = "Making GIS data analysis cheap and easy"
 license = "Apache-2.0"
 authors = ["Siddhant Gupta <siddhantgupta3@gmail.com>"]
@@ -15,10 +15,6 @@ replace = '__version__ = "{new_version}"'
 [tool.poetry_bumpversion.file."docs/source/conf.py"]
 search = 'release = "{current_version}"'
 replace = 'release = "{new_version}"'
-
-[tool.poetry_bumpversion.file."docs/source/getting-started.rst"]
-search = '{current_version}'
-replace = '{new_version}'
 
 [tool.poetry.dependencies]
 python = "^3.12"

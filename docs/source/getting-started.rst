@@ -20,7 +20,7 @@ To install Earth Data Kit, follow these steps:
       $ git clone https://github.com/earth-data-kit/earth-data-kit.git
       $ cd earth-data-kit
 
-2. Switch to the master branch:
+2. Switch to the master or a release branch:
 
    .. code-block:: console
 
