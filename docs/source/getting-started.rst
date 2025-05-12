@@ -6,7 +6,7 @@ Prerequisites
 Before using Earth Data Kit, ensure that the following are installed:
 
 - Python 3.12 or newer
-- GDAL 3.10 or above - https://gdal.org/en/stable/download.html#binaries
+- GDAL 3.8.4 or above - https://gdal.org/en/stable/download.html#binaries
 - s5cmd (optional) - https://github.com/peak/s5cmd - Only required if you plan to query data from S3 buckets or export to S3
 
 Installation
