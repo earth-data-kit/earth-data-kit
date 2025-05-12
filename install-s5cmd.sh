@@ -61,8 +61,8 @@ install_s5cmd_ubuntu() {
     
     # Copy s5cmd to /usr/local/bin
     echo "Installing s5cmd to /usr/local/bin..."
-    sudo cp $TMP_EXTRACT_DIR/s5cmd /usr/local/bin/
-    sudo chmod +x /usr/local/bin/s5cmd
+    cp $TMP_EXTRACT_DIR/s5cmd /usr/local/bin/
+    chmod +x /usr/local/bin/s5cmd
     
     # Clean up temporary extraction directory
     rm -rf $TMP_EXTRACT_DIR
@@ -72,7 +72,7 @@ install_s5cmd_ubuntu() {
     rm -rf $TMP_DIR
     
     echo -e "${GREEN}s5cmd installed successfully! ✓${NC}"
-    return 1
+    return 0
 }
 
 # Function to install s5cmd based on architecture and OS
