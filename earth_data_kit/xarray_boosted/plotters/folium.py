@@ -14,17 +14,20 @@ class Folium:
     def __init__(self, da):
         self.da = da
 
-    def _create_cmap(self, vmin, vmax):
-        viridis = cm.LinearColormap(cm.linear.viridis.colors, vmin=vmin, vmax=vmax)
+    def _create_cmap(self, vmin, vmax, colors=None):
+        if colors is None:
+            cmap = cm.LinearColormap(cm.linear.viridis.colors, vmin=vmin, vmax=vmax)
+        else:
+            cmap = cm.LinearColormap(colors, vmin=vmin, vmax=vmax)
 
         def get_color(x):
             if np.isnan(x):
                 return (1, 1, 1, 0)
-            return viridis.rgba_floats_tuple(x)
+            return cmap.rgba_floats_tuple(x)
 
         return get_color
 
-    def plot(self):
+    def plot(self, colors=None):
         crs = self.da.edk._get_epsg_code()
 
         xmin, ymin, xmax, ymax = (
@@ -47,7 +50,9 @@ class Folium:
             image=arr.T,
             bounds=[[lat_min, lng_min], [lat_max, lng_max]],
             interactive=True,
-            colormap=self._create_cmap(vmin=np.nanmin(arr), vmax=np.nanmax(arr)),
+            colormap=self._create_cmap(
+                vmin=np.nanmin(arr), vmax=np.nanmax(arr), colors=colors
+            ),
         )
 
         band.add_to(m)

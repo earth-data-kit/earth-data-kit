@@ -386,7 +386,7 @@ class EDKAccessor:
 
         return result
 
-    def plot(self):
+    def plot(self, colors=None):
         """
         Plot the data on an interactive map using folium.
 
@@ -405,4 +405,4 @@ class EDKAccessor:
 
         # Import the Folium plotter and create the map
         o = Folium(self.da)
-        return o.plot()
+        return o.plot(colors=colors)

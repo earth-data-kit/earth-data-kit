@@ -132,8 +132,6 @@ class Dataset:
             >>> ds = Dataset("example", "path/to/data", "file_system")
             >>> # Set a single nodata value for all bands
             >>> ds.set_src_options({"-srcnodata": -9999})
-            >>> # Or set different nodata values for each band
-            >>> ds.set_src_options({"-srcnodata": [-9999, 0, 255]})
         """
         self.src_options = options
 
