@@ -72,7 +72,6 @@ install_s5cmd_ubuntu() {
     rm -rf $TMP_DIR
     
     echo -e "${GREEN}s5cmd installed successfully! ✓${NC}"
-    echo "Please restart your terminal or run 'source ~/.bashrc' to use s5cmd"
     return 0
 }
 
