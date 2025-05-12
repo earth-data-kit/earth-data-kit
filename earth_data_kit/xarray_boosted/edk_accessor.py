@@ -386,13 +386,19 @@ class EDKAccessor:
 
         return result
 
-    def plot(self, colors=None):
+    def plot(self, colors=None, opacity=1):
         """
         Plot the data on an interactive map using folium.
 
         Note: This implementation currently loads all the data into memory,
         which may not be suitable for larger datasets. Future optimizations
         such as tilesets are planned to improve performance with large datasets.
+
+        Args:
+            colors (list, optional): A list of colors to use for the colormap.
+                If None, the default viridis colormap will be used.
+            opacity (float, optional): The opacity of the overlay, between 0 and 1.
+                Defaults to 1 (fully opaque).
 
         Returns:
             folium.Map: An interactive map with the data overlaid on OpenStreetMap.
@@ -405,4 +411,4 @@ class EDKAccessor:
 
         # Import the Folium plotter and create the map
         o = Folium(self.da)
-        return o.plot(colors=colors)
+        return o.plot(colors=colors, opacity=opacity)
