@@ -39,7 +39,7 @@ class Folium:
         )
 
         m = folium.Map(
-            location=[(lat_max + lat_min) / 2, (lng_max + lng_min) / 2], zoom_start=9
+            location=[(lat_max + lat_min) / 2, (lng_max + lng_min) / 2], zoom_start=4
         )
 
         arr = self.da.edk.read_as_array()
