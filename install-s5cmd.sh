@@ -72,7 +72,7 @@ install_s5cmd_ubuntu() {
     rm -rf $TMP_DIR
     
     echo -e "${GREEN}s5cmd installed successfully! ✓${NC}"
-    return 0
+    return 1
 }
 
 # Function to install s5cmd based on architecture and OS
