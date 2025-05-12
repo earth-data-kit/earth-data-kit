@@ -55,19 +55,17 @@ install_s5cmd_ubuntu() {
     echo "Downloading s5cmd from $S5CMD_URL..."
     curl -L -o s5cmd.tar.gz $S5CMD_URL
     
-    # Extract to home directory
-    S5CMD_DIR="$HOME/s5cmd"
-    mkdir -p $S5CMD_DIR
-    tar -xzf s5cmd.tar.gz -C $S5CMD_DIR
+    # Create a temporary directory for extraction
+    TMP_EXTRACT_DIR=$(mktemp -d)
+    tar -xzf s5cmd.tar.gz -C $TMP_EXTRACT_DIR
     
-    # Add to PATH for current session
-    export PATH="$S5CMD_DIR:$PATH"
+    # Copy s5cmd to /usr/local/bin
+    echo "Installing s5cmd to /usr/local/bin..."
+    sudo cp $TMP_EXTRACT_DIR/s5cmd /usr/local/bin/
+    sudo chmod +x /usr/local/bin/s5cmd
     
-    # Add to .bashrc for future sessions
-    if ! grep -q "s5cmd" $HOME/.bashrc; then
-        echo 'export PATH="$HOME/s5cmd:$PATH"' >> $HOME/.bashrc
-        echo "Added s5cmd to PATH in .bashrc"
-    fi
+    # Clean up temporary extraction directory
+    rm -rf $TMP_EXTRACT_DIR
     
     # Clean up
     cd - > /dev/null
