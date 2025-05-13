@@ -5113,4 +5113,8 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
+<<<<<<< HEAD
 content-hash = "b18b235cffe8cc85a5a2e69f7aedb5930bf5f4a8f032ee1157fac5c61dd6b13b"
+=======
+content-hash = "f6772e38c68f6b1958e7460400191a7f02ee9b56947fe3163da4b44c389e1fd4"
+>>>>>>> master
