@@ -10,27 +10,41 @@ Before using Earth Data Kit, ensure that the following are installed:
 
 * Python 3.12 or newer
 
-* GDAL 3.10 or above - [https://gdal.org/en/stable/download.html#binaries](https://gdal.org/en/stable/download.html#binaries)
+* GDAL 3.8.4 or above - [https://gdal.org/en/stable/download.html#binaries](https://gdal.org/en/stable/download.html#binaries)
 
-* s5cmd - [https://github.com/peak/s5cmd](https://github.com/peak/s5cmd)
+* s5cmd (optional) - [https://github.com/peak/s5cmd](https://github.com/peak/s5cmd) - Required if you plan to query data from S3 buckets
 
 ### Installation
 
 To install Earth Data Kit, follow these steps:
 
-1. Download the latest release from the official GitHub releases page:
+1. Clone the GitHub repository:
 
-    * [https://github.com/earth-data-kit/earth-data-kit/releases](https://github.com/earth-data-kit/earth-data-kit/releases)
+    ```bash
+    git clone https://github.com/earth-data-kit/earth-data-kit.git
+    cd earth-data-kit
+    ```
 
-2. After downloading the tarball, install the package using pip. For example, within your virtual environment execute:
+2. Switch to the master branch:
 
-    * `(.venv) $ pip3 install earth_data_kit-*.tar.gz`
+    ```bash
+    git checkout master
+    ```
+
+3. Run the installation script:
+
+    ```bash
+    bash install.sh
+    ```
+
+This will check prerequisites, download the latest tarball, and install Earth Data Kit automatically.
 
 ## Example
 
 ### Stitching MODIS Dataset from AWS S3
 
 This example demonstrates how to stitch together MODIS satellite imagery from AWS S3 for Albania between January 1-7, 2017. It shows the complete workflow from initializing the dataset to visualizing the results.
+
 ```python
 import earth_data_kit as edk
 import datetime
@@ -60,40 +74,30 @@ ds.set_timebounds(start_date, end_date)
 # Specify the grid file that maps the dataset's grid system to world coordinates (e.g., a KML/KMZ file)
 # kmz is a zipped kml file, so we need to use the vsizip driver to unzip it and curl driver as it's hosted on the web
 grid_fp = "/vsizip/vsicurl/https://modis.ornl.gov/files/modis_sin.kmz"
+gdf = gpd.read_file(grid_fp)
+# Creating grid dataframe with h and v columns
+gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
 
 # Bounding box for Albania, you can change it to any other bbox.
 bbox = (19.3044861183, 39.624997667, 21.0200403175, 42.6882473822)
 
-# Define a function to extract grid components (horizontal 'h' and vertical 'v') from a grid file row. 
-# This is specific to the modis dataset.
-def extract_grid_components(row):
-    import re
-    match = re.search(r"h:(\d+)\s+v:(\d+)", row.Name)
-    if match:
-        return {"h": f"{int(match.group(1)):02d}", "v": f"{int(match.group(2)):02d}"}
-    return {}
-
-ds.set_spacebounds(bbox, grid_fp, extract_grid_components)
+ds.set_spacebounds(bbox, grid_dataframe=gdf)
 
 # Running discover to get the bands available in the dataset, you can also set gdal options if needed
-# ds.set_gdal_options(["-srcnodata 32767"])
+# ds.set_src_options({"-srcnodata": "32767"})
 ds.discover()
 
 # Get the bands discovered in the dataset
 ds.get_bands()
 
 # Optionally, configure GDAL options (e.g., setting the target spatial reference).
-ds.set_gdal_options([
-    "-t_srs EPSG:3857",
-])
+ds.set_target_options({"-t_srs": "EPSG:3857"})
 # Stitches the scene files into VRTs using the defined band arrangement.
-ds.to_vrts(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band4"])
+ds.mosaic(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band4"])
 
 # This returns a dataarray with the stitched bands
 da = ds.to_dataarray()
-
-# Plot the dataarray using folium
-da.edk.plot(time='2017-01-01', band=1)
 ```
 
 ## Warning

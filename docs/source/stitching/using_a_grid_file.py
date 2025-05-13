@@ -1,6 +1,6 @@
 import earth_data_kit as edk
 import datetime
-import re
+import geopandas as gpd
 
 # Define the source file pattern with placeholders for horizontal (h) and vertical (v)
 # grid indices. These placeholders will be dynamically populated using the grid file.
@@ -12,7 +12,7 @@ ds = edk.stitching.Dataset("modis-pds", source, "s3")
 
 # Specify the path to the grid file. This file (e.g., a KML) maps the provider's grid system
 # to global coordinates, allowing targeted file selection.
-grid_file = "tests/fixtures/modis.kml"
+grid_fp = "tests/fixtures/modis.kml"
 
 # Define the spatial bounding box for Albania.
 # Format: (min_longitude, min_latitude, max_longitude, max_latitude)
@@ -23,32 +23,31 @@ start_date = datetime.datetime(2017, 1, 1)
 end_date = datetime.datetime(2017, 1, 31)
 ds.set_timebounds(start_date, end_date)
 
+# Read the grid file and extract the grid components creating a grid dataframe
+gdf = gpd.read_file(grid_fp)
+gdf["h"] = (
+    gdf["Name"]
+    .str.split(" ")
+    .str[0]
+    .str.split(":")
+    .str[1]
+    .astype(int)
+    .astype(str)
+    .str.zfill(2)
+)
+gdf["v"] = (
+    gdf["Name"]
+    .str.split(" ")
+    .str[1]
+    .str.split(":")
+    .str[1]
+    .astype(int)
+    .astype(str)
+    .str.zfill(2)
+)
 
-# Define a function to extract grid components (horizontal 'h' and vertical 'v')
-# from a row in the grid file. The function expects the row's 'Name' attribute to contain
-# a string in the format "h:<number> v:<number>".
-def extract_grid_components(row):
-    """
-    Extracts grid indices from a grid file row.
-
-    Args:
-        row: An object representing a row from the grid file, which must include a 'Name' attribute.
-
-    Returns:
-        dict: A dictionary with grid identifiers 'h' and 'v', formatted as two-digit strings.
-              Example: {'h': '01', 'v': '08'}
-    """
-    match = re.search(r"h:(\d+)\s+v:(\d+)", row.Name)
-    if match:
-        return {
-            "h": f"{int(match.group(1)):02d}",
-            "v": f"{int(match.group(2)):02d}",
-        }
-    return {}
-
-
-# Configure the spatial bounds with the bounding box, grid file, and grid extraction function.
-ds.set_spacebounds(bbox, grid_file, extract_grid_components)
+# Configure the spatial bounds with the bounding box and grid dataframe
+ds.set_spacebounds(bbox, grid_dataframe=gdf)
 
 # Runs the discovery process to find the scene files that match the specified spatial and temporal constraints.
 ds.discover()

@@ -6,14 +6,16 @@ import pathlib
 import Levenshtein as levenshtein
 import geopandas as gpd
 import re
+import shapely
 import copy
+from earth_data_kit.stitching import decorators
 
 logger = logging.getLogger(__name__)
 
 
 class S3:
     def __init__(self) -> None:
-        self.name = "S3"
+        self.name = "s3"
         no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
         request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
         profile_flag = os.getenv("AWS_PROFILE")
@@ -37,53 +39,91 @@ class S3:
             f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
         )
 
+    def _expand_time(self, df, source, time_opts):
+        if isinstance(source, list):
+            # If source is a list, we don't need to expand time as user has provided direct path to multiple files
+            return df
+        # Expanding for time dimension
+        if not time_opts:
+            # If time options don't exist, return df unchanged
+            return df
+        if "start" not in time_opts or "end" not in time_opts:
+            # If time options are incomplete, log a warning and return df unchanged
+            logger.warning(
+                "Incomplete time options provided. Both 'start' and 'end' are required for time expansion."
+            )
+            return df
+
+        start = time_opts["start"]
+        end = time_opts["end"]
+        df["date"] = pd.date_range(start=start, end=end, inclusive="both")
+        df["search_path"] = df["date"].dt.strftime(source)
+        return df
+
+    def _expand_space(self, df, source, space_opts):
+        if isinstance(source, list):
+            # If source is a list, we don't need to expand space as user has provided direct path to multiple files
+            return df
+        matches = re.findall(r"({.[^}]*})", source)
+        space_vars = []
+        for m in matches:
+            space_vars.append(m.replace("{", "").replace("}", ""))
+
+        if len(space_vars) == 0:
+            # No space variables found, return df unchanged
+            return df
+
+        if len(space_vars) > 0 and "grid_dataframe" not in space_opts:
+            raise Exception("Spatial variables found but no grid_dataframe provided")
+
+        grid_df = space_opts["grid_dataframe"]
+
+        for var in space_vars:
+            if var not in grid_df.columns:
+                raise Exception(f"Spatial variable {var} not found in grid_dataframe")
+
+        bbox = shapely.geometry.box(*space_opts["bbox"], ccw=True)  # type: ignore
+
+        grid_df = grid_df[grid_df.intersects(bbox)]
+
+        new_patterns = []
+        for path in df.itertuples():
+            for _, grid in grid_df.iterrows():
+                tmp_p = copy.copy(path.search_path)
+                for var in space_vars:
+                    tmp_p = tmp_p.replace("{" + var + "}", grid[var])
+                new_patterns.append([path.date, tmp_p])
+
+        new_patterns_df = pd.DataFrame(new_patterns, columns=["date", "search_path"])
+
+        return new_patterns_df
+
     def get_patterns(self, source, time_opts, space_opts):
         patterns_df = pd.DataFrame()
 
-        # Expanding for time dimension
-        start = time_opts["start"]
-        end = time_opts["end"]
-        patterns_df["date"] = pd.date_range(start=start, end=end, inclusive="both")
-        patterns_df["search_path"] = patterns_df["date"].dt.strftime(source)
+        patterns_df = self._expand_time(patterns_df, source, time_opts)
 
-        # Expanding for space dimension
-        bbox = space_opts["bbox"]
-        if ("grid_file" not in space_opts) or (
-            ("grid_file" in space_opts) and (space_opts["grid_file"] is None)
-        ):
-            # Doing nothing if grid_file is not passed
-            return patterns_df
+        patterns_df = self._expand_space(patterns_df, source, space_opts)
 
-        grid_file = space_opts["grid_file"]
-        matcher = space_opts["matcher"]
-        if grid_file.endswith(".kml") or grid_file.endswith(".KML"):
-            grid_df = gpd.read_file(grid_file, driver="kml", bbox=bbox)
-            space_vars = []
-            for grid in grid_df.itertuples():
-                space_vars.append(matcher(grid))
-
-            new_patterns = []
-            for row in patterns_df.itertuples():
-                matches = re.findall(r"({.[^}]*})", row.search_path)  # type: ignore
-                # Now we replace matches and with all space_variables
-                for var in space_vars:
-                    tmp_p = copy.copy(row.search_path)
-                    for m in matches:
-                        tmp_p = tmp_p.replace(  # type: ignore
-                            m, var[m.replace("{", "").replace("}", "")]
-                        )
-                    new_patterns.append([row.date, tmp_p])
-            new_patterns_df = pd.DataFrame(
-                new_patterns, columns=["date", "search_path"]
+        # If expansion failed we send source as it is
+        if patterns_df.empty:
+            logger.warning(
+                "Expansion failed. Will search according to source directly."
             )
-            return new_patterns_df
-        else:
-            raise Exception("drivers other than kml are not supported")
+            if isinstance(source, list):
+                patterns_df = pd.DataFrame({"search_path": source})
+            else:
+                patterns_df = pd.DataFrame({"search_path": [source]})
+
+        return patterns_df
 
     def scan(self, source, time_opts, space_opts, tmp_base_dir):
         patterns_df = self.get_patterns(source, time_opts, space_opts)
+
         ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
         inventory_file_path = f"{tmp_base_dir}/inventory.csv"
+        if "date" not in patterns_df.columns:
+            patterns_df["date"] = None
 
         # go-lib expects paths in unix style
         patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
@@ -127,4 +167,5 @@ class S3:
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
 
+        # TODO: Add code to handle daily resolution
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]

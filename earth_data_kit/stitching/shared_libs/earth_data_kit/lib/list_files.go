@@ -14,21 +14,30 @@ func list_files_recursively(in_paths []string, tmp_base_path string) []string {
 	custom_in_paths := create_file_paths(in_paths)
 
 	// Listing single level from s3 till first wildcard
-	// TODO: Add size of a wait group, think it's running on a lot of threads
+	// Limit to 100 concurrent goroutines
 	var s3_wg sync.WaitGroup
+	semaphore := make(chan struct{}, 100) // Semaphore to limit concurrency to 100
 
 	s3_wg.Add(len(custom_in_paths))
 
 	for idx, path := range custom_in_paths {
-		// TODO: Run s5cmd only for unique keys, right now we might be doing extra unnecessary work
-		// Adding / at the end to list the files and folders at first level from that directory,
-		// or else s3 returns the name of the parent folder
-		// eg:
-		// s3 ls s3://modis-pds/MCD43A4.006
-		// s3 ls s3://modis-pds/MCD43A4.006/
-		s := fmt.Sprintf("%s/", unix_to_s3(join_path_parts(path.parts[:path.first_wildcard_idx])))
-		d := fmt.Sprintf("%s%d.json", tmp_base_path, idx)
-		go run_s5cmd(s, d, &s3_wg)
+		// Acquire semaphore slot before starting goroutine
+		semaphore <- struct{}{}
+
+		go func(index int, filepath custom_file_path) {
+			defer func() { <-semaphore }() // Release semaphore slot when done
+
+			// Adding / at the end to list the files and folders at first level from that directory,
+			// or else s3 returns the name of the parent folder
+			// eg:
+			// s3 ls s3://modis-pds/MCD43A4.006
+			// s3 ls s3://modis-pds/MCD43A4.006/
+			s := fmt.Sprintf("%s/", unix_to_s3(join_path_parts(filepath.parts[:filepath.first_wildcard_idx])))
+			d := fmt.Sprintf("%s%d.json", tmp_base_path, index)
+
+			// Run s5cmd directly with the main waitgroup
+			run_s5cmd(s, d, &s3_wg)
+		}(idx, path)
 	}
 	s3_wg.Wait()
 

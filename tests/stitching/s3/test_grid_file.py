@@ -6,25 +6,39 @@ from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import earth_data_kit as edk
+import pytest
+import geopandas as gpd
 
 CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
 load_dotenv(CONFIG_FILE_PATH)
 
 
-def fn(x):
-    match = re.search(r"h:(\d*) v:(\d*)", x.Name)
-    if match and match.groups():
-        vars = match.groups()
-        return {
-            "h": f"{int(vars[0]):02d}",
-            "v": f"{int(vars[1]):02d}",
-        }
-
-
 def _run():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF"
     grid_fp = "tests/fixtures/modis.kml"
+
+    gdf = gpd.read_file(grid_fp)
+    gdf["h"] = (
+        gdf["Name"]
+        .str.split(" ")
+        .str[0]
+        .str.split(":")
+        .str[1]
+        .astype(int)
+        .astype(str)
+        .str.zfill(2)
+    )
+    gdf["v"] = (
+        gdf["Name"]
+        .str.split(" ")
+        .str[1]
+        .str.split(":")
+        .str[1]
+        .astype(int)
+        .astype(str)
+        .str.zfill(2)
+    )
 
     bbox = country_bounding_boxes["AL"]
     date_range = (datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
@@ -41,13 +55,15 @@ def _run():
     ds.set_timebounds(date_range[0], date_range[1])
 
     # Setting spatial extent
-    ds.set_spacebounds(bbox[1], grid_fp, fn)
+    ds.set_spacebounds(bbox[1], gdf)
 
     # Discover catalogue
     ds.discover()
 
     # Stitching data together as VRTs
-    ds.to_vrts(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"])
+    ds.mosaic(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"])
+
+    ds.save()
 
 
 def _test():
@@ -70,6 +86,10 @@ def _test():
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
 
+@pytest.mark.order(0)
 def test_grid_file():
+    os.environ["AWS_REGION"] = "us-west-2"
+    os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
+
     _run()
     _test()

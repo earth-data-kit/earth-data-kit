@@ -7,12 +7,38 @@ import logging
 import json
 import pandas as pd
 import pathlib
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
+def has_wildcards(path):
+    """
+    Check if a path contains wildcard characters (* or ?).
+
+    Args:
+        path (str): The path to check for wildcards.
+
+    Returns:
+        bool: True if the path contains wildcards, False otherwise.
+
+    Raises:
+        ValueError: If the path contains '**' which is not supported.
+    """
+    if "**" in path:
+        raise ValueError("Double asterisk '**' wildcard is not supported")
+
+    return "*" in path or "?" in path
+
+
 def make_sure_dir_exists(dir):
-    if not os.path.exists(dir):
+    # Check if the path is a file path (has an extension)
+    if os.path.splitext(dir)[1]:
+        # Extract the directory part of the file path
+        dir = os.path.dirname(dir)
+
+    # Create the directory if it doesn't exist
+    if dir and not os.path.exists(dir):
         os.makedirs(dir)
 
 
@@ -36,6 +62,13 @@ def get_threadpool_workers():
             f"Error getting EDK_MAX_WORKERS: {e}. Returning default value using max(1,2*os.cpu_count() - 1)"
         )
         return max(1, 2 * os.cpu_count() - 1)  # type: ignore
+
+
+def remove_file_if_exists(file_path):
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        return True
+    return False
 
 
 def get_tmp_dir():
@@ -84,3 +117,29 @@ def get_shared_lib_path():
     path = os.path.join(path, arch)
 
     return path
+
+
+def scale_to_255(arr):
+    np.nanmax(arr)
+    np.nanmin(arr)
+
+    # Scale values between 0-255
+    # First handle NaN values and identify min/max
+    arr_no_nan = arr[~np.isnan(arr)]
+    arr_min = np.min(arr_no_nan)
+    arr_max = np.max(arr_no_nan)
+
+    # Create a copy to avoid modifying the original array
+    arr_scaled = arr.copy()
+
+    # Scale the non-NaN values between 0-255
+    if arr_max > arr_min:  # Avoid division by zero if all values are the same
+        arr_scaled[~np.isnan(arr)] = (
+            (arr_no_nan - arr_min) / (arr_max - arr_min)
+        ) * 255
+
+    # TODO: We need a way to handle the NaN values, are not able to convert to unit8
+    # # Convert to uint8 for proper image representation
+    # arr_scaled = arr_scaled.astype(np.uint8)
+
+    return arr_scaled

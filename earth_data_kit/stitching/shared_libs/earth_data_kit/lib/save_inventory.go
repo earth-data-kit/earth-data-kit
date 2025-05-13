@@ -16,5 +16,4 @@ func SaveInventory(file_list []string, out_file string) {
 	str := strings.Join(file_list, "\n")
 
 	outfile.WriteString(str)
-	log.Println("inventory saved to disk")
 }

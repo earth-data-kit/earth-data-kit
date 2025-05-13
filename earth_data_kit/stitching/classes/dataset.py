@@ -1,7 +1,6 @@
 import pandas as pd
 import ast
 import geopandas as gpd
-from lxml import etree
 import logging
 from osgeo import osr
 import os
@@ -19,6 +18,9 @@ import fiona
 import json
 import xarray as xr
 from osgeo import gdal
+from tqdm import tqdm
+from datetime import datetime
+from xml.etree import ElementTree as ET
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -29,29 +31,26 @@ logger = logging.getLogger(__name__)
 
 class Dataset:
     """
-    The main class implemented by stitching module. Acts as a wrapper above a single remote dataset
+    The Dataset class is the main class implemented by the stitching module. It acts as a dataset wrapper and maps to a single remote dataset. A remote dataset can contain multiple files.
     """
 
-    def __init__(self, name, source, engine, clean=False) -> None:
+    def __init__(self, name, source, engine, clean=True) -> None:
         """
         Initializes a new dataset instance.
 
         Args:
-            name (str): User provided name, should be unique across datasets being opened.
-            source (str): Source identifier, Read more :ref:`Defining source`.
-            engine (str): Remote datasource engine, accepted values - ``s3``, ``earth_engine``.
-            clean (bool, optional): Whether to clean the tmp directory before stitching. Defaults to False.
+            name (str): Unique identifier for the dataset.
+            source (str): Source identifier (S3 URI or Earth Engine collection ID).
+            engine (str): Data source engine - ``s3`` or ``earth_engine``.
+            clean (bool, optional): Whether to clean temporary files before processing. Defaults to True.
 
         Raises:
             Exception: If the provided engine is not supported.
 
         Example:
             >>> from earth_data_kit.stitching.classes.dataset import Dataset
-            >>>
-            >>> # Initialize a dataset using the Earth Engine engine
-            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
-            >>>
-            >>> # Alternatively, initialize a dataset using the S3 engine
+            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine")
+            >>> # Or with S3
             >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3")
         """
         if engine not in constants.ENGINES_SUPPORTED:
@@ -60,13 +59,13 @@ class Dataset:
         self.name = name
         self.time_opts = {}
         self.space_opts = {}
-        self.gdal_options = {}
         if engine == "s3":
             self.engine = s3.S3()
         if engine == "earth_engine":
             self.engine = earth_engine.EarthEngine()
         self.source = source
-
+        self.src_options = {}
+        self.target_options = {}
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
         if clean:
             helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
@@ -98,118 +97,126 @@ class Dataset:
         )
         return s
 
-    def set_timebounds(self, start, end):
+    def set_timebounds(self, start, end, resolution=None):
         """
         Sets time bounds for which we want to download the data.
 
         Args:
             start (datetime): Start date.
             end (datetime): End date, inclusive.
+            resolution (str, optional): Temporal resolution for combining images.
+                                       Options include 'daily'.
 
         Example:
+            >>> import datetime
             >>> from earth_data_kit.stitching import Dataset
-            >>> from datetime import datetime
             >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
-            >>> ds.set_timebounds(datetime(2020, 1, 1), datetime(2020, 12, 31))
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 12, 31))
         """
-        self.time_opts = {
-            "start": start,
-            "end": end,
-        }
+        self.time_opts = {"start": start, "end": end, "resolution": resolution}
 
-    def set_spacebounds(self, bbox, grid_file=None, matcher=None):
+    def set_src_options(self, options):
         """
-        Configure spatial constraints for the dataset using a bounding box and, optionally, a grid file.
+        Sets options for the source dataset.
+
+        This method allows setting various options for the source dataset,
+        including source nodata values that can be used during processing.
+
+        Args:
+            options (dict): A dictionary containing source options.
+                Can include '-srcnodata' which may be either:
+                - A single value to be applied to all bands
+                - An array of values, one for each band in the dataset
+
+        Example:
+            >>> ds = Dataset("example", "path/to/data", "file_system")
+            >>> # Set a single nodata value for all bands
+            >>> ds.set_src_options({"-srcnodata": "-9999"})
+        """
+        self.src_options = options
+
+    def set_target_options(self, options):
+        """
+        Sets options for the target dataset.
+
+        This method allows setting various GDAL options for the output dataset,
+        which influence the gdalwarp process during VRT creation.
+
+        Args:
+            options (dict): A dictionary containing GDAL options.
+                Common options include:
+                - '-t_srs': Target spatial reference system (projection)
+                - '-tr': Target resolution (x y, in target projection units)
+                - '-r': Resampling method (nearest, bilinear, cubic, etc.)
+
+        Example:
+            >>> ds = Dataset("example", "path/to/data", "file_system")
+            >>> # Set target projection, resolution and resampling method
+            >>> ds.set_target_options({"-t_srs": "EPSG:3857", "-tr": "30 30", "-r": "bilinear"})
+        """
+        self.target_options = options
+
+    def set_spacebounds(self, bbox, grid_dataframe=None):
+        """
+        Configure spatial constraints for the dataset using a bounding box and, optionally, a grid dataframe.
 
         This method sets up the spatial filtering parameters by specifying a bounding box defined by
-        four coordinates in EPSG:4326. Additionally, if a grid file is provided (currently only KML files are supported),
-        along with a corresponding matcher function, the method will utilize these to accurately pinpoint the scene files to download.
-        The matcher function is expected to extract the necessary spatial components from each grid element to tailor the scene selection.
-
-        For more details on grid file utilization, please refer to :ref:`Using a grid file`.
+        four coordinates in EPSG:4326. Additionally, if a grid dataframe is provided, the method will
+        utilize it to accurately pinpoint the scene files to download based on the spatial variables
+        in the source path.
 
         Args:
             bbox (tuple[float, float, float, float]): A tuple of four coordinates in the order
                 (min_longitude, min_latitude, max_longitude, max_latitude)/(xmin, ymin, xmax, ymax) defining the spatial extent.
-            grid_file (str, optional): Path to the grid file (only KML files are currently supported). Defaults to None.
-            matcher (function, optional): A lambda or function used to extract spatial parameters from grid elements
-                for matching scene file paths. Defaults to None.
+            grid_dataframe (geopandas.GeoDataFrame, optional): A GeoDataFrame containing grid cells with columns that match
+                the spatial variables in the source path (e.g., 'h', 'v' for MODIS grid). Each row should have a geometry
+                column defining the spatial extent of the grid cell.
 
         Example:
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>> import geopandas as gpd
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path/{h}/{v}/B01.TIF", "s3")
             >>>
             >>> # Setting spatial bounds using a bounding box:
             >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
             >>>
-            >>> # For more examples, please refer to the edk-examples repository
+            >>> # Setting spatial bounds with a grid dataframe:
+            >>> gdf = gpd.GeoDataFrame()
+            >>> # Assume gdf has columns 'h', 'v' that match the spatial variables in the source path
+            >>> # and a 'geometry' column with the spatial extent of each grid cell
+            >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822), grid_dataframe=gdf)
         """
         self.space_opts = {
-            "grid_file": grid_file,
-            "matcher": matcher,
+            "grid_dataframe": grid_dataframe,
         }
         self.space_opts["bbox"] = bbox
 
-    def set_gdal_options(self, options):
+    def _get_target_res(self):
         """
-        Sets GDAL options for the dataset. These options are passed directly to GDAL commands (e.g., gdalwarp and gdalbuildvrt)
-        and allow customization of the processing pipeline.
-
-        Supported GDAL options include:
-         - **-t_srs**: Define the target spatial reference system (defaults to EPSG:3857 if not provided).
-         - **-tr**: Specify the output resolution (in target units; if -t_srs is not provided, resolution is calculated in meters).
-         - **-r**: Set the resampling method.
-         - **-srcnodata**: Indicate the source no-data value.
-
-        For more details on these options, please refer to:
-        https://gdal.org/programs/gdalwarp.html
-
-        Args:
-            options (list[str]): Array of GDAL command-line options.
-
-        Example:
-            >>> # Configure GDAL options for target SRS, resolution, resampling method, and source no-data value.
-            >>> ds.set_gdal_options([
-            ...     "-t_srs EPSG:4326",
-            ...     "-tr 30 30",
-            ...     "-r bilinear",
-            ...     "-srcnodata 0"
-            ... ])
-        """
-        self.gdal_options = options
-
-    def get_target_resolution(self):
-        """
-        Retrieves the target resolution option from GDAL options.
+        Retrieves the target resolution option from target options.
 
         Returns:
             str: The target resolution option if found, otherwise None.
         """
-        for opt in self.gdal_options:
-            if opt.startswith("-tr"):
-                return opt
+        return self.target_options.get("-tr", None)
 
-    def get_target_srs(self):
+    def _get_target_srs(self):
         """
-        Retrieves the target spatial reference system (SRS) option from GDAL options.
+        Retrieves the target spatial reference system (SRS) option from target options.
 
         Returns:
             str: The target SRS option if found, otherwise None.
         """
-        for opt in self.gdal_options:
-            if opt.startswith("-t_srs"):
-                return opt
+        return self.target_options.get("-t_srs", None)
 
-    def get_srcnodata(self):
+    def _get_srcnodata(self):
         """
-        Retrieves the source no-data value option from GDAL options.
+        Retrieves the source no-data value option from source options.
 
         Returns:
             str: The source no-data value option if found, otherwise None.
         """
-        for opt in self.gdal_options:
-            if opt.startswith("-srcnodata"):
-                return opt
+        return self.src_options.get("-srcnodata", None)
 
     @decorators.log_time
     @decorators.log_init
@@ -228,6 +235,7 @@ class Dataset:
              bounding box using an intersection test.
           4. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
              self.catalog_path.
+          5. Discovers the overview information for the dataset.
 
         Returns:
             None
@@ -239,9 +247,7 @@ class Dataset:
         Example:
             >>> import datetime
             >>> import earth_data_kit as edk
-            >>> # Dummy grid extraction function.
-            >>> def fn(x):
-            ...     return x
+            >>> import geopandas as gpd
             >>> ds = edk.stitching.Dataset(
             ...     "modis-pds",
             ...     "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF",
@@ -249,8 +255,12 @@ class Dataset:
             ...     True
             ... )
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
-            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
-            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path.
+            >>> # Load grid dataframe
+            >>> gdf = gpd.read_file("tests/fixtures/modis.kml")
+            >>> gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), grid_dataframe=gdf)
+            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path
         """
         # Retrieve tile metadata using the engine's scan function.
         df = self.engine.scan(
@@ -264,22 +274,25 @@ class Dataset:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
-            for row in df.itertuples():
-                futures.append(
-                    executor.submit(
-                        Tile,
-                        row.engine_path,
-                        row.gdal_path,
-                        row.date,
-                        row.tile_name,
-                    )
+            # Submit all tasks and store them in a list
+            futures = [
+                executor.submit(
+                    Tile,
+                    row.engine_path,
+                    row.gdal_path,
+                    row.date,
+                    row.tile_name,
                 )
+                for row in df.itertuples()
+            ]
 
-        # Collect results from the thread pool.
-        for idx in range(len(futures)):
-            future = futures[idx]
-            result = future.result()
-            tiles.append(result)
+            # Create a progress bar and iterate directly through futures
+            for future in tqdm(futures, desc="Processing tiles", unit="tile"):
+                try:
+                    result = future.result()
+                    tiles.append(result)
+                except Exception as e:
+                    logger.error(f"Error processing tile: {e}")
 
         # Define the user-specified bounding box as a Shapely polygon for intersection tests.
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -302,39 +315,62 @@ class Dataset:
 
         Aggregates metadata from each tile by extracting attributes such as resolution
         (x_res, y_res) and coordinate reference system (crs). The data is then grouped
-        by columns: band index inside tile (idx), band description, data type (dtype),
+        by columns: band index inside tile (source_idx), band description, data type (dtype),
         x_res, y_res, and crs.
+
+        Returns:
+            pd.DataFrame: A DataFrame with unique band configurations, where each row represents
+                          a unique band configuration with the following columns:
+                          - source_idx: Band index within the source files
+                          - description: Band description
+                          - dtype: Data type of the band
+                          - x_res: X resolution
+                          - y_res: Y resolution
+                          - crs: Coordinate reference system
+                          - tiles: List of Tile objects that contain this band configuration
 
         Example:
             >>> import datetime
             >>> import earth_data_kit as edk
-            >>> # Initialize the dataset (ensure 'source' and 'fn' are defined appropriately)
-            >>> ds = edk.stitching.Dataset("modis-pds", source, "s3", True)
+            >>> import geopandas as gpd
+            >>> # Initialize the dataset
+            >>> ds = edk.stitching.Dataset("modis-pds", "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF", "s3", True)
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
-            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
+            >>> # Load grid dataframe
+            >>> gdf = gpd.read_file("tests/fixtures/modis.kml")
+            >>> gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), grid_dataframe=gdf)
             >>> ds.discover()
             >>> bands_df = ds.get_bands()
             >>> print(bands_df.head())
-               idx                description    dtype  x_res  y_res         crs
-            0    0  Nadir_Reflectance_Band1  uint16   30.0   30.0   EPSG:4326
-            1    1  Nadir_Reflectance_Band2  uint16   30.0   30.0   EPSG:4326
-            2    2  Nadir_Reflectance_Band3  uint16   30.0   30.0   EPSG:4326
+               source_idx                description    dtype  x_res  y_res         crs                                              tiles
+            0           1  Nadir_Reflectance_Band1  uint16   30.0   30.0   EPSG:4326  [<earth_data_kit.stitching.classes.tile.Tile object...
+            1           1  Nadir_Reflectance_Band2  uint16   30.0   30.0   EPSG:4326  [<earth_data_kit.stitching.classes.tile.Tile object...
+            2           1  Nadir_Reflectance_Band3  uint16   30.0   30.0   EPSG:4326  [<earth_data_kit.stitching.classes.tile.Tile object...
 
-        Returns:
-            pd.DataFrame: A DataFrame with unique band configurations.
+        Notes:
+            The 'source_idx' column typically represents the band index within the source files.
+            In some cases, this value will be 1 for all bands, especially when each band
+            is stored in a separate file.
         """
         tile_bands = self.__get_tile_bands__()
         df = pd.DataFrame(tile_bands)
         df["x_res"] = df.apply(lambda row: row.tile.get_res()[0], axis=1)
         df["y_res"] = df.apply(lambda row: row.tile.get_res()[1], axis=1)
         df["crs"] = df.apply(lambda row: row.tile.crs, axis=1)
-
-        # Group the bands by columns: idx, description, dtype, x_res, y_res, and crs.
-        by = ["idx", "description", "dtype", "x_res", "y_res", "crs"]
+        # Group the bands by columns: source_idx, description, dtype, x_res, y_res, and crs.
+        by = ["source_idx", "description", "dtype", "x_res", "y_res", "crs"]
         df["x_res"] = df["x_res"].astype(np.float32)
         df["y_res"] = df["y_res"].astype(np.float32)
 
-        return df.groupby(by=by).size().reset_index()[by]
+        # Group by the specified columns and collect tiles in each group
+        grouped = df.groupby(by=by)
+        # Create a new dataframe with the grouped columns and a new 'tiles' column
+        result = grouped.agg({"tile": lambda x: list(x)}).reset_index()
+        # Rename the aggregated column to 'tiles'
+        result = result.rename(columns={"tile": "tiles"})
+        return result
 
     def __get_tile_bands__(self):
         """
@@ -401,7 +437,7 @@ class Dataset:
         Returns:
             float: Value converted to meters.
         """
-        if (unit == "metre") or (unit == "meter"):
+        if (unit == "metre") or (unit == "meter") or (unit == "m"):
             return val
         elif unit == "degree":
             conversion_factor = 111320  # approximate conversion factor: meters per degree at the equator
@@ -420,40 +456,46 @@ class Dataset:
         Returns:
             str: Path to the generated warped VRT.
         """
-        warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.idx}-warped.vrt"
-
-        if (
-            self.get_target_resolution() is None and self.get_target_srs() is not None
-        ) or (
-            self.get_target_resolution() is not None and self.get_target_srs() is None
-        ):
-            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system converts the resolution in wrong units
-            logger.warning("either supply both -tr and -t_srs or supply nothing")
+        warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.source_idx}-warped.vrt"
 
         nodataval = (
-            f"-srcnodata {band_tile.nodataval}"
+            band_tile.nodataval
             if band_tile.nodataval is not None
-            else self.get_srcnodata()
+            else self._get_srcnodata()
         )
-        t_srs = self.get_target_srs() or "-t_srs EPSG:3857"
-        tr = (
-            self.get_target_resolution()
-            or f"-tr {self.__to_meter__(band_tile.tile.get_res()[0], band_tile.tile.length_unit)} {self.__to_meter__(band_tile.tile.get_res()[1], band_tile.tile.length_unit)}"
-        )
-
         if nodataval is None:
             logger.warning(
                 "no data val set as None. it's advised to provide a nodataval"
             )
 
+        if (self._get_target_res() is None and self._get_target_srs() is not None) or (
+            self._get_target_res() is not None and self._get_target_srs() is None
+        ):
+            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system converts the resolution in wrong units
+            logger.warning("either supply both -tr and -t_srs or supply nothing")
+
+        t_srs = self._get_target_srs() or "EPSG:3857"
+
+        if self._get_target_res() is not None:
+            tr = self._get_target_res().split(" ")
+        else:
+            tr = (
+                self.__to_meter__(
+                    band_tile.tile.get_res()[0], band_tile.tile.length_unit
+                ),
+                self.__to_meter__(
+                    band_tile.tile.get_res()[1], band_tile.tile.length_unit
+                ),
+            )
+
         options = gdal.WarpOptions(
             outputBounds=self.space_opts["bbox"],
             outputBoundsSRS="EPSG:4326",
-            xRes=tr.split(" ")[1],
-            yRes=tr.split(" ")[2],
-            dstSRS=t_srs.split(" ")[1],
-            srcNodata=nodataval.split(" ")[1] if nodataval is not None else None,
-            srcBands=[band_tile.idx],
+            xRes=tr[0],
+            yRes=tr[1],
+            dstSRS=t_srs,
+            srcNodata=nodataval,
+            srcBands=[band_tile.source_idx],
             dstBands=[1],
             errorThreshold=0,
             targetAlignedPixels=True,
@@ -461,6 +503,7 @@ class Dataset:
         )
 
         gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options)
+
         return warped_vrt_path
 
     @decorators.log_time
@@ -525,13 +568,13 @@ class Dataset:
     @decorators.log_init
     def __combine_timestamped_vrts__(self, output_vrts):
         """
-        Combine multiple timestamped VRT files into a single XML file.
+        Combine multiple timestamped VRT files into a single JSON file.
 
-        This method creates an XML file that references all the VRTs with their corresponding timestamps.
-        The XML structure follows the EDKDataset format, where each VRT is represented as a VRTDataset
+        This method creates a JSON file that references all the VRTs with their corresponding timestamps.
+        The JSON structure follows the EDKDataset format, where each VRT is represented as a VRTDataset
         element with source and time attributes. The time attribute is extracted from the VRT filename.
 
-        The resulting XML file serves as a temporal index for the dataset, allowing for time-based
+        The resulting JSON file serves as a temporal index for the dataset, allowing for time-based
         queries and operations on the collection of VRTs.
 
         Args:
@@ -539,40 +582,77 @@ class Dataset:
                                 a timestamp in the format YYYY-MM-DD-HH:MM:SS in its filename.
 
         Returns:
-            str: Path to the created XML file, or None if output_vrts is empty.
+            str: Path to the created JSON file, or None if output_vrts is empty.
 
-        Example XML structure:
-            <?xml version='1.0' encoding='UTF-8'?>
-            <EDKDataset name="dataset_name">
-              <VRTDataset source="/path/to/2017-01-01-00:00:00.vrt" time="2017-01-01-00:00:00"/>
-              <VRTDataset source="/path/to/2017-01-02-00:00:00.vrt" time="2017-01-02-00:00:00"/>
-            </EDKDataset>
+        Example JSON structure:
+            {
+              "EDKDataset": {
+                "name": "dataset_name",
+                "source": "source_identifier",
+                "engine": "engine_name",
+                "catalog": "path/to/catalog.csv",
+                "bbox": [xmin, ymin, xmax, ymax],
+                "timebounds": ["start_date", "end_date"],
+                "VRTDatasets": [
+                  {
+                    "source": "/path/to/2017-01-01-00:00:00.vrt",
+                    "time": "2017-01-01-00:00:00",
+                    "has_time_dim": true
+                  },
+                  {
+                    "source": "/path/to/2017-01-02-00:00:00.vrt",
+                    "time": "2017-01-02-00:00:00",
+                    "has_time_dim": true
+                  }
+                ]
+              }
+            }
         """
         if not output_vrts:
             return None
 
-        # Create root element
-        root = etree.Element("EDKDataset")
-        root.set("name", self.name)
-        root.set("source", self.source)
-        root.set("engine", self.engine.name)
-        root.set("catalog", self.catalog_path)
+        # Create a dictionary structure for JSON
+        dataset_dict = {
+            "EDKDataset": {
+                "name": self.name,
+                "source": self.source,
+                "engine": self.engine.name,
+                "catalog": self.catalog_path,
+                "bbox": self.space_opts.get("bbox"),
+                "timebounds": [
+                    (
+                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S")
+                        if self.time_opts.get("start")
+                        else None
+                    ),
+                    (
+                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S")
+                        if self.time_opts.get("end")
+                        else None
+                    ),
+                ],
+                "VRTDatasets": [],
+            }
+        }
 
-        # Add VRTDataset elements for each VRT file
+        # Add VRTDataset entries for each VRT file
         for vrt in output_vrts:
             date_str = vrt.split("/")[-1].split(".")[0]
-            vrt_element = etree.SubElement(root, "VRTDataset")
-            vrt_element.set("source", vrt)
-            vrt_element.set("time", date_str)
+            vrt_dataset = {
+                "source": vrt,
+                "time": date_str,
+                "has_time_dim": date_str != "1970-01-01-00:00:00",
+            }
+            dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
-        # Create XML tree and write to file
-        tree = etree.ElementTree(root)
-        xml_path = f"{self.__get_ds_tmp_path__()}/{self.name}.xml"
+        # Create JSON file path
+        json_path = f"{self.__get_ds_tmp_path__()}/{self.name}.json"
 
-        # Write with pretty formatting
-        tree.write(xml_path, pretty_print=True, xml_declaration=True, encoding="utf-8")
+        # Write the JSON file with pretty formatting
+        with open(json_path, "w") as json_file:
+            json.dump(dataset_dict, json_file, indent=2)
 
-        return xml_path
+        return json_path
 
     @decorators.log_time
     @decorators.log_init
@@ -588,7 +668,7 @@ class Dataset:
         4. Set appropriate band descriptions
 
         Args:
-            date (tuple): A tuple containing the date for which to create the VRT
+            date (tuple): A tuple containing the datetime object for which to create the VRT. First element is the datetime object
             band_tiles (DataFrame): DataFrame containing band tile information
             bands (list): List of band descriptions to include in the VRT
 
@@ -597,43 +677,58 @@ class Dataset:
 
         Note:
             The function creates temporary single-band VRTs that are reprojected to EPSG:3857
-            by default unless overridden by options set via set_gdal_options.
+            by default unless overridden by options set via set_target_options.
         """
         curr_date = date[0]
-
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
+
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
-        # unless overridden by options configured via set_gdal_options.
-        for _bt in _band_tiles.itertuples():
-            # TODO: Add multiprocessing for performance boost.
-            vrt_path = self.__extract_band__(_bt)
-            _band_tiles.at[_bt.Index, "vrt_path"] = vrt_path
+        # unless overridden by options configured via set_target_options.
+        # Process band tiles in parallel using ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            # Create arrays to store futures and their corresponding indices
+            futures = []
+            indices = []
+
+            # Submit all band extraction tasks to the executor
+            for _bt in _band_tiles.itertuples():
+                future = executor.submit(self.__extract_band__, _bt)
+                futures.append(future)
+                indices.append(_bt.Index)
+
+            # Process results as they complete
+            for i, future in enumerate(futures):
+                vrt_path = future.result()
+                _band_tiles.at[indices[i], "vrt_path"] = vrt_path
 
         # Combine single-band VRTs to create mosaic VRTs per band.
-        # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
-        # due to issues with metadata copying (e.g., ColorInterp). Hence, individual mosaics are created.
-        # Also vrt has better support than gti
+        # Note: Although GDAL Raster Tile Index (GTI) is preferred for large tile counts,
+        # it was avoided here due to issues with metadata copying (e.g., ColorInterp).
+        # VRT format has better support than GTI for preserving metadata.
         band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
 
-        # Stack the band mosaics into a multi-band VRT.
+        # Stack the band mosaics into a multi-band VRT
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
-        # Set the descriptions for the bands in the output VRT.
+        # Set the descriptions for each band in the output VRT
         geo.set_band_descriptions(output_vrt, bands)
 
         return output_vrt
 
     @decorators.log_time
     @decorators.log_init
-    def to_vrts(self, bands):
+    def mosaic(self, bands):
         """
         Stitches the scene files together into VRTs based on the ordered band arrangement provided.
         For each unique date, this function extracts the required bands from the tile metadata and
         creates individual single-band VRTs that are reprojected to EPSG:3857 by default (if no target spatial reference
         is specified). These single-band VRTs are then mosaiced per band and finally stacked into a multi-band VRT.
 
-        GDAL options influencing the gdalwarp process can be configured using the :meth:`edk.stitching.Dataset.set_gdal_options` function.
+        GDAL options influencing the gdalwarp process can be configured using the :meth:`edk.stitching.Dataset.set_target_options` function.
+        Also look at :meth:`edk.stitching.Dataset.set_src_options` for source dataset related options influencing the gdalwarp process, eg: srcnodataval.
 
         Args:
             bands (list[string]): Ordered list of band descriptions to output as VRTs.
@@ -645,7 +740,8 @@ class Dataset:
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()  # Discover available scene files before stitching
             >>> bands = ["red", "green", "blue"]
-            >>> ds.to_vrts(bands)
+            >>> ds.mosaic(bands)  # Use mosaic instead of to_vrts
+            >>> ds.save()  # Save the output VRTs to a JSON file
         """
         # Ensuring the pre-processing directory exists
         helpers.make_sure_dir_exists(f"{self.__get_ds_tmp_path__()}/pre-processing")
@@ -656,9 +752,14 @@ class Dataset:
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
         # Filter bands based on the user-supplied list.
+        # TODO: May need special handling for non-unique band descriptions in the future
         df = df[df["description"].isin(bands)]
 
-        outputs_by_dates = df.groupby(by=["date"])
+        # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
+        epoch_date = datetime(1970, 1, 1, 0, 0, 0)
+        df["date"] = df["date"].fillna(epoch_date)
+
+        outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []
 
         with concurrent.futures.ThreadPoolExecutor(
@@ -673,12 +774,25 @@ class Dataset:
                     )
                 )
 
-            for future in futures:
+            # Create a progress bar and iterate through futures
+            for future in tqdm(futures, desc="Creating VRTs", unit="vrt"):
                 result = future.result()
                 output_vrts.append(result)
 
-        xml_path = self.__combine_timestamped_vrts__(output_vrts)
-        self.xml_path = xml_path
+        self.output_vrts = output_vrts
+
+    def save(self):
+        """
+        Saves the mosaiced VRTs into a combined JSON file.
+
+        This method should be called after the `mosaic()` method to save the generated VRTs.
+        The resulting JSON path is stored in the `json_path` attribute.
+
+        Returns:
+            None
+        """
+        json_path = self.__combine_timestamped_vrts__(self.output_vrts)
+        self.json_path = json_path
 
     @decorators.log_time
     @decorators.log_init
@@ -686,7 +800,7 @@ class Dataset:
         """
         Converts the dataset to an xarray DataArray.
 
-        This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
+        This method opens the JSON file created by `save()` using xarray with the 'edk_dataset' engine
         and returns the DataArray corresponding to this dataset.
 
         Returns:
@@ -699,61 +813,73 @@ class Dataset:
             >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()
-            >>> ds.to_vrts(bands=["red", "green", "blue"])
+            >>> ds.mosaic(bands=["red", "green", "blue"])
+            >>> ds.save()
             >>> data_array = ds.to_dataarray()
 
         Note:
-            This method requires that `to_vrts()` has been called first to generate the VRT file.
+            This method requires that `mosaic()` and `save()` have been called first to generate the JSON file.
         """
-        # TODO: Optimize the chunk size later,
-        # for now 512 seems to be the sweet spot, atleast for local mac and s3
-        ds = xr.open_dataset(
-            self.xml_path,
-            engine="edk_dataset",
-            chunks={"time": 1, "band": "auto", "x": 512, "y": 512},
-        )
-        return ds[self.name]
+        json_path = self.json_path
+
+        return Dataset.dataarray_from_file(json_path)
 
     @staticmethod
-    def from_file(path):
+    def dataarray_from_file(json_path):
         """
-        Create a Dataset instance from a file path.
+        Creates an xarray DataArray from a JSON file created by the `save()` method.
 
-        This method allows you to create a Dataset instance by providing a file path
-        that contains the dataset information.
+        Automatically determines optimal chunking based on the underlying raster block size.
 
         Args:
-            path (str): Path to the XML file containing the dataset information.
+            json_path (str): Path to the JSON file containing dataset information.
 
         Returns:
-            Dataset: A Dataset instance created from the provided file path.
+            xarray.DataArray: DataArray with dimensions for time, bands, and spatial coordinates.
 
         Example:
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.xml")
-            >>> # Now you can use the dataset instance to perform various operations, like getting the data as a DataArray
-            >>> da = ds.to_dataarray()
+            >>> data_array = edk.stitching.Dataset.dataarray_from_file("path/to/dataset.json")
+
+        Note:
+            Loads a previously saved dataset without needing to recreate the Dataset object.
         """
-        # Read the XML file
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Dataset file not found: {path}")
+        # Extract dataset name from the JSON file
+        with open(json_path, "r") as f:
+            dataset_info = json.load(f)
+            dataset_name = dataset_info.get("EDKDataset", {}).get("name")
+            if not dataset_name:
+                # If name not found in expected structure, use filename as fallback
+                dataset_name = os.path.basename(os.path.splitext(json_path)[0])
 
-        try:
-            tree = etree.parse(path)
-            root = tree.getroot()
+        # Get the first VRT file path from VRTDatasets in EDKDataset
+        first_vrt_path = None
+        if dataset_info.get("EDKDataset", {}).get("VRTDatasets"):
+            vrt_datasets = dataset_info["EDKDataset"]["VRTDatasets"]
+            if vrt_datasets and len(vrt_datasets) > 0:
+                first_vrt = vrt_datasets[0]
+                if isinstance(first_vrt, dict) and "source" in first_vrt:
+                    first_vrt_path = first_vrt["source"]
 
-            # Extract dataset attributes from the XML
-            name = root.get("name")
-            source = root.get("source")
-            engine_name = root.get("engine")
-            catalog_path = root.get("catalog")
+        ds = gdal.Open(first_vrt_path)
+        x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
 
-            # Create a new Dataset instance
-            dataset = Dataset(name, source, engine_name.lower())
-            dataset.catalog_path = catalog_path
-            dataset.xml_path = path
+        # Check if block sizes are powers of 2
+        def is_power_of_two(n):
+            return n > 0 and (n & (n - 1)) == 0
 
-            return dataset
+        if is_power_of_two(x_block_size) and is_power_of_two(y_block_size):
+            # Block sizes are powers of 2, ensure minimum size is 512
+            x_chunk_size = max(x_block_size, 512)
+            y_chunk_size = max(y_block_size, 512)
+        else:
+            # Default to 512 if not powers of 2
+            x_chunk_size, y_chunk_size = x_block_size, y_block_size
 
-        except etree.ParseError:
-            raise ValueError(f"Invalid XML file: {path}")
+        ds = xr.open_dataset(
+            json_path,
+            engine="edk_dataset",
+            chunks={"time": 1, "band": 1, "x": x_chunk_size, "y": y_chunk_size},
+        )
+
+        return ds[dataset_name]

@@ -1,5 +1,6 @@
 import earth_data_kit as edk
 import os
+import pytest
 from tests.fixtures.country_bboxes import country_bounding_boxes
 import datetime
 from dotenv import load_dotenv
@@ -57,11 +58,17 @@ def _run():
     ds.discover()
 
     # Stitching data together as VRTs
-    ds.to_vrts(
+    ds.mosaic(
         bands=["Nadir_Reflectance_Band7"],
     )
 
+    ds.save()
 
+
+@pytest.mark.order(0)
 def test_wo_grid_file():
+    os.environ["AWS_REGION"] = "us-west-2"
+    os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
+
     _run()
     _test()
