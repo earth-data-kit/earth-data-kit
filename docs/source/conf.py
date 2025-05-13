@@ -9,7 +9,7 @@
 project = "Earth Data Kit"
 copyright = "2025, Siddhant Gupta"
 author = "Siddhant Gupta"
-release = "0.1.1"
+release = "0.1.2"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -43,3 +43,6 @@ html_css_files = [
 ]
 
 master_doc = "contents"
+
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True

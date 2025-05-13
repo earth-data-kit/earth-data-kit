@@ -55,9 +55,11 @@ def _run():
     ds.discover()
 
     # Stitching data together as VRTs
-    ds.to_vrts(
+    ds.mosaic(
         bands=["NoDescription"],
     )
+
+    ds.save()
 
 
 @pytest.mark.order(0)

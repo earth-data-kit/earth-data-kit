@@ -6,7 +6,9 @@ import pathlib
 import Levenshtein as levenshtein
 import geopandas as gpd
 import re
+import shapely
 import copy
+from earth_data_kit.stitching import decorators
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,9 @@ class S3:
         )
 
     def _expand_time(self, df, source, time_opts):
+        if isinstance(source, list):
+            # If source is a list, we don't need to expand time as user has provided direct path to multiple files
+            return df
         # Expanding for time dimension
         if not time_opts:
             # If time options don't exist, return df unchanged
@@ -55,47 +60,50 @@ class S3:
         df["search_path"] = df["date"].dt.strftime(source)
         return df
 
-    def _expand_space(self, df, space_opts):
-        if ("grid_file" not in space_opts) or (
-            ("grid_file" in space_opts) and (space_opts["grid_file"] is None)
-        ):
-            # Doing nothing if grid_file is not passed
+    def _expand_space(self, df, source, space_opts):
+        if isinstance(source, list):
+            # If source is a list, we don't need to expand space as user has provided direct path to multiple files
+            return df
+        matches = re.findall(r"({.[^}]*})", source)
+        space_vars = []
+        for m in matches:
+            space_vars.append(m.replace("{", "").replace("}", ""))
+
+        if len(space_vars) == 0:
+            # No space variables found, return df unchanged
             return df
 
-        # Expanding for space dimension
-        bbox = space_opts["bbox"]
-        grid_file = space_opts["grid_file"]
-        matcher = space_opts["matcher"]
-        if grid_file.endswith(".kml") or grid_file.endswith(".KML"):
-            grid_df = gpd.read_file(grid_file, driver="kml", bbox=bbox)
-            space_vars = []
-            for grid in grid_df.itertuples():
-                space_vars.append(matcher(grid))
+        if len(space_vars) > 0 and "grid_dataframe" not in space_opts:
+            raise Exception("Spatial variables found but no grid_dataframe provided")
 
-            new_patterns = []
-            for row in df.itertuples():
-                matches = re.findall(r"({.[^}]*})", row.search_path)  # type: ignore
-                # Now we replace matches and with all space_variables
+        grid_df = space_opts["grid_dataframe"]
+
+        for var in space_vars:
+            if var not in grid_df.columns:
+                raise Exception(f"Spatial variable {var} not found in grid_dataframe")
+
+        bbox = shapely.geometry.box(*space_opts["bbox"], ccw=True)  # type: ignore
+
+        grid_df = grid_df[grid_df.intersects(bbox)]
+
+        new_patterns = []
+        for path in df.itertuples():
+            for _, grid in grid_df.iterrows():
+                tmp_p = copy.copy(path.search_path)
                 for var in space_vars:
-                    tmp_p = copy.copy(row.search_path)
-                    for m in matches:
-                        tmp_p = tmp_p.replace(  # type: ignore
-                            m, var[m.replace("{", "").replace("}", "")]
-                        )
-                    new_patterns.append([row.date, tmp_p])
-            new_patterns_df = pd.DataFrame(
-                new_patterns, columns=["date", "search_path"]
-            )
-            return new_patterns_df
-        else:
-            raise Exception("drivers other than kml are not supported")
+                    tmp_p = tmp_p.replace("{" + var + "}", grid[var])
+                new_patterns.append([path.date, tmp_p])
+
+        new_patterns_df = pd.DataFrame(new_patterns, columns=["date", "search_path"])
+
+        return new_patterns_df
 
     def get_patterns(self, source, time_opts, space_opts):
         patterns_df = pd.DataFrame()
 
         patterns_df = self._expand_time(patterns_df, source, time_opts)
 
-        patterns_df = self._expand_space(patterns_df, space_opts)
+        patterns_df = self._expand_space(patterns_df, source, space_opts)
 
         # If expansion failed we send source as it is
         if patterns_df.empty:
@@ -158,4 +166,6 @@ class S3:
         # Removing extra files created
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
+
+        # TODO: Add code to handle daily resolution
         return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]

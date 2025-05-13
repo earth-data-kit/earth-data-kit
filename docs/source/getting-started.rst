@@ -6,23 +6,34 @@ Prerequisites
 Before using Earth Data Kit, ensure that the following are installed:
 
 - Python 3.12 or newer
-- GDAL 3.10 or above - https://gdal.org/en/stable/download.html#binaries
-- s5cmd - https://github.com/peak/s5cmd
+- GDAL 3.8.4 or above - https://gdal.org/en/stable/download.html#binaries
+- s5cmd (optional) - https://github.com/peak/s5cmd - Only required if you plan to query data from S3 buckets or export to S3
 
 Installation
 ------------
 To install Earth Data Kit, follow these steps:
 
-1. Download the latest release from the official GitHub releases page:
-   
-   - https://github.com/earth-data-kit/earth-data-kit/releases
-
-2. After downloading the tarball, install the package using pip. For example, within your virtual environment execute:
+1. Clone the GitHub repository:
 
    .. code-block:: console
 
-      (.venv) $ wget https://github.com/siddhantgupta3/earth-data-kit/releases/download/1.0.0a1/earth_data_kit-1.0.0a1.tar.gz 
-      (.venv) $ pip3 install earth_data_kit-1.0.0a1.tar.gz
+      $ git clone https://github.com/earth-data-kit/earth-data-kit.git
+      $ cd earth-data-kit
+
+2. Switch to the master or a release branch:
+
+   .. code-block:: console
+
+      $ git checkout master
+
+3. Run the installation script:
+
+   .. code-block:: console
+
+      $ bash install.sh
+
+This will check prerequisites, download the latest tarball from GitHub releases, and install EDK automatically.
+
 
 Environment Configuration
 -------------------------
@@ -35,7 +46,7 @@ General Options
 
 AWS Options
 ~~~~~~~~~~~
-* ``AWS_REGION``: Specifies the AWS region to use (e.g., us-west-2).
+* ``AWS_REGION``: Specifies the AWS region where the data is stored (e.g., us-west-2). Use the region data is stored in when downloading data from AWS S3.
 * ``AWS_NO_SIGN_REQUEST`` (YES/NO): If set to YES, this option disables request signing, meaning AWS credentials will be bypassed.
 * ``AWS_REQUEST_PAYER`` (requester): Indicates that the requester accepts any charges that may result from the request. Use this when accessing buckets that require payer confirmation.
 

@@ -32,7 +32,13 @@ def has_wildcards(path):
 
 
 def make_sure_dir_exists(dir):
-    if not os.path.exists(dir):
+    # Check if the path is a file path (has an extension)
+    if os.path.splitext(dir)[1]:
+        # Extract the directory part of the file path
+        dir = os.path.dirname(dir)
+
+    # Create the directory if it doesn't exist
+    if dir and not os.path.exists(dir):
         os.makedirs(dir)
 
 
@@ -56,6 +62,13 @@ def get_threadpool_workers():
             f"Error getting EDK_MAX_WORKERS: {e}. Returning default value using max(1,2*os.cpu_count() - 1)"
         )
         return max(1, 2 * os.cpu_count() - 1)  # type: ignore
+
+
+def remove_file_if_exists(file_path):
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        return True
+    return False
 
 
 def get_tmp_dir():

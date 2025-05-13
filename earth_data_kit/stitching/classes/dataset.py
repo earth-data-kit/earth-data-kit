@@ -31,29 +31,26 @@ logger = logging.getLogger(__name__)
 
 class Dataset:
     """
-    The main class implemented by stitching module. Acts as a wrapper above a single remote dataset
+    The Dataset class is the main class implemented by the stitching module. It acts as a dataset wrapper and maps to a single remote dataset. A remote dataset can contain multiple files.
     """
 
-    def __init__(self, name, source, engine, clean=False) -> None:
+    def __init__(self, name, source, engine, clean=True) -> None:
         """
         Initializes a new dataset instance.
 
         Args:
-            name (str): User provided name, should be unique across datasets being opened.
-            source (str): Source identifier, Read more :ref:`Defining source`.
-            engine (str): Remote datasource engine, accepted values - ``s3``, ``earth_engine``.
-            clean (bool, optional): Whether to clean the tmp directory before stitching. Defaults to False.
+            name (str): Unique identifier for the dataset.
+            source (str): Source identifier (S3 URI or Earth Engine collection ID).
+            engine (str): Data source engine - ``s3`` or ``earth_engine``.
+            clean (bool, optional): Whether to clean temporary files before processing. Defaults to True.
 
         Raises:
             Exception: If the provided engine is not supported.
 
         Example:
             >>> from earth_data_kit.stitching.classes.dataset import Dataset
-            >>>
-            >>> # Initialize a dataset using the Earth Engine engine
-            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
-            >>>
-            >>> # Alternatively, initialize a dataset using the S3 engine
+            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine")
+            >>> # Or with S3
             >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3")
         """
         if engine not in constants.ENGINES_SUPPORTED:
@@ -70,7 +67,6 @@ class Dataset:
         self.src_options = {}
         self.target_options = {}
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
-        self.overviews_path = f"{self.__get_ds_tmp_path__()}/overviews.csv"
         if clean:
             helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
 
@@ -101,24 +97,23 @@ class Dataset:
         )
         return s
 
-    def set_timebounds(self, start, end):
+    def set_timebounds(self, start, end, resolution=None):
         """
         Sets time bounds for which we want to download the data.
 
         Args:
             start (datetime): Start date.
             end (datetime): End date, inclusive.
+            resolution (str, optional): Temporal resolution for combining images.
+                                       Options include 'daily'.
 
         Example:
+            >>> import datetime
             >>> from earth_data_kit.stitching import Dataset
-            >>> from datetime import datetime
             >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
-            >>> ds.set_timebounds(datetime(2020, 1, 1), datetime(2020, 12, 31))
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 12, 31))
         """
-        self.time_opts = {
-            "start": start,
-            "end": end,
-        }
+        self.time_opts = {"start": start, "end": end, "resolution": resolution}
 
     def set_src_options(self, options):
         """
@@ -136,9 +131,7 @@ class Dataset:
         Example:
             >>> ds = Dataset("example", "path/to/data", "file_system")
             >>> # Set a single nodata value for all bands
-            >>> ds.set_src_options({"-srcnodata": -9999})
-            >>> # Or set different nodata values for each band
-            >>> ds.set_src_options({"-srcnodata": [-9999, 0, 255]})
+            >>> ds.set_src_options({"-srcnodata": "-9999"})
         """
         self.src_options = options
 
@@ -163,36 +156,38 @@ class Dataset:
         """
         self.target_options = options
 
-    def set_spacebounds(self, bbox, grid_file=None, matcher=None):
+    def set_spacebounds(self, bbox, grid_dataframe=None):
         """
-        Configure spatial constraints for the dataset using a bounding box and, optionally, a grid file.
+        Configure spatial constraints for the dataset using a bounding box and, optionally, a grid dataframe.
 
         This method sets up the spatial filtering parameters by specifying a bounding box defined by
-        four coordinates in EPSG:4326. Additionally, if a grid file is provided (currently only KML files are supported),
-        along with a corresponding matcher function, the method will utilize these to accurately pinpoint the scene files to download.
-        The matcher function is expected to extract the necessary spatial components from each grid element to tailor the scene selection.
-
-        For more details on grid file utilization, please refer to :ref:`Using a grid file`.
+        four coordinates in EPSG:4326. Additionally, if a grid dataframe is provided, the method will
+        utilize it to accurately pinpoint the scene files to download based on the spatial variables
+        in the source path.
 
         Args:
             bbox (tuple[float, float, float, float]): A tuple of four coordinates in the order
                 (min_longitude, min_latitude, max_longitude, max_latitude)/(xmin, ymin, xmax, ymax) defining the spatial extent.
-            grid_file (str, optional): Path to the grid file (only KML files are currently supported). Defaults to None.
-            matcher (function, optional): A lambda or function used to extract spatial parameters from grid elements
-                for matching scene file paths. Defaults to None.
+            grid_dataframe (geopandas.GeoDataFrame, optional): A GeoDataFrame containing grid cells with columns that match
+                the spatial variables in the source path (e.g., 'h', 'v' for MODIS grid). Each row should have a geometry
+                column defining the spatial extent of the grid cell.
 
         Example:
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>> import geopandas as gpd
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path/{h}/{v}/B01.TIF", "s3")
             >>>
             >>> # Setting spatial bounds using a bounding box:
             >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
             >>>
-            >>> # For more examples, please refer to the edk-examples repository
+            >>> # Setting spatial bounds with a grid dataframe:
+            >>> gdf = gpd.GeoDataFrame()
+            >>> # Assume gdf has columns 'h', 'v' that match the spatial variables in the source path
+            >>> # and a 'geometry' column with the spatial extent of each grid cell
+            >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822), grid_dataframe=gdf)
         """
         self.space_opts = {
-            "grid_file": grid_file,
-            "matcher": matcher,
+            "grid_dataframe": grid_dataframe,
         }
         self.space_opts["bbox"] = bbox
 
@@ -252,9 +247,7 @@ class Dataset:
         Example:
             >>> import datetime
             >>> import earth_data_kit as edk
-            >>> # Dummy grid extraction function.
-            >>> def fn(x):
-            ...     return x
+            >>> import geopandas as gpd
             >>> ds = edk.stitching.Dataset(
             ...     "modis-pds",
             ...     "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF",
@@ -262,7 +255,11 @@ class Dataset:
             ...     True
             ... )
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
-            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
+            >>> # Load grid dataframe
+            >>> gdf = gpd.read_file("tests/fixtures/modis.kml")
+            >>> gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), grid_dataframe=gdf)
             >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path
         """
         # Retrieve tile metadata using the engine's scan function.
@@ -312,76 +309,6 @@ class Dataset:
 
         logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
 
-    @decorators.log_time
-    @decorators.log_init
-    def __discover_overviews__(self):
-        """
-        Retrieve overview information from one tile of each band configuration group.
-
-        This method uses the get_bands function to identify unique band configurations,
-        then examines one tile from each group to extract overview information.
-        This is useful for understanding the pyramid structure of the raster data.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing overview information with columns:
-                - description: Description of the band
-                - x_size: Width of the overview
-                - y_size: Height of the overview
-        """
-        # Get unique band configurations
-        band_groups = self.get_bands()
-        overviews = []
-
-        # Set GDAL to not scan directories for performance
-        gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "YES")
-
-        # Process one tile from each unique band configuration
-        for bg in band_groups.itertuples():
-            # TODO: Add multi processing
-            # Get the first tile in this group
-            tile = bg.tiles[0]
-            ds = gdal.Open(tile.gdal_path)
-            if ds is None:
-                logger.warning(f"Could not open {tile.gdal_path}")
-                continue
-
-            for band_idx in range(len(tile.bands)):
-                band = ds.GetRasterBand(int(band_idx) + 1)
-                overview_count = band.GetOverviewCount()
-                overview_sizes = []
-
-                for i in range(overview_count):
-                    overview = band.GetOverview(i)
-                    if overview:
-                        logger.debug(
-                            f"Overview found for band {bg.description} at idx {bg.source_idx}. Overview size: {overview.XSize} x {overview.YSize}"
-                        )
-                        overview_sizes.append(
-                            [bg.description, overview.XSize, overview.YSize]
-                        )
-
-                if len(overview_sizes) > 0:
-                    overviews += overview_sizes
-
-            # Close the dataset
-            ds = None
-
-        # Reset GDAL configuration to default
-        gdal.SetConfigOption("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-
-        # Create a DataFrame with unique overview sizes
-        df = (
-            pd.DataFrame(overviews, columns=["description", "x_size", "y_size"])
-            .groupby(by=["description", "x_size", "y_size"])
-            .size()
-            .reset_index()[["description", "x_size", "y_size"]]
-        )
-
-        # Save the overview information to a CSV file
-        df.to_csv(self.overviews_path, index=False, header=True)
-
-        logger.debug(f"Overview information saved to {self.overviews_path}")
-
     def get_bands(self):
         """
         Retrieve unique band configurations from tile metadata.
@@ -405,10 +332,15 @@ class Dataset:
         Example:
             >>> import datetime
             >>> import earth_data_kit as edk
-            >>> # Initialize the dataset (ensure 'source' and 'fn' are defined appropriately)
-            >>> ds = edk.stitching.Dataset("modis-pds", source, "s3", True)
+            >>> import geopandas as gpd
+            >>> # Initialize the dataset
+            >>> ds = edk.stitching.Dataset("modis-pds", "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF", "s3", True)
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
-            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), "tests/fixtures/modis.kml", fn)
+            >>> # Load grid dataframe
+            >>> gdf = gpd.read_file("tests/fixtures/modis.kml")
+            >>> gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
+            >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), grid_dataframe=gdf)
             >>> ds.discover()
             >>> bands_df = ds.get_bands()
             >>> print(bands_df.head())
@@ -438,7 +370,6 @@ class Dataset:
         result = grouped.agg({"tile": lambda x: list(x)}).reset_index()
         # Rename the aggregated column to 'tiles'
         result = result.rename(columns={"tile": "tiles"})
-        # Add back the original columns from the groupby
         return result
 
     def __get_tile_bands__(self):
@@ -512,23 +443,6 @@ class Dataset:
             conversion_factor = 111320  # approximate conversion factor: meters per degree at the equator
             val = val * conversion_factor
             return val
-
-    def __add_overview_list__(self, vrt_path, overview_levels=["2", "4", "8"]):
-        """
-        Add an OverviewList element to the VRT file.
-
-        This function reads the VRT file, adds an OverviewList element with the specified
-        """
-        tree = ET.parse(vrt_path)
-        root = tree.getroot()
-
-        # Check if OverviewList already exists
-        existing_overview = root.find("OverviewList")
-        if existing_overview is None:
-            # Only add if it doesn't exist
-            overview_list = ET.SubElement(root, "OverviewList")
-            overview_list.text = " ".join(overview_levels)
-            tree.write(vrt_path)
 
     @decorators.log_time
     @decorators.log_init
@@ -677,17 +591,18 @@ class Dataset:
                 "source": "source_identifier",
                 "engine": "engine_name",
                 "catalog": "path/to/catalog.csv",
-                "overviews": "path/to/overviews.csv",
+                "bbox": [xmin, ymin, xmax, ymax],
+                "timebounds": ["start_date", "end_date"],
                 "VRTDatasets": [
                   {
                     "source": "/path/to/2017-01-01-00:00:00.vrt",
                     "time": "2017-01-01-00:00:00",
-                    "has_time_dim": "true"
+                    "has_time_dim": true
                   },
                   {
                     "source": "/path/to/2017-01-02-00:00:00.vrt",
                     "time": "2017-01-02-00:00:00",
-                    "has_time_dim": "true"
+                    "has_time_dim": true
                   }
                 ]
               }
@@ -703,8 +618,19 @@ class Dataset:
                 "source": self.source,
                 "engine": self.engine.name,
                 "catalog": self.catalog_path,
-                "overviews": self.overviews_path,
-                "bbox": self.space_opts["bbox"],
+                "bbox": self.space_opts.get("bbox"),
+                "timebounds": [
+                    (
+                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S")
+                        if self.time_opts.get("start")
+                        else None
+                    ),
+                    (
+                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S")
+                        if self.time_opts.get("end")
+                        else None
+                    ),
+                ],
                 "VRTDatasets": [],
             }
         }
@@ -715,7 +641,7 @@ class Dataset:
             vrt_dataset = {
                 "source": vrt,
                 "time": date_str,
-                "has_time_dim": (True if date_str != "1970-01-01-00:00:00" else False),
+                "has_time_dim": date_str != "1970-01-01-00:00:00",
             }
             dataset_dict["EDKDataset"]["VRTDatasets"].append(vrt_dataset)
 
@@ -742,7 +668,7 @@ class Dataset:
         4. Set appropriate band descriptions
 
         Args:
-            date (datetime): A tuple containing the date for which to create the VRT
+            date (tuple): A tuple containing the datetime object for which to create the VRT. First element is the datetime object
             band_tiles (DataFrame): DataFrame containing band tile information
             bands (list): List of band descriptions to include in the VRT
 
@@ -755,10 +681,11 @@ class Dataset:
         """
         curr_date = date[0]
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
+
         # Extract each required band as a single-band VRT.
         # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
         # unless overridden by options configured via set_target_options.
-        # Use concurrent.futures to process band tiles in parallel
+        # Process band tiles in parallel using ThreadPoolExecutor
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
@@ -778,22 +705,22 @@ class Dataset:
                 _band_tiles.at[indices[i], "vrt_path"] = vrt_path
 
         # Combine single-band VRTs to create mosaic VRTs per band.
-        # Note: Although GDAL Raster Tile Index is preferred for large tile counts, it was avoided here
-        # due to issues with metadata copying (e.g., ColorInterp). Hence, individual mosaics are created.
-        # Also vrt has better support than gti
+        # Note: Although GDAL Raster Tile Index (GTI) is preferred for large tile counts,
+        # it was avoided here due to issues with metadata copying (e.g., ColorInterp).
+        # VRT format has better support than GTI for preserving metadata.
         band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
 
-        # Stack the band mosaics into a multi-band VRT.
+        # Stack the band mosaics into a multi-band VRT
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
-        # Set the descriptions for the bands in the output VRT.
+        # Set the descriptions for each band in the output VRT
         geo.set_band_descriptions(output_vrt, bands)
 
         return output_vrt
 
     @decorators.log_time
     @decorators.log_init
-    def to_vrts(self, bands):
+    def mosaic(self, bands):
         """
         Stitches the scene files together into VRTs based on the ordered band arrangement provided.
         For each unique date, this function extracts the required bands from the tile metadata and
@@ -813,7 +740,8 @@ class Dataset:
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()  # Discover available scene files before stitching
             >>> bands = ["red", "green", "blue"]
-            >>> ds.to_vrts(bands)
+            >>> ds.mosaic(bands)  # Use mosaic instead of to_vrts
+            >>> ds.save()  # Save the output VRTs to a JSON file
         """
         # Ensuring the pre-processing directory exists
         helpers.make_sure_dir_exists(f"{self.__get_ds_tmp_path__()}/pre-processing")
@@ -823,8 +751,8 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
-        # TODO: Might need code to handle case when band descriptions are not so unique like NoDescription. Hopefully will be less
         # Filter bands based on the user-supplied list.
+        # TODO: May need special handling for non-unique band descriptions in the future
         df = df[df["description"].isin(bands)]
 
         # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
@@ -851,7 +779,19 @@ class Dataset:
                 result = future.result()
                 output_vrts.append(result)
 
-        json_path = self.__combine_timestamped_vrts__(output_vrts)
+        self.output_vrts = output_vrts
+
+    def save(self):
+        """
+        Saves the mosaiced VRTs into a combined JSON file.
+
+        This method should be called after the `mosaic()` method to save the generated VRTs.
+        The resulting JSON path is stored in the `json_path` attribute.
+
+        Returns:
+            None
+        """
+        json_path = self.__combine_timestamped_vrts__(self.output_vrts)
         self.json_path = json_path
 
     @decorators.log_time
@@ -860,7 +800,7 @@ class Dataset:
         """
         Converts the dataset to an xarray DataArray.
 
-        This method opens the VRT file created by `to_vrts()` using xarray with the 'edk_dataset' engine
+        This method opens the JSON file created by `save()` using xarray with the 'edk_dataset' engine
         and returns the DataArray corresponding to this dataset.
 
         Returns:
@@ -873,63 +813,73 @@ class Dataset:
             >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()
-            >>> ds.to_vrts(bands=["red", "green", "blue"])
+            >>> ds.mosaic(bands=["red", "green", "blue"])
+            >>> ds.save()
             >>> data_array = ds.to_dataarray()
 
         Note:
-            This method requires that `to_vrts()` has been called first to generate the VRT file.
+            This method requires that `mosaic()` and `save()` have been called first to generate the JSON file.
         """
-        # TODO: Optimize the chunk size later,
-        # for now 512 seems to be the sweet spot, atleast for local mac and s3
-        ds = xr.open_dataset(
-            self.json_path,
-            engine="edk_dataset",
-            chunks={"time": 1, "band": 1, "x": 512, "y": 512},
-        )
+        json_path = self.json_path
 
-        return ds[self.name]
+        return Dataset.dataarray_from_file(json_path)
 
     @staticmethod
-    def from_file(path):
+    def dataarray_from_file(json_path):
         """
-        Create a Dataset instance from a file path.
+        Creates an xarray DataArray from a JSON file created by the `save()` method.
 
-        This method allows you to create a Dataset instance by providing a file path
-        that contains the dataset information.
+        Automatically determines optimal chunking based on the underlying raster block size.
 
         Args:
-            path (str): Path to the JSON file containing the dataset information.
+            json_path (str): Path to the JSON file containing dataset information.
 
         Returns:
-            Dataset: A Dataset instance created from the provided file path.
+            xarray.DataArray: DataArray with dimensions for time, bands, and spatial coordinates.
 
         Example:
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset.from_file("path/to/dataset.json")
-            >>> # Now you can use the dataset instance to perform various operations, like getting the data as a DataArray
-            >>> da = ds.to_dataarray()
+            >>> data_array = edk.stitching.Dataset.dataarray_from_file("path/to/dataset.json")
+
+        Note:
+            Loads a previously saved dataset without needing to recreate the Dataset object.
         """
-        # Read the JSON file
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Dataset file not found: {path}")
+        # Extract dataset name from the JSON file
+        with open(json_path, "r") as f:
+            dataset_info = json.load(f)
+            dataset_name = dataset_info.get("EDKDataset", {}).get("name")
+            if not dataset_name:
+                # If name not found in expected structure, use filename as fallback
+                dataset_name = os.path.basename(os.path.splitext(json_path)[0])
 
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
+        # Get the first VRT file path from VRTDatasets in EDKDataset
+        first_vrt_path = None
+        if dataset_info.get("EDKDataset", {}).get("VRTDatasets"):
+            vrt_datasets = dataset_info["EDKDataset"]["VRTDatasets"]
+            if vrt_datasets and len(vrt_datasets) > 0:
+                first_vrt = vrt_datasets[0]
+                if isinstance(first_vrt, dict) and "source" in first_vrt:
+                    first_vrt_path = first_vrt["source"]
 
-            # Extract dataset attributes from the JSON
-            edk_dataset = data.get("EDKDataset", {})
-            name = edk_dataset.get("name")
-            source = edk_dataset.get("source")
-            engine_name = edk_dataset.get("engine")
-            catalog_path = edk_dataset.get("catalog")
+        ds = gdal.Open(first_vrt_path)
+        x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
 
-            # Create a new Dataset instance
-            dataset = Dataset(name, source, engine_name.lower())
-            dataset.catalog_path = catalog_path
-            dataset.json_path = path
+        # Check if block sizes are powers of 2
+        def is_power_of_two(n):
+            return n > 0 and (n & (n - 1)) == 0
 
-            return dataset
+        if is_power_of_two(x_block_size) and is_power_of_two(y_block_size):
+            # Block sizes are powers of 2, ensure minimum size is 512
+            x_chunk_size = max(x_block_size, 512)
+            y_chunk_size = max(y_block_size, 512)
+        else:
+            # Default to 512 if not powers of 2
+            x_chunk_size, y_chunk_size = x_block_size, y_block_size
 
-        except json.JSONDecodeError:
-            raise ValueError(f"Invalid JSON file: {path}")
+        ds = xr.open_dataset(
+            json_path,
+            engine="edk_dataset",
+            chunks={"time": 1, "band": 1, "x": x_chunk_size, "y": y_chunk_size},
+        )
+
+        return ds[dataset_name]
