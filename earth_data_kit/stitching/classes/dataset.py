@@ -218,6 +218,56 @@ class Dataset:
         """
         return self.src_options.get("-srcnodata", None)
 
+    def _handle_subdatasets(self, df):
+        def _get_subdatasets(row):
+            def get_subdatasets_recursive(path):
+                result = []
+                ds = gdal.Info(path, format="json")
+
+                # Get subdatasets from the metadata json
+                subdatasets = ds.get("metadata", {}).get("SUBDATASETS", {})
+
+                # Extract subdataset paths from the json
+                for key in subdatasets:
+                    if key.startswith("SUBDATASET_") and key.endswith("_NAME"):
+                        subdataset_path = subdatasets[key]
+                        result.append(subdataset_path)
+
+                        # Recursively check if this subdataset has its own subdatasets
+                        nested_subdatasets = get_subdatasets_recursive(subdataset_path)
+                        result.extend(nested_subdatasets)
+
+                return result
+
+            # Start the recursive process with the initial gdal_path
+            return get_subdatasets_recursive(row.gdal_path)
+
+        new_arr = []
+
+        def process_row(row):
+            results = [(row.date, row.engine_path, row.gdal_path, row.tile_name)]
+            subdses = _get_subdatasets(row)
+            for subds in subdses:
+                results.append((row.date, row.engine_path, subds, row.tile_name))
+            return results
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            futures = [executor.submit(process_row, row) for row in df.itertuples()]
+
+            for future in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Processing subdatasets",
+                unit="tile",
+            ):
+                new_arr.extend(future.result())
+
+        return pd.DataFrame(
+            new_arr, columns=["date", "engine_path", "gdal_path", "tile_name"]
+        )
+
     @decorators.log_time
     @decorators.log_init
     def discover(self):
@@ -266,7 +316,7 @@ class Dataset:
         df = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.__get_ds_tmp_path__()
         )
-
+        df = self._handle_subdatasets(df)
         # Concurrently fetch metadata and construct Tile objects for each tile.
         futures = []
         tiles = []
