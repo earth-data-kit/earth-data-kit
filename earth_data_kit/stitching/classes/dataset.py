@@ -5,6 +5,7 @@ import logging
 from osgeo import osr
 import os
 import earth_data_kit.utilities.helpers as helpers
+import earth_data_kit.utilities.transform as transform
 import earth_data_kit.utilities.geo as geo
 import earth_data_kit.stitching.constants as constants
 import earth_data_kit.stitching.decorators as decorators
@@ -539,7 +540,7 @@ class Dataset:
             )
 
         options = gdal.WarpOptions(
-            outputBounds=self.space_opts["bbox"],
+            outputBounds=band_tile.tile.get_wgs_extent(),
             outputBoundsSRS="EPSG:4326",
             xRes=tr[0],
             yRes=tr[1],
@@ -578,13 +579,20 @@ class Dataset:
         for idx in range(len(bands)):
             current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
             band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.vrt"
-
+            tmp_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.tmp.vrt"
             ds = gdal.BuildVRT(
-                destName=band_mosaic_path,
+                destName=tmp_vrt,
                 srcDSOrSrcDSTab=current_bands_df["vrt_path"].tolist(),
             )
             # This saves the vrt file
             ds.Close()
+
+            options = gdal.WarpOptions(
+                outputBounds=self.space_opts["bbox"],
+                outputBoundsSRS="EPSG:4326",
+                format="VRT",
+            )
+            gdal.Warp(band_mosaic_path, tmp_vrt, options=options)
 
             band_mosaics.append(band_mosaic_path)
         return band_mosaics
