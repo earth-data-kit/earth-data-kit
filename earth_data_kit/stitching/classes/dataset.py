@@ -539,6 +539,22 @@ class Dataset:
                 ),
             )
 
+        # TODO: CUSTOM CODE, for Earth Engine. Should be removed in the future. This improves performance.
+        if self.engine.name == "earth_engine":
+            path_parts = band_tile.tile.gdal_path.split(":")
+            if len(path_parts) > 2:
+                # GDAL Path contains bands
+                # Extract the subdataset path after the colon
+                bands = path_parts[2].split(",")
+                band_arr_idx = band_tile.source_idx - 1
+
+                gdal_path = f"EEDAI:{path_parts[1]}:{bands[band_arr_idx]}"
+                band_idx = 1
+
+        else:
+            gdal_path = band_tile.tile.gdal_path
+            band_idx = band_tile.source_idx
+
         options = gdal.WarpOptions(
             outputBounds=band_tile.tile.get_wgs_extent(),
             outputBoundsSRS="EPSG:4326",
@@ -546,14 +562,14 @@ class Dataset:
             yRes=tr[1],
             dstSRS=t_srs,
             srcNodata=nodataval,
-            srcBands=[band_tile.source_idx],
+            srcBands=[band_idx],
             dstBands=[1],
             errorThreshold=0,
             targetAlignedPixels=True,
             format="VRT",
         )
 
-        gdal.Warp(warped_vrt_path, band_tile.tile.gdal_path, options=options)
+        gdal.Warp(warped_vrt_path, gdal_path, options=options)
 
         return warped_vrt_path
 
