@@ -65,8 +65,7 @@ class Dataset:
         if engine == "earth_engine":
             self.engine = earth_engine.EarthEngine()
         self.source = source
-        self.src_options = {}
-        self.target_options = {}
+
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
         if clean:
             helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
@@ -116,47 +115,6 @@ class Dataset:
         """
         self.time_opts = {"start": start, "end": end, "resolution": resolution}
 
-    def set_src_options(self, options):
-        """
-        Sets options for the source dataset.
-
-        This method allows setting various options for the source dataset,
-        including source nodata values that can be used during processing.
-
-        Args:
-            options (dict): A dictionary containing source options.
-                Can include '-srcnodata' which may be either:
-                - A single value to be applied to all bands
-                - An array of values, one for each band in the dataset
-
-        Example:
-            >>> ds = Dataset("example", "path/to/data", "file_system")
-            >>> # Set a single nodata value for all bands
-            >>> ds.set_src_options({"-srcnodata": "-9999"})
-        """
-        self.src_options = options
-
-    def set_target_options(self, options):
-        """
-        Sets options for the target dataset.
-
-        This method allows setting various GDAL options for the output dataset,
-        which influence the gdalwarp process during VRT creation.
-
-        Args:
-            options (dict): A dictionary containing GDAL options.
-                Common options include:
-                - '-t_srs': Target spatial reference system (projection)
-                - '-tr': Target resolution (x y, in target projection units)
-                - '-r': Resampling method (nearest, bilinear, cubic, etc.)
-
-        Example:
-            >>> ds = Dataset("example", "path/to/data", "file_system")
-            >>> # Set target projection, resolution and resampling method
-            >>> ds.set_target_options({"-t_srs": "EPSG:3857", "-tr": "30 30", "-r": "bilinear"})
-        """
-        self.target_options = options
-
     def set_spacebounds(self, bbox, grid_dataframe=None):
         """
         Configure spatial constraints for the dataset using a bounding box and, optionally, a grid dataframe.
@@ -191,33 +149,6 @@ class Dataset:
             "grid_dataframe": grid_dataframe,
         }
         self.space_opts["bbox"] = bbox
-
-    def _get_target_res(self):
-        """
-        Retrieves the target resolution option from target options.
-
-        Returns:
-            str: The target resolution option if found, otherwise None.
-        """
-        return self.target_options.get("-tr", None)
-
-    def _get_target_srs(self):
-        """
-        Retrieves the target spatial reference system (SRS) option from target options.
-
-        Returns:
-            str: The target SRS option if found, otherwise None.
-        """
-        return self.target_options.get("-t_srs", None)
-
-    def _get_srcnodata(self):
-        """
-        Retrieves the source no-data value option from source options.
-
-        Returns:
-            str: The source no-data value option if found, otherwise None.
-        """
-        return self.src_options.get("-srcnodata", None)
 
     def _handle_subdatasets(self, df):
         def _get_subdatasets(row):
@@ -279,14 +210,14 @@ class Dataset:
         This method follows a multi-step workflow:
           1. Invokes the engine's scan method to retrieve a dataframe of available tile metadata
              that match the time and spatial options.
-          2. Concurrently retrieves detailed metadata for each tile by constructing Tile objects
+          2. Handles any subdatasets found in the scan results.
+          3. Concurrently retrieves detailed metadata for each tile by constructing Tile objects
              using a ThreadPoolExecutor.
-          3. Converts the user-specified bounding box into a Shapely polygon (in EPSG:4326) and
+          4. Converts the user-specified bounding box into a Shapely polygon (in EPSG:4326) and
              filters the tiles by comparing each tile's extent (also converted to EPSG:4326) to the
              bounding box using an intersection test.
-          4. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
+          5. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
              self.catalog_path.
-          5. Discovers the overview information for the dataset.
 
         Returns:
             None
@@ -311,21 +242,24 @@ class Dataset:
             >>> gdf['h'] = gdf['Name'].str.split(' ').str[0].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
             >>> gdf['v'] = gdf['Name'].str.split(' ').str[1].str.split(':').str[1].astype(int).astype(str).str.zfill(2)
             >>> ds.set_spacebounds((19.30, 39.62, 21.02, 42.69), grid_dataframe=gdf)
-            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles at the location specified by self.catalog_path
+            >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles
         """
-        # Retrieve tile metadata using the engine's scan function.
+        # Retrieve tile metadata using the engine's scan function
         df = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.__get_ds_tmp_path__()
         )
+
+        # Handle any subdatasets found in the scan results
         df = self._handle_subdatasets(df)
-        # Concurrently fetch metadata and construct Tile objects for each tile.
-        futures = []
+
+        # Concurrently fetch metadata and construct Tile objects
         tiles = []
         logger.debug(f"Fetching metadata of {len(df)} tiles")
+
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
-            # Submit all tasks and store them in a list
+            # Submit all tasks and store futures
             futures = [
                 executor.submit(
                     Tile,
@@ -337,25 +271,26 @@ class Dataset:
                 for row in df.itertuples()
             ]
 
-            # Create a progress bar and iterate directly through futures
+            # Process completed futures with progress bar
             for future in tqdm(futures, desc="Processing tiles", unit="tile"):
                 try:
-                    result = future.result()
-                    tiles.append(result)
+                    tiles.append(future.result())
                 except Exception as e:
                     logger.error(f"Error processing tile: {e}")
 
-        # Define the user-specified bounding box as a Shapely polygon for intersection tests.
+        # Filter tiles by spatial intersection with bounding box
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
-        intersecting_tiles = []
-        for tile in tiles:
-            tile_bbox = shapely.geometry.box(*tile.get_wgs_extent(), ccw=True)
-            if shapely.intersects(tile_bbox, bbox):
-                intersecting_tiles.append(tile)
+        intersecting_tiles = [
+            tile
+            for tile in tiles
+            if shapely.intersects(
+                shapely.geometry.box(*tile.get_wgs_extent(), ccw=True), bbox
+            )
+        ]
 
-        # Save the catalog of intersecting tiles as a CSV file.
+        # Save catalog of intersecting tiles
         pd.DataFrame([t.__dict__ for t in intersecting_tiles]).to_csv(
-            f"{self.catalog_path}", header=True, index=False
+            self.catalog_path, header=True, index=False
         )
 
         logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
@@ -495,83 +430,55 @@ class Dataset:
             val = val * conversion_factor
             return val
 
-    @decorators.log_time
-    @decorators.log_init
-    def __extract_band__(self, band_tile):
+    def __optimize_gdal_path__(self, gdal_path, band):
         """
-        Extract and warp a specific band into a VRT file.
+        Optimize the GDAL path for the Earth Engine engine.
+        """
+        if self.engine.name == "earth_engine":
+            path_parts = gdal_path.split(":")
+            if len(path_parts) > 2:
+                gdal_path = f"EEDAI:{path_parts[1]}:{band}"
+                return gdal_path
+            # This will return None if the band is not found in path. That should be okay as we will GEE driver supports bands according to docs, so any issue in that will be a problem of GDAL
+        else:
+            return gdal_path
+
+    def __validate_band_properties__(self, tiles_df):
+        """
+        Validates that all tiles in a band have consistent data types, crs, and resolutions.
+        Ensures tiles can be properly mosaicked together.
 
         Args:
-            band_tile (object): The band descriptor containing attributes such as tile, idx, and nodataval.
+            tiles_df (pd.DataFrame): DataFrame with tile info (dtype, tile objects with projection/resolution)
 
-        Returns:
-            str: Path to the generated warped VRT.
+        Raises:
+            ValueError: If tiles have mismatched data types, crs, or resolutions
         """
-        warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{band_tile.tile.tile_name}-band-{band_tile.source_idx}-warped.vrt"
+        # Get unique values for each property
+        unique_dtypes = tiles_df["dtype"].unique()
+        unique_crs = tiles_df["tile"].apply(lambda x: x.crs).unique()
+        unique_resolutions = tiles_df["tile"].apply(lambda x: x.get_res()).unique()
 
-        nodataval = (
-            band_tile.nodataval
-            if band_tile.nodataval is not None
-            else self._get_srcnodata()
-        )
-        if nodataval is None:
-            logger.warning(
-                "no data val set as None. it's advised to provide a nodataval"
+        # Check data type consistency
+        if len(unique_dtypes) > 1:
+            raise ValueError(
+                f"Band tiles have inconsistent data types. Found: {', '.join(map(str, unique_dtypes))}. "
+                "All tiles in a band must have the same data type for proper mosaicking."
             )
 
-        if (self._get_target_res() is None and self._get_target_srs() is not None) or (
-            self._get_target_res() is not None and self._get_target_srs() is None
-        ):
-            # It's important to supply either both tr and t_srs or nothing as in cases when only one is supplied system converts the resolution in wrong units
-            logger.warning("either supply both -tr and -t_srs or supply nothing")
-
-        t_srs = self._get_target_srs() or "EPSG:3857"
-
-        if self._get_target_res() is not None:
-            tr = self._get_target_res().split(" ")
-        else:
-            tr = (
-                self.__to_meter__(
-                    band_tile.tile.get_res()[0], band_tile.tile.length_unit
-                ),
-                self.__to_meter__(
-                    band_tile.tile.get_res()[1], band_tile.tile.length_unit
-                ),
+        # Check CRS consistency
+        if len(unique_crs) > 1:
+            raise ValueError(
+                f"Band tiles have inconsistent coordinate reference systems (CRS). Found: {', '.join(map(str, unique_crs))}. "
+                "All tiles in a band must use the same CRS for proper mosaicking."
             )
 
-        # TODO: CUSTOM CODE, for Earth Engine. Should be removed in the future. This improves performance.
-        if self.engine.name == "earth_engine":
-            path_parts = band_tile.tile.gdal_path.split(":")
-            if len(path_parts) > 2:
-                # GDAL Path contains bands
-                # Extract the subdataset path after the colon
-                bands = path_parts[2].split(",")
-                band_arr_idx = band_tile.source_idx - 1
-
-                gdal_path = f"EEDAI:{path_parts[1]}:{bands[band_arr_idx]}"
-                band_idx = 1
-
-        else:
-            gdal_path = band_tile.tile.gdal_path
-            band_idx = band_tile.source_idx
-
-        options = gdal.WarpOptions(
-            outputBounds=band_tile.tile.get_wgs_extent(),
-            outputBoundsSRS="EPSG:4326",
-            xRes=tr[0],
-            yRes=tr[1],
-            dstSRS=t_srs,
-            srcNodata=nodataval,
-            srcBands=[band_idx],
-            dstBands=[1],
-            errorThreshold=0,
-            targetAlignedPixels=True,
-            format="VRT",
-        )
-
-        gdal.Warp(warped_vrt_path, gdal_path, options=options)
-
-        return warped_vrt_path
+        # Check resolution consistency
+        if len(unique_resolutions) > 1:
+            raise ValueError(
+                f"Band tiles have inconsistent resolutions. Found: {', '.join(map(str, unique_resolutions))}. "
+                "All tiles in a band must have the same resolution for proper mosaicking."
+            )
 
     @decorators.log_time
     @decorators.log_init
@@ -579,62 +486,97 @@ class Dataset:
         """
         Create mosaic VRT files for the specified bands.
 
-        For each band, filters the relevant tiles, writes an input file list,
-        and creates a mosaic VRT using gdalbuildvrt.
+        For each band, filters the relevant tiles, validates their properties, and creates a mosaic VRT
+        using gdalbuildvrt. Handles both Earth Engine and standard GDAL data sources differently.
 
         Args:
-            band_tiles (pd.DataFrame): DataFrame with VRT paths for each band.
-            date (datetime): Date associated with the mosaics.
-            bands (list): List of band descriptions to assemble.
+            band_tiles (pd.DataFrame): DataFrame containing tile information including band descriptions
+                                      and GDAL paths for each tile.
+            date (datetime): Date associated with the mosaics, used in output filenames.
+            bands (list): List of band descriptions to assemble into mosaics.
 
         Returns:
-            list: Paths to the created band mosaic VRTs.
+            list: Paths to the created band mosaic VRT files.
+
+        Note:
+            For Earth Engine data sources, band paths are optimized and band index is set to 1.
+            For standard GDAL sources, band index is taken from the source_idx column.
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
-        for idx in range(len(bands)):
-            current_bands_df = band_tiles[band_tiles["description"] == bands[idx]]
-            band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.vrt"
-            tmp_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{bands[idx]}.tmp.vrt"
-            ds = gdal.BuildVRT(
-                destName=tmp_vrt,
-                srcDSOrSrcDSTab=current_bands_df["vrt_path"].tolist(),
+
+        for band_desc in bands:
+            # Filter tiles for current band
+            current_bands_df = band_tiles[band_tiles["description"] == band_desc]
+            current_bands_df = current_bands_df.assign(
+                gdal_path=current_bands_df["tile"].apply(lambda x: x.gdal_path)
             )
-            # This saves the vrt file
+
+            # Set up output path and validate band properties
+            band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{band_desc}.vrt"
+            self.__validate_band_properties__(current_bands_df)
+
+            # Handle Earth Engine vs standard GDAL paths
+            if self.engine.name == "earth_engine":
+                gdal_paths = current_bands_df.apply(
+                    lambda x: self.__optimize_gdal_path__(x["gdal_path"], band_desc),
+                    axis=1,
+                ).tolist()
+                band_list = [1]
+            else:
+                gdal_paths = current_bands_df["gdal_path"].tolist()
+                band_list = [current_bands_df.iloc[0]["source_idx"]]
+
+            # Filter out any None paths from Earth Engine optimization
+            gdal_paths = [path for path in gdal_paths if path is not None]
+
+            # Create and save the VRT mosaic
+            ds = gdal.BuildVRT(
+                destName=band_mosaic_path,
+                srcDSOrSrcDSTab=gdal_paths,
+                separate=False,
+                bandList=band_list,
+            )
             ds.Close()
 
-            options = gdal.WarpOptions(
-                outputBounds=self.space_opts["bbox"],
-                outputBoundsSRS="EPSG:4326",
-                format="VRT",
-            )
-            gdal.Warp(band_mosaic_path, tmp_vrt, options=options)
-
             band_mosaics.append(band_mosaic_path)
+
         return band_mosaics
 
     @decorators.log_time
     @decorators.log_init
     def __stack_band_mosaics__(self, band_mosaics, date):
         """
-        Stack individual band mosaic VRTs into a multi-band VRT.
+        Stack individual band mosaic VRTs into a multi-band VRT and clip to spatial bounds.
 
-        Combines the mosaic VRTs using gdalbuildvrt with the -separate option.
+        Combines the mosaic VRTs using gdalbuildvrt with the -separate option, then clips
+        the result to the dataset's spatial bounds using gdal.Translate.
 
         Args:
-            band_mosaics (list): List of band mosaic VRT paths.
+            band_mosaics (list): List of band mosaic VRT paths to combine.
             date (datetime): Date used for naming the combined VRT.
 
         Returns:
-            str: Path to the stacked multi-band VRT.
+            str: Path to the stacked and clipped multi-band VRT.
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         output_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.vrt"
+        tmp_vrt = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}.tmp.vrt"
 
+        # Stack band mosaics into a temporary multi-band VRT
         ds = gdal.BuildVRT(
-            destName=output_vrt, srcDSOrSrcDSTab=band_mosaics, separate=True
+            destName=tmp_vrt, srcDSOrSrcDSTab=band_mosaics, separate=True
         )
         ds.Close()
+
+        # Extract spatial bounds and clip the stacked VRT
+        xmin, ymin, xmax, ymax = self.space_opts["bbox"]
+        gdal.Translate(
+            output_vrt,
+            tmp_vrt,
+            projWin=[xmin, ymax, xmax, ymin],
+            projWinSRS="EPSG:4326",
+        )
 
         return output_vrt
 
@@ -742,52 +684,26 @@ class Dataset:
         4. Set appropriate band descriptions
 
         Args:
-            date (tuple): A tuple containing the datetime object for which to create the VRT. First element is the datetime object
-            band_tiles (DataFrame): DataFrame containing band tile information
-            bands (list): List of band descriptions to include in the VRT
+            date (tuple): A tuple containing the datetime object for which to create the VRT.
+                         First element is the datetime object.
+            band_tiles (DataFrame): DataFrame containing band tile information.
+            bands (list): List of band descriptions to include in the VRT.
 
         Returns:
-            str: Path to the created VRT file
-
-        Note:
-            The function creates temporary single-band VRTs that are reprojected to EPSG:3857
-            by default unless overridden by options set via set_target_options.
+            str: Path to the created VRT file.
         """
         curr_date = date[0]
         _band_tiles = band_tiles.copy(deep=True).reset_index(drop=True)
 
-        # Extract each required band as a single-band VRT.
-        # These VRTs are reprojected to EPSG:3857 by default to achieve a consistent resolution,
-        # unless overridden by options configured via set_target_options.
-        # Process band tiles in parallel using ThreadPoolExecutor
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
-        ) as executor:
-            # Create arrays to store futures and their corresponding indices
-            futures = []
-            indices = []
-
-            # Submit all band extraction tasks to the executor
-            for _bt in _band_tiles.itertuples():
-                future = executor.submit(self.__extract_band__, _bt)
-                futures.append(future)
-                indices.append(_bt.Index)
-
-            # Process results as they complete
-            for i, future in enumerate(futures):
-                vrt_path = future.result()
-                _band_tiles.at[indices[i], "vrt_path"] = vrt_path
-
-        # Combine single-band VRTs to create mosaic VRTs per band.
-        # Note: Although GDAL Raster Tile Index (GTI) is preferred for large tile counts,
-        # it was avoided here due to issues with metadata copying (e.g., ColorInterp).
-        # VRT format has better support than GTI for preserving metadata.
+        # Create mosaic VRTs for each band by combining single-band VRTs.
+        # Note: GDAL Raster Tile Index (GTI) was considered but not used due to metadata
+        # preservation limitations (e.g., ColorInterp). VRT format provides better metadata support.
         band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
 
-        # Stack the band mosaics into a multi-band VRT
+        # Create multi-band VRT by stacking individual band mosaics
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
-        # Set the descriptions for each band in the output VRT
+        # Apply band descriptions to the output VRT
         geo.set_band_descriptions(output_vrt, bands)
 
         return output_vrt
@@ -796,13 +712,9 @@ class Dataset:
     @decorators.log_init
     def mosaic(self, bands):
         """
-        Stitches the scene files together into VRTs based on the ordered band arrangement provided.
-        For each unique date, this function extracts the required bands from the tile metadata and
-        creates individual single-band VRTs that are reprojected to EPSG:3857 by default (if no target spatial reference
-        is specified). These single-band VRTs are then mosaiced per band and finally stacked into a multi-band VRT.
-
-        GDAL options influencing the gdalwarp process can be configured using the :meth:`edk.stitching.Dataset.set_target_options` function.
-        Also look at :meth:`edk.stitching.Dataset.set_src_options` for source dataset related options influencing the gdalwarp process, eg: srcnodataval.
+        Identifies and extracts the required bands from the tile metadata for each unique date. For each band,
+        it creates a single-band VRT that is then mosaiced together. These individual band mosaics are finally
+        stacked into a multi-band VRT according to the ordered band arrangement provided.
 
         Args:
             bands (list[string]): Ordered list of band descriptions to output as VRTs.

@@ -21,6 +21,11 @@ func run_s5cmd(in_path string, out_path string, wg *sync.WaitGroup) {
 		args = append([]string{"--no-sign-request"}, args...)
 	}
 
+	requestPayer := os.Getenv("AWS_REQUEST_PAYER")
+	if requestPayer == "requester" {
+		args = append([]string{"--request-payer", "requester"}, args...)
+	}
+
 	cmd := exec.Command("s5cmd", args...)
 
 	// open the out file for writing
