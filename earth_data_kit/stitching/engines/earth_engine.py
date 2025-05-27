@@ -150,7 +150,10 @@ class EarthEngine:
         tiles = Tile.from_df(pd.DataFrame(catalog_df))
         return tiles
 
-    def _sync_one(self, gdal_path, sync_idx, output_path):
+    def _sync_one(self, gdal_path, sync_idx, output_path, overwrite=False):
+        if not overwrite and os.path.exists(output_path):
+            return
+
         with tqdm(
             total=100,
             desc=f"{sync_idx+1}. Downloading {os.path.basename(gdal_path)}",
@@ -175,7 +178,7 @@ class EarthEngine:
                 ],
             )
 
-    def sync(self, df, tmp_base_dir):
+    def sync(self, df, tmp_base_dir, overwrite=False):
         # Iterate over the dataframe to get GDAL paths that need syncing
         gdal_paths = []
         for band_tile in df.itertuples():
@@ -191,12 +194,14 @@ class EarthEngine:
             for gdal_path in gdal_paths:
                 output_path = f"{tmp_base_dir}/raw-data/{gdal_path.split('/')[-1]}.tif"
                 futures.append(
-                    executor.submit(self._sync_one, gdal_path, sync_idx, output_path)
+                    executor.submit(
+                        self._sync_one, gdal_path, sync_idx, output_path, overwrite
+                    )
                 )
                 sync_idx += 1
 
-            # Create progress bar and wait for all futures to complete
-            for future in tqdm(futures, desc="Syncing data", unit="file"):
+            # Wait for all futures to complete
+            for future in futures:
                 future.result()
 
         # Update gdal_path in dataframe with local paths

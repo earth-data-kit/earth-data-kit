@@ -367,7 +367,7 @@ class Dataset:
         else:
             return gdal_path
 
-    def __validate_band_properties__(self, tiles_df):
+    def __validate_band_properties__(self, tiles_df, resolution, dtype, crs):
         """
         Validates that all tiles in a band have consistent data types, crs, and resolutions.
         Ensures tiles can be properly mosaicked together.
@@ -384,29 +384,29 @@ class Dataset:
         unique_resolutions = tiles_df["tile"].apply(lambda x: x.get_res()).unique()
 
         # Check data type consistency
-        if len(unique_dtypes) > 1:
+        if len(unique_dtypes) > 1 and dtype is None:
             raise ValueError(
                 f"Band tiles have inconsistent data types. Found: {', '.join(map(str, unique_dtypes))}. "
-                "All tiles in a band must have the same data type for proper mosaicking."
+                "Please pass the desired data type using the 'dtype' parameter in mosaic() function."
             )
 
         # Check CRS consistency
-        if len(unique_crs) > 1:
+        if len(unique_crs) > 1 and crs is None:
             raise ValueError(
                 f"Band tiles have inconsistent coordinate reference systems (CRS). Found: {', '.join(map(str, unique_crs))}. "
-                "All tiles in a band must use the same CRS for proper mosaicking."
+                "Please pass the desired CRS using the 'crs' parameter in mosaic() function."
             )
 
         # Check resolution consistency
-        if len(unique_resolutions) > 1:
+        if len(unique_resolutions) > 1 and resolution is None:
             raise ValueError(
                 f"Band tiles have inconsistent resolutions. Found: {', '.join(map(str, unique_resolutions))}. "
-                "All tiles in a band must have the same resolution for proper mosaicking."
+                "Please pass the desired resolution using the 'resolution' parameter in mosaic() function."
             )
 
     @decorators.log_time
     @decorators.log_init
-    def __create_band_mosaic__(self, band_tiles, date, bands):
+    def __create_band_mosaic__(self, band_tiles, date, bands, resolution, dtype, crs):
         """
         Create mosaic VRT files for the specified bands.
 
@@ -438,12 +438,40 @@ class Dataset:
 
             # Set up output path and validate band properties
             band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{band_desc}.vrt"
-            self.__validate_band_properties__(current_bands_df)
+            self.__validate_band_properties__(current_bands_df, resolution, dtype, crs)
+
+            if (resolution is None and crs is not None) or (
+                resolution is not None and crs is None
+            ):
+                raise ValueError(
+                    "Both 'resolution' and 'crs' parameters must be provided together, or neither should be provided. "
+                    "Found only one of them."
+                )
+
+            gdal_paths = []
+            if resolution is not None or crs is not None:
+                for row in current_bands_df.itertuples():
+                    logger.info(row)
+                    warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{row.gdal_path.split('/')[-1].split('.')[0]}-warped.vrt"
+                    options = gdal.WarpOptions(
+                        format="VRT",
+                        xRes=resolution[0],
+                        yRes=resolution[1],
+                        dstSRS=crs,
+                    )
+                    gdal.Warp(
+                        warped_vrt_path,
+                        row.gdal_path,
+                        options=options,
+                    )
+                    gdal_paths.append(warped_vrt_path)
+            else:
+                gdal_paths = current_bands_df["gdal_path"].tolist()
 
             # Create and save the VRT mosaic
             ds = gdal.BuildVRT(
                 destName=band_mosaic_path,
-                srcDSOrSrcDSTab=current_bands_df["gdal_path"].tolist(),
+                srcDSOrSrcDSTab=gdal_paths,
                 separate=False,
                 bandList=[current_bands_df.iloc[0]["source_idx"]],
             )
@@ -582,7 +610,9 @@ class Dataset:
 
     @decorators.log_time
     @decorators.log_init
-    def __create_timestamped_vrt__(self, date, band_tiles, bands):
+    def __create_timestamped_vrt__(
+        self, date, band_tiles, bands, resolution, dtype, crs
+    ):
         """
         Create a timestamped VRT file for a specific date from band tiles.
 
@@ -608,7 +638,9 @@ class Dataset:
         # Create mosaic VRTs for each band by combining single-band VRTs.
         # Note: GDAL Raster Tile Index (GTI) was considered but not used due to metadata
         # preservation limitations (e.g., ColorInterp). VRT format provides better metadata support.
-        band_mosaics = self.__create_band_mosaic__(_band_tiles, curr_date, bands)
+        band_mosaics = self.__create_band_mosaic__(
+            _band_tiles, curr_date, bands, resolution, dtype, crs
+        )
 
         # Create multi-band VRT by stacking individual band mosaics
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
@@ -620,7 +652,9 @@ class Dataset:
 
     @decorators.log_time
     @decorators.log_init
-    def mosaic(self, bands, sync=False):
+    def mosaic(
+        self, bands, sync=False, overwrite=False, resolution=None, dtype=None, crs=None
+    ):
         """
         Identifies and extracts the required bands from the tile metadata for each unique date. For each band,
         it creates a single-band VRT that is then mosaiced together. These individual band mosaics are finally
@@ -639,9 +673,16 @@ class Dataset:
             >>> ds.mosaic(bands)  # Use mosaic instead of to_vrts
             >>> ds.save()  # Save the output VRTs to a JSON file
         """
+        helpers.delete_dir(f"{self.__get_ds_tmp_path__()}/pre-processing")
         # Ensuring the pre-processing directory exists
         helpers.make_sure_dir_exists(f"{self.__get_ds_tmp_path__()}/pre-processing")
 
+        if not sync and (resolution is not None or crs is not None):
+            raise ValueError(
+                "When resampling (resolution or crs specified), sync=True is required. "
+                "This is because warping remote datasets is slow and inefficient. "
+                "Please set sync=True to download the data locally when mosaicing."
+            )
         # Retrieve all bands from tiles.
         tile_bands = self.__get_tile_bands__()
         df = pd.DataFrame(tile_bands)
@@ -657,7 +698,9 @@ class Dataset:
 
         if sync:
             if self.engine.name == "earth_engine":
-                df = self.engine.sync(df, self.__get_ds_tmp_path__())
+                df = self.engine.sync(
+                    df, self.__get_ds_tmp_path__(), overwrite=overwrite
+                )
             else:
                 raise Exception(
                     f"Syncing is not supported for engine: {self.engine.name}"
@@ -674,7 +717,13 @@ class Dataset:
             for date, band_tiles in outputs_by_dates:
                 futures.append(
                     executor.submit(
-                        self.__create_timestamped_vrt__, date, band_tiles, bands
+                        self.__create_timestamped_vrt__,
+                        date,
+                        band_tiles,
+                        bands,
+                        resolution,
+                        dtype,
+                        crs,
                     )
                 )
 
