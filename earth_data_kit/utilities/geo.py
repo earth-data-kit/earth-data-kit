@@ -1,8 +1,9 @@
-from osgeo import gdal
+from osgeo import gdal, osr
 import logging
 from earth_data_kit.stitching import decorators
 import earth_data_kit as edk
 import shapely
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -63,3 +64,65 @@ def get_bbox_from_raster(raster_path):
     )
 
     return lon_min, lat_min, lon_max, lat_max
+
+
+def _get_bands(ds):
+    bands = []
+    band_count = ds.RasterCount
+    for i in range(1, band_count + 1):
+        band = ds.GetRasterBand(i)
+        b = {
+            "source_idx": i,
+            "description": (
+                band.GetDescription()
+                if band.GetDescription() != ""
+                else "NoDescription"
+            ),
+            "dtype": gdal.GetDataTypeName(band.DataType),
+            "nodataval": band.GetNoDataValue(),
+        }
+        bands.append(b)
+    return bands
+
+
+def get_metadata(raster_path):
+    # Figure out aws options
+    ds = gdal.Open(raster_path)
+    gt = ds.GetGeoTransform()
+    projection = ds.GetProjection()
+    length_unit = ds.GetSpatialRef().GetAttrValue("UNIT")
+    o = {
+        "geo_transform": gt,
+        "x_size": ds.RasterXSize,
+        "y_size": ds.RasterXSize,
+        "projection": projection,
+        "crs": "EPSG:" + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
+        "bands": _get_bands(ds),
+        "length_unit": length_unit,
+    }
+    ds = None
+    return o
+
+
+def get_subdatasets(gdal_path):
+    def get_subdatasets_recursive(path):
+        result = []
+        ds = gdal.Info(path, format="json")
+
+        # Get subdatasets from the metadata json
+        subdatasets = ds.get("metadata", {}).get("SUBDATASETS", {})
+
+        # Extract subdataset paths from the json
+        for key in subdatasets:
+            if key.startswith("SUBDATASET_") and key.endswith("_NAME"):
+                subdataset_path = subdatasets[key]
+                result.append(subdataset_path)
+
+                # Recursively check if this subdataset has its own subdatasets
+                nested_subdatasets = get_subdatasets_recursive(subdataset_path)
+                result.extend(nested_subdatasets)
+
+        return result
+
+    # Start the recursive process with the initial gdal_path
+    return get_subdatasets_recursive(gdal_path)

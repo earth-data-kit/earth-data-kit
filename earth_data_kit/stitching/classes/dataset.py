@@ -150,56 +150,6 @@ class Dataset:
         }
         self.space_opts["bbox"] = bbox
 
-    def _handle_subdatasets(self, df):
-        def _get_subdatasets(row):
-            def get_subdatasets_recursive(path):
-                result = []
-                ds = gdal.Info(path, format="json")
-
-                # Get subdatasets from the metadata json
-                subdatasets = ds.get("metadata", {}).get("SUBDATASETS", {})
-
-                # Extract subdataset paths from the json
-                for key in subdatasets:
-                    if key.startswith("SUBDATASET_") and key.endswith("_NAME"):
-                        subdataset_path = subdatasets[key]
-                        result.append(subdataset_path)
-
-                        # Recursively check if this subdataset has its own subdatasets
-                        nested_subdatasets = get_subdatasets_recursive(subdataset_path)
-                        result.extend(nested_subdatasets)
-
-                return result
-
-            # Start the recursive process with the initial gdal_path
-            return get_subdatasets_recursive(row.gdal_path)
-
-        new_arr = []
-
-        def process_row(row):
-            results = [(row.date, row.engine_path, row.gdal_path, row.tile_name)]
-            subdses = _get_subdatasets(row)
-            for subds in subdses:
-                results.append((row.date, row.engine_path, subds, row.tile_name))
-            return results
-
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
-        ) as executor:
-            futures = [executor.submit(process_row, row) for row in df.itertuples()]
-
-            for future in tqdm(
-                concurrent.futures.as_completed(futures),
-                total=len(futures),
-                desc="Processing subdatasets",
-                unit="tile",
-            ):
-                new_arr.extend(future.result())
-
-        return pd.DataFrame(
-            new_arr, columns=["date", "engine_path", "gdal_path", "tile_name"]
-        )
-
     @decorators.log_time
     @decorators.log_init
     def discover(self):
@@ -245,40 +195,11 @@ class Dataset:
             >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles
         """
         # Retrieve tile metadata using the engine's scan function
-        df = self.engine.scan(
+        tiles = self.engine.scan(
             self.source, self.time_opts, self.space_opts, self.__get_ds_tmp_path__()
         )
 
-        # Handle any subdatasets found in the scan results
-        df = self._handle_subdatasets(df)
-
-        # Concurrently fetch metadata and construct Tile objects
-        tiles = []
-        logger.debug(f"Fetching metadata of {len(df)} tiles")
-
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
-        ) as executor:
-            # Submit all tasks and store futures
-            futures = [
-                executor.submit(
-                    Tile,
-                    row.engine_path,
-                    row.gdal_path,
-                    row.date,
-                    row.tile_name,
-                )
-                for row in df.itertuples()
-            ]
-
-            # Process completed futures with progress bar
-            for future in tqdm(futures, desc="Processing tiles", unit="tile"):
-                try:
-                    tiles.append(future.result())
-                except Exception as e:
-                    logger.error(f"Error processing tile: {e}")
-
-        # Filter tiles by spatial intersection with bounding box
+        # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
         intersecting_tiles = [
             tile
@@ -288,12 +209,12 @@ class Dataset:
             )
         ]
 
-        # Save catalog of intersecting tiles
-        pd.DataFrame([t.__dict__ for t in intersecting_tiles]).to_csv(
-            self.catalog_path, header=True, index=False
-        )
+        # Converting bands column to string while saving to csv
+        df = pd.DataFrame([t.__dict__ for t in intersecting_tiles])
+        df["bands"] = df["bands"].apply(json.dumps)
 
-        logger.debug(f"Catalog for dataset {self.name} saved at {self.catalog_path}")
+        # Save catalog of intersecting tiles
+        df.to_csv(self.catalog_path, header=True, index=False)
 
     def get_bands(self):
         """
@@ -747,6 +668,7 @@ class Dataset:
 
         outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []
+
 
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()

@@ -9,6 +9,9 @@ import re
 import shapely
 import copy
 from earth_data_kit.stitching import decorators
+import earth_data_kit.stitching.engines.commons as commons
+from earth_data_kit.stitching.classes.tile import Tile
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -168,4 +171,16 @@ class S3:
         os.remove(ls_cmds_fp)
 
         # TODO: Add code to handle daily resolution
-        return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]
+        metadata = commons.get_tiles_metadata(inv_df["engine_path"].tolist())
+        for idx in range(len(metadata)):
+            inv_df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
+            inv_df.at[idx, "projection"] = metadata[idx]["projection"]
+            inv_df.at[idx, "x_size"] = metadata[idx]["x_size"]
+            inv_df.at[idx, "y_size"] = metadata[idx]["y_size"]
+            inv_df.at[idx, "crs"] = metadata[idx]["crs"]
+            inv_df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
+            # Passing array of jsons in a dataframe "bands" column
+            inv_df.at[idx, "bands"] = metadata[idx]["bands"]
+
+        tiles = Tile.from_df(inv_df)
+        return tiles
