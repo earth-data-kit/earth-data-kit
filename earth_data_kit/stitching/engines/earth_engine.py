@@ -7,6 +7,7 @@ from earth_data_kit.stitching.classes.tile import Tile
 import json
 import earth_data_kit.utilities as utilities
 import earth_data_kit.stitching.engines.commons as commons
+import earth_data_kit.utilities.helpers as helpers
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,20 @@ class EarthEngine:
         df["subdataset_paths"] = subdataset_paths
         subdataset_paths = [path for sublist in subdataset_paths for path in sublist]
         return subdataset_paths
+
+    def _expand_catalog(self, catalog_df):
+        expanded_catalog_df = []
+        for row in catalog_df:
+            parent_gdal_path = ":".join(row["gdal_path"].split(":")[0:2])
+            for band in row["bands"]:
+                # Create a copy of the row without the bands field
+                new_row = {k: v for k, v in row.items() if k != "bands"}
+                # Add single band with source_idx 1
+                new_row["bands"] = [{**band, "source_idx": 1}]
+                new_row["gdal_path"] = f"{parent_gdal_path}:{band['description']}"
+                new_row["engine_path"] = f"{parent_gdal_path}:{band['description']}"
+                expanded_catalog_df.append(new_row)
+        return expanded_catalog_df
 
     def scan(self, source, time_opts, space_opts, tmp_base_dir):
         df = self._get_parent_tiles(source, time_opts, space_opts)
@@ -129,6 +144,66 @@ class EarthEngine:
                     }
                 )
 
+        catalog_df = self._expand_catalog(catalog_df)
+
         # Passing array of jsons in a dataframe "bands" column
         tiles = Tile.from_df(pd.DataFrame(catalog_df))
         return tiles
+
+    def _sync_one(self, gdal_path, sync_idx, output_path):
+        with tqdm(
+            total=100,
+            desc=f"{sync_idx+1}. Downloading {os.path.basename(gdal_path)}",
+            unit="%",
+        ) as pbar:
+
+            def progress_callback(complete, message, data):
+                pbar.update(int(complete * 100) - pbar.n)
+                return 1  # Return 1 to continue the operation
+
+            gdal.Translate(
+                output_path,
+                gdal_path,
+                format="GTiff",
+                callback=progress_callback,
+                creationOptions=[
+                    "NUM_THREADS=ALL_CPUS",
+                    "TILED=YES",
+                    "BIGTIFF=YES",
+                    "COMPRESS=ZSTD",
+                    "SPARSE_OK=TRUE",
+                ],
+            )
+
+    def sync(self, df, tmp_base_dir):
+        # Iterate over the dataframe to get GDAL paths that need syncing
+        gdal_paths = []
+        for band_tile in df.itertuples():
+            gdal_paths.append(band_tile.tile.gdal_path)
+
+        gdal_paths = list(set(gdal_paths))
+        helpers.make_sure_dir_exists(f"{tmp_base_dir}/raw-data")
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            futures = []
+            sync_idx = 0
+            for gdal_path in gdal_paths:
+                output_path = f"{tmp_base_dir}/raw-data/{gdal_path.split('/')[-1]}.tif"
+                futures.append(
+                    executor.submit(self._sync_one, gdal_path, sync_idx, output_path)
+                )
+                sync_idx += 1
+
+            # Create progress bar and wait for all futures to complete
+            for future in tqdm(futures, desc="Syncing data", unit="file"):
+                future.result()
+
+        # Update gdal_path in dataframe with local paths
+        for band_tile in df.itertuples():
+            output_path = (
+                f"{tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.split('/')[-1]}.tif"
+            )
+            df.at[band_tile.Index, "tile"].gdal_path = output_path
+
+        return df

@@ -209,6 +209,9 @@ class Dataset:
             )
         ]
 
+        if len(intersecting_tiles) == 0:
+            raise Exception("No tiles found for the given time and spatial constraints")
+
         # Converting bands column to string while saving to csv
         df = pd.DataFrame([t.__dict__ for t in intersecting_tiles])
         df["bands"] = df["bands"].apply(json.dumps)
@@ -437,26 +440,12 @@ class Dataset:
             band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{band_desc}.vrt"
             self.__validate_band_properties__(current_bands_df)
 
-            # Handle Earth Engine vs standard GDAL paths
-            if self.engine.name == "earth_engine":
-                gdal_paths = current_bands_df.apply(
-                    lambda x: self.__optimize_gdal_path__(x["gdal_path"], band_desc),
-                    axis=1,
-                ).tolist()
-                band_list = [1]
-            else:
-                gdal_paths = current_bands_df["gdal_path"].tolist()
-                band_list = [current_bands_df.iloc[0]["source_idx"]]
-
-            # Filter out any None paths from Earth Engine optimization
-            gdal_paths = [path for path in gdal_paths if path is not None]
-
             # Create and save the VRT mosaic
             ds = gdal.BuildVRT(
                 destName=band_mosaic_path,
-                srcDSOrSrcDSTab=gdal_paths,
+                srcDSOrSrcDSTab=current_bands_df["gdal_path"].tolist(),
                 separate=False,
-                bandList=band_list,
+                bandList=[current_bands_df.iloc[0]["source_idx"]],
             )
             ds.Close()
 
@@ -631,7 +620,7 @@ class Dataset:
 
     @decorators.log_time
     @decorators.log_init
-    def mosaic(self, bands):
+    def mosaic(self, bands, sync=False):
         """
         Identifies and extracts the required bands from the tile metadata for each unique date. For each band,
         it creates a single-band VRT that is then mosaiced together. These individual band mosaics are finally
@@ -666,9 +655,16 @@ class Dataset:
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
         df["date"] = df["date"].fillna(epoch_date)
 
+        if sync:
+            if self.engine.name == "earth_engine":
+                df = self.engine.sync(df, self.__get_ds_tmp_path__())
+            else:
+                raise Exception(
+                    f"Syncing is not supported for engine: {self.engine.name}"
+                )
+
         outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []
-
 
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()

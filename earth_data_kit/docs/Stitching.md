@@ -46,7 +46,7 @@ This functionality makes it easier to work with large, distributed raster datase
 3. set_spacebounds(bbox, grid_dataframe=None) - Sets the spatial bounds of the dataset.
 
 4. discover() - Discovers the bands available in the dataset. Runs the .scan method of engine internally. After this we have all the metadata of all the relevant tiles.
-    1. Runs the .scan method of engine internally. Engine specific scan method will also be responsible of fetching and adding metadata.
+    1. Runs the .scan method of engine internally. Engine specific scan method will also be responsible of fetching and adding metadata. Also handles temporal aggregation if resolution is supplied.
     2. Runs intersection of the spatial bounds and the metadata to get the relevant tiles.
     3. Finally saves the metadata to a csv file, called catalog.csv.
 
