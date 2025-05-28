@@ -36,17 +36,16 @@ class Dataset:
     """
 
     def __init__(self, name, source, engine, clean=True) -> None:
-        """
-        Initializes a new dataset instance.
-
+        """Initialize a new dataset instance.
+        
         Args:
-            name (str): Unique identifier for the dataset.
-            source (str): Source identifier (S3 URI or Earth Engine collection ID).
-            engine (str): Data source engine - ``s3`` or ``earth_engine``.
-            clean (bool, optional): Whether to clean temporary files before processing. Defaults to True.
-
+            name (str): Unique identifier for the dataset
+            source (str): Source identifier (S3 URI or Earth Engine collection ID)
+            engine (str): Data source engine - ``s3`` or ``earth_engine``
+            clean (bool, optional): Whether to clean temporary files before processing. Defaults to True
+            
         Raises:
-            Exception: If the provided engine is not supported.
+            Exception: If the provided engine is not supported
 
         Example:
             >>> from earth_data_kit.stitching.classes.dataset import Dataset
@@ -71,16 +70,7 @@ class Dataset:
             helpers.delete_dir(f"{self.__get_ds_tmp_path__()}")
 
     def __str__(self):
-        """
-        Return a string representation of the Dataset instance.
-
-        This representation includes:
-          - name: the unique identifier for the dataset.
-          - source: the source identifier accordingly.
-          - engine: the name of the engine handling the dataset.
-          - time_opts: a tuple indicating the start and end time options.
-          - space_opts: the spatial bounding box if it is set.
-        """
+        """Return string representation of Dataset instance including name, source, engine, time options, and spatial bounds."""
         s = (
             "edk.stitching.Dataset\n"
             "\tname: {}\n"
@@ -98,20 +88,24 @@ class Dataset:
         return s
 
     def set_timebounds(self, start, end, resolution=None):
-        """
-        Sets time bounds for which we want to download the data.
-
+        """Set time bounds for data download and optional temporal resolution for combining images.
+        
         Args:
-            start (datetime): Start date.
-            end (datetime): End date, inclusive.
-            resolution (str, optional): Temporal resolution for combining images.
-                                       Options include 'daily'.
+            start (datetime): Start date
+            end (datetime): End date (exclusive)
+            resolution (str, optional): Temporal resolution (e.g., 'D' for daily, 'W' for weekly, 'M' for monthly)
+                See pandas offset aliases for full list:
+                https://pandas.pydata.org/docs/user_guide/timeseries.html#timeseries-offset-aliases
 
         Example:
             >>> import datetime
             >>> from earth_data_kit.stitching import Dataset
             >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", clean=True)
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 12, 31))
+            >>> # Set daily resolution
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 12, 31), resolution='D')
+            >>> # Set monthly resolution
+            >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 12, 31), resolution='M')
         """
         self.time_opts = {"start": start, "end": end, "resolution": resolution}
 
@@ -451,7 +445,6 @@ class Dataset:
             gdal_paths = []
             if resolution is not None or crs is not None:
                 for row in current_bands_df.itertuples():
-                    logger.info(row)
                     warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{row.gdal_path.split('/')[-1].split('.')[0]}-warped.vrt"
                     options = gdal.WarpOptions(
                         format="VRT",

@@ -59,6 +59,7 @@ class S3:
 
         start = time_opts["start"]
         end = time_opts["end"]
+        # TODO: Test if inclusive="both" is correct. We are making end_date as exclusive in set_timebounds
         df["date"] = pd.date_range(start=start, end=end, inclusive="both")
         df["search_path"] = df["date"].dt.strftime(source)
         return df

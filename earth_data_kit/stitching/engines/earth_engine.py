@@ -33,7 +33,7 @@ class EarthEngine:
 
         if time_opts and "start" in time_opts and "end" in time_opts:
             layer.SetAttributeFilter(
-                f"startTime >= '{time_opts['start']}' and endTime <= '{time_opts['end']}'"
+                f"startTime >= '{time_opts['start']}' and endTime < '{time_opts['end']}'"
             )
         tiles = []
         for feature in layer:
@@ -45,9 +45,23 @@ class EarthEngine:
 
         return df
 
-    def _aggregate_temporally(self, df, resolution=1):
-        # Floor dates to nearest resolution interval (in days)
-        df["date"] = df["date"].dt.floor(f"{resolution}D")
+    def _aggregate_temporally(self, df, start, end, resolution):
+        # Create date range from start to end with specified resolution, ensuring UTC timezone
+        date_range = pd.date_range(start=start, end=end, freq=f"{resolution}", tz='UTC')
+        # Create a new column to store the aggregated dates
+        df['aggregated_date'] = None
+        
+        # Iterate through each date in the range
+        for date in date_range:
+            # Find all rows where the date falls within this interval
+            mask = (df['date'] >= date) & (df['date'] < date + pd.Timedelta(resolution))
+            # Update the aggregated_date for matching rows
+            df.loc[mask, 'aggregated_date'] = date
+            
+        # Replace the original date column with aggregated dates
+        df['date'] = df['aggregated_date']
+        df = df.drop('aggregated_date', axis=1)
+        
         return df
 
     def _get_subdatasets(self, df):
@@ -88,10 +102,10 @@ class EarthEngine:
         if (
             time_opts
             and "resolution" in time_opts
-            and time_opts["resolution"] == "daily"
+            and time_opts["resolution"] is not None
         ):
-            # Set the time part of the date to 00:00:00
-            df = self._aggregate_temporally(df)
+            # Set the time part of the date to according to resolution
+            df = self._aggregate_temporally(df, time_opts["start"], time_opts["end"], time_opts["resolution"])
 
         subdataset_paths = self._get_subdatasets(df)
 
