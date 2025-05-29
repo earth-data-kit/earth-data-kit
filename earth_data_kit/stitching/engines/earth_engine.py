@@ -9,6 +9,7 @@ import earth_data_kit.utilities as utilities
 import earth_data_kit.stitching.engines.commons as commons
 import earth_data_kit.utilities.helpers as helpers
 from tqdm import tqdm
+import earth_data_kit.stitching.decorators as decorators
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,8 @@ class EarthEngine:
         self.app_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         self.service_account = os.getenv("GOOGLE_SERVICE_ACCOUNT")
 
+    @decorators.log_time
+    @decorators.log_init
     def _get_parent_tiles(self, source, time_opts, space_opts):
         ds = ogr.GetDriverByName("EEDA").Open(
             f"EEDA:projects/earthengine-public/assets/{source}"
@@ -33,7 +36,7 @@ class EarthEngine:
 
         if time_opts and "start" in time_opts and "end" in time_opts:
             layer.SetAttributeFilter(
-                f"startTime >= '{time_opts['start']}' and endTime < '{time_opts['end']}'"
+                f"startTime >= '{time_opts['start']}' and endTime <= '{time_opts['end']}'"
             )
         tiles = []
         for feature in layer:

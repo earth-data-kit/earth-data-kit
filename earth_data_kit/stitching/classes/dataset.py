@@ -92,7 +92,7 @@ class Dataset:
         
         Args:
             start (datetime): Start date
-            end (datetime): End date (exclusive)
+            end (datetime): End date (inclusive)
             resolution (str, optional): Temporal resolution (e.g., 'D' for daily, 'W' for weekly, 'M' for monthly)
                 See pandas offset aliases for full list:
                 https://pandas.pydata.org/docs/user_guide/timeseries.html#timeseries-offset-aliases
