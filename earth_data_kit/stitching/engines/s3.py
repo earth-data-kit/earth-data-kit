@@ -169,9 +169,17 @@ class S3:
         # Removing extra files created
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
+        
+        # Add new columns to the dataframe
+        inv_df["geo_transform"] = None
+        inv_df["projection"] = None
+        inv_df["x_size"] = None
+        inv_df["y_size"] = None
+        inv_df["crs"] = None
+        inv_df["length_unit"] = None
+        inv_df["bands"] = None
 
-        # TODO: Add code to handle daily resolution
-        metadata = commons.get_tiles_metadata(inv_df["engine_path"].tolist())
+        metadata = commons.get_tiles_metadata(inv_df["gdal_path"].tolist())
         for idx in range(len(metadata)):
             inv_df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
             inv_df.at[idx, "projection"] = metadata[idx]["projection"]
@@ -182,5 +190,19 @@ class S3:
             # Passing array of jsons in a dataframe "bands" column
             inv_df.at[idx, "bands"] = metadata[idx]["bands"]
 
+        inv_df = inv_df[inv_df["geo_transform"].notna()].reset_index(drop=True)
+
+        if (
+            time_opts
+            and "resolution" in time_opts
+            and time_opts["resolution"] is not None
+        ):
+            # Convert time_opts dates to pandas Timestamp to ensure consistent types
+            inv_df["date"] = pd.to_datetime(inv_df["date"], format="ISO8601")
+            # Set the time part of the date according to resolution
+            
+            # Convert datetime[ns] to datetime[ns, UTC]
+            inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
+            inv_df = commons.aggregate_temporally(inv_df, pd.to_datetime(time_opts["start"]), pd.to_datetime(time_opts["end"]), time_opts["resolution"])
         tiles = Tile.from_df(inv_df)
         return tiles

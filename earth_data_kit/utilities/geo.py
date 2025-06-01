@@ -4,6 +4,7 @@ from earth_data_kit.stitching import decorators
 import earth_data_kit as edk
 import shapely
 import json
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ def _get_bands(ds):
         bands.append(b)
     return bands
 
-
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
 def get_metadata(raster_path):
     # Figure out aws options
     ds = gdal.Open(raster_path)
