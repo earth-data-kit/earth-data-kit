@@ -1,7 +1,10 @@
 import os
+from tqdm import tqdm
+from osgeo import gdal
 import pandas as pd
 import logging
 import earth_data_kit.utilities.helpers as helpers
+import earth_data_kit.utilities.geo as geo
 import pathlib
 import Levenshtein as levenshtein
 import geopandas as gpd
@@ -12,6 +15,7 @@ from earth_data_kit.stitching import decorators
 import earth_data_kit.stitching.engines.commons as commons
 from earth_data_kit.stitching.classes.tile import Tile
 import json
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +173,7 @@ class S3:
         # Removing extra files created
         os.remove(inventory_file_path)
         os.remove(ls_cmds_fp)
-        
+
         # Add new columns to the dataframe
         inv_df["geo_transform"] = None
         inv_df["projection"] = None
@@ -181,6 +185,8 @@ class S3:
 
         metadata = commons.get_tiles_metadata(inv_df["gdal_path"].tolist())
         for idx in range(len(metadata)):
+            if metadata[idx] is None:
+                continue
             inv_df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
             inv_df.at[idx, "projection"] = metadata[idx]["projection"]
             inv_df.at[idx, "x_size"] = metadata[idx]["x_size"]
@@ -189,9 +195,7 @@ class S3:
             inv_df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
             # Passing array of jsons in a dataframe "bands" column
             inv_df.at[idx, "bands"] = metadata[idx]["bands"]
-
         inv_df = inv_df[inv_df["geo_transform"].notna()].reset_index(drop=True)
-
         if (
             time_opts
             and "resolution" in time_opts
@@ -200,9 +204,48 @@ class S3:
             # Convert time_opts dates to pandas Timestamp to ensure consistent types
             inv_df["date"] = pd.to_datetime(inv_df["date"], format="ISO8601")
             # Set the time part of the date according to resolution
-            
+
             # Convert datetime[ns] to datetime[ns, UTC]
             inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
-            inv_df = commons.aggregate_temporally(inv_df, pd.to_datetime(time_opts["start"]), pd.to_datetime(time_opts["end"]), time_opts["resolution"])
+            inv_df = commons.aggregate_temporally(
+                inv_df,
+                pd.to_datetime(time_opts["start"]),
+                pd.to_datetime(time_opts["end"]),
+                time_opts["resolution"],
+            )
         tiles = Tile.from_df(inv_df)
         return tiles
+
+    def sync(self, df, tmp_base_dir, overwrite=False):
+        # Iterate over the dataframe to get GDAL paths that need syncing
+        file_list = []
+        gdal_paths = []
+        cmds = []
+        for band_tile in df.itertuples():
+            gdal_paths.append(band_tile.tile.gdal_path)
+            file_list.append(band_tile.tile.gdal_path.replace("/vsis3/", "s3://"))
+            if overwrite:
+                try:
+                    geo.get_metadata(band_tile.tile.gdal_path)
+                    continue
+                except Exception as e:
+                    logger.debug("File not found, syncing")
+
+            cmd = f"cp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+            cmds.append(cmd)
+
+        cmds = list(set(cmds))
+        helpers.make_sure_dir_exists(f"{tmp_base_dir}/raw-data")
+
+        pd.DataFrame(cmds).to_csv(
+            f"{tmp_base_dir}/sync_cmds.txt", index=False, header=False
+        )
+        os.system(f"s5cmd run {tmp_base_dir}/sync_cmds.txt")
+        os.remove(f"{tmp_base_dir}/sync_cmds.txt")
+
+        # Update gdal_path in dataframe with local paths
+        for band_tile in df.itertuples():
+            output_path = f"{tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+            df.at[band_tile.Index, "tile"].gdal_path = output_path
+
+        return df

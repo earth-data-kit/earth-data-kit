@@ -25,25 +25,29 @@ def get_tiles_metadata(gdal_paths):
             try:
                 tiles_md.append(future.result())
             except Exception as e:
-                logger.error(f"Error Getting metadata of tile: {e}. GDAL Path: {gdal_paths[i]}")
+                logger.error(
+                    f"Error Getting metadata of tile: {e}. GDAL Path: {gdal_paths[i]}"
+                )
+                tiles_md.append(None)
 
     return tiles_md
 
+
 def aggregate_temporally(df, start, end, resolution):
     # Create date range from start to end with specified resolution, ensuring UTC timezone
-    date_range = pd.date_range(start=start, end=end, freq=f"{resolution}", tz='UTC')
+    date_range = pd.date_range(start=start, end=end, freq=f"{resolution}", tz="UTC")
     # Create a new column to store the aggregated dates
-    df['aggregated_date'] = None
-    
+    df["aggregated_date"] = None
+
     # Iterate through each date in the range
     for date in date_range:
         # Find all rows where the date falls within this interval
-        mask = (df['date'] >= date) & (df['date'] < date + pd.Timedelta(resolution))
+        mask = (df["date"] >= date) & (df["date"] < date + pd.Timedelta(resolution))
         # Update the aggregated_date for matching rows
-        df.loc[mask, 'aggregated_date'] = date
-        
+        df.loc[mask, "aggregated_date"] = date
+
     # Replace the original date column with aggregated dates
-    df['date'] = df['aggregated_date']
-    df = df.drop('aggregated_date', axis=1)
-    
+    df["date"] = df["aggregated_date"]
+    df = df.drop("aggregated_date", axis=1)
+
     return df

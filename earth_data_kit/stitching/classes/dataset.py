@@ -3,6 +3,7 @@ import ast
 import geopandas as gpd
 import logging
 from osgeo import osr
+import uuid
 import os
 import earth_data_kit.utilities.helpers as helpers
 import earth_data_kit.utilities.transform as transform
@@ -37,13 +38,13 @@ class Dataset:
 
     def __init__(self, name, source, engine, clean=True) -> None:
         """Initialize a new dataset instance.
-        
+
         Args:
             name (str): Unique identifier for the dataset
             source (str): Source identifier (S3 URI or Earth Engine collection ID)
             engine (str): Data source engine - ``s3`` or ``earth_engine``
             clean (bool, optional): Whether to clean temporary files before processing. Defaults to True
-            
+
         Raises:
             Exception: If the provided engine is not supported
 
@@ -445,7 +446,8 @@ class Dataset:
             gdal_paths = []
             if resolution is not None or crs is not None:
                 for row in current_bands_df.itertuples():
-                    warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{row.gdal_path.split('/')[-1].split('.')[0]}-warped.vrt"
+                    # Adding uuid to avoid conflicts
+                    warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{row.gdal_path.split('/')[-1].split('.')[0]}-{uuid.uuid4()}-warped.vrt"
                     options = gdal.WarpOptions(
                         format="VRT",
                         xRes=resolution[0],
@@ -690,14 +692,7 @@ class Dataset:
         df["date"] = df["date"].fillna(epoch_date)
 
         if sync:
-            if self.engine.name == "earth_engine":
-                df = self.engine.sync(
-                    df, self.__get_ds_tmp_path__(), overwrite=overwrite
-                )
-            else:
-                raise Exception(
-                    f"Syncing is not supported for engine: {self.engine.name}"
-                )
+            df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)
 
         outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []

@@ -89,7 +89,9 @@ class EarthEngine:
             and time_opts["resolution"] is not None
         ):
             # Set the time part of the date to according to resolution
-            df = commons.aggregate_temporally(df, time_opts["start"], time_opts["end"], time_opts["resolution"])
+            df = commons.aggregate_temporally(
+                df, time_opts["start"], time_opts["end"], time_opts["resolution"]
+            )
 
         subdataset_paths = self._get_subdatasets(df)
 
