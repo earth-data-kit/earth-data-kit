@@ -1,6 +1,8 @@
 import os
 from tqdm import tqdm
 from osgeo import gdal
+import subprocess
+import io
 import pandas as pd
 import logging
 import earth_data_kit.utilities.helpers as helpers
@@ -15,6 +17,7 @@ from earth_data_kit.stitching import decorators
 import earth_data_kit.stitching.engines.commons as commons
 from earth_data_kit.stitching.classes.tile import Tile
 import json
+from tenacity import retry, stop_after_attempt, wait_fixed
 import concurrent.futures
 
 logger = logging.getLogger(__name__)
@@ -124,55 +127,65 @@ class S3:
 
         return patterns_df
 
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
+    def _scan_s3_via_s5cmd(self, path):
+        ls_cmd = f"s5cmd --json ls '{path}'"
+        proc = subprocess.Popen(
+            ls_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, _ = proc.communicate()
+        if proc.returncode != 0:
+            if stdout.decode("utf-8") != "":
+                logger.error(f"Error scanning S3 path {path}: {stdout}")
+            return pd.DataFrame(columns=["key"])
+        try:
+            stdout = stdout.decode("utf-8")
+            df = pd.read_json(io.StringIO(stdout), lines=True)
+            if "key" in df.columns:
+                return df[["key"]]
+            else:
+                return pd.DataFrame(columns=["key"])
+        except Exception as e:
+            logger.error(f"Error scanning S3 path {path}: {e} {stdout}")
+            return pd.DataFrame(columns=["key"])
+
     def scan(self, source, time_opts, space_opts, tmp_base_dir):
         patterns_df = self.get_patterns(source, time_opts, space_opts)
-
-        ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
-        inventory_file_path = f"{tmp_base_dir}/inventory.csv"
         if "date" not in patterns_df.columns:
             patterns_df["date"] = None
 
-        # go-lib expects paths in unix style
-        patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
+        def scan_pattern(row):
+            result_df = self._scan_s3_via_s5cmd(row.search_path)
+            if hasattr(row, "date"):
+                result_df["date"] = row.date
+            return result_df
 
-        patterns_df[["unix_path"]].to_csv(ls_cmds_fp, index=False, header=False)
-        lib_path = helpers.get_shared_lib_path()
-
-        ls_cmd = f"{lib_path} {ls_cmds_fp} {inventory_file_path}"
-        os.system(ls_cmd)
-
-        inv_df = pd.read_csv(inventory_file_path, names=["key"])
-
-        # Fixing output from go-lib
-        inv_df["key"] = "s3://" + inv_df["key"].str[1:]
-
-        for in_row in inv_df.itertuples():
-            max_score = -99
-            max_score_idx = -1
-            for out_row in patterns_df.itertuples():
-                s = levenshtein.ratio(in_row.key, out_row.search_path)  # type: ignore
-                if s > max_score:
-                    max_score = s
-                    max_score_idx = out_row.Index
-
-            inv_df.at[in_row.Index, "date"] = patterns_df["date"][max_score_idx]
-            inv_df.at[in_row.Index, "search_path"] = patterns_df["search_path"][
-                max_score_idx
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            futures = [
+                executor.submit(scan_pattern, row) for row in patterns_df.itertuples()
             ]
-            inv_df.at[in_row.Index, "unix_path"] = patterns_df["unix_path"][
-                max_score_idx
-            ]
-            inv_df.at[in_row.Index, "tile_name"] = ".".join(
-                inv_df.at[in_row.Index, "key"].split("/")[-1].split(".")[:-1]
-            )
+            scan_results = []
+            for f in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Scanning S3 patterns",
+                unit="paths/sec",
+            ):
+                result_df = f.result()
+                scan_results.append(result_df)
+
+        if scan_results:
+            inv_df = pd.concat(scan_results, ignore_index=True)
+        else:
+            inv_df = pd.DataFrame(columns=["key"])
 
         # Adding gdal_path
         inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
         inv_df["engine_path"] = inv_df["key"]
-
-        # Removing extra files created
-        os.remove(inventory_file_path)
-        os.remove(ls_cmds_fp)
+        inv_df["tile_name"] = inv_df["key"].str.split("/").str[-1]
+        inv_df.drop(columns=["key"], inplace=True)
 
         # Add new columns to the dataframe
         inv_df["geo_transform"] = None

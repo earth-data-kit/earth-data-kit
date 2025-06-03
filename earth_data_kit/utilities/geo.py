@@ -85,6 +85,7 @@ def _get_bands(ds):
         bands.append(b)
     return bands
 
+
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
 def get_metadata(raster_path):
     # Figure out aws options

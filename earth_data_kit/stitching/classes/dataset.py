@@ -90,7 +90,7 @@ class Dataset:
 
     def set_timebounds(self, start, end, resolution=None):
         """Set time bounds for data download and optional temporal resolution for combining images.
-        
+
         Args:
             start (datetime): Start date
             end (datetime): End date (inclusive)
