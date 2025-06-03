@@ -79,7 +79,7 @@ class EarthEngine:
                 expanded_catalog_df.append(new_row)
         return expanded_catalog_df
 
-    def scan(self, source, time_opts, space_opts, tmp_base_dir):
+    def scan(self, source, time_opts, space_opts, tmp_base_dir, band_locator):
         df = self._get_parent_tiles(source, time_opts, space_opts)
 
         # Check if time_opts has resolution set to daily
@@ -99,7 +99,9 @@ class EarthEngine:
 
         if len(subdataset_paths) > 0:
             # Get metadata for all subdatasets
-            subdatasets_metadata = commons.get_tiles_metadata(subdataset_paths)
+            subdatasets_metadata = commons.get_tiles_metadata(
+                subdataset_paths, band_locator
+            )
             k = 0
             for row in df.itertuples():
                 for subdataset_path in row.subdataset_paths:
@@ -123,7 +125,9 @@ class EarthEngine:
 
         else:
             # Get metadata for all parent tiles
-            parent_tiles_metadata = commons.get_tiles_metadata(df["gdal_path"].tolist())
+            parent_tiles_metadata = commons.get_tiles_metadata(
+                df["gdal_path"].tolist(), band_locator
+            )
             k = 0
             for row in df.itertuples():
                 tile_metadata = parent_tiles_metadata[k]

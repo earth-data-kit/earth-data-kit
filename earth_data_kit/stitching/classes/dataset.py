@@ -147,7 +147,7 @@ class Dataset:
 
     @decorators.log_time
     @decorators.log_init
-    def discover(self):
+    def discover(self, band_locator="description"):
         """
         Scans the dataset source to identify, catalog, and save the intersecting tiles based on
         provided time and spatial constraints.
@@ -164,12 +164,16 @@ class Dataset:
           5. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
              self.catalog_path.
 
+        Args:
+            band_locator (str, optional): Specifies how to locate bands in the dataset.
+                Defaults to "description". Valid options are "description", "color_interp", "filename".
+
         Returns:
             None
 
         Raises:
             Exception: Propagates any exceptions encountered during scanning, metadata retrieval,
-                       spatial filtering, or catalog saving.
+                      spatial filtering, or catalog saving.
 
         Example:
             >>> import datetime
@@ -191,7 +195,11 @@ class Dataset:
         """
         # Retrieve tile metadata using the engine's scan function
         tiles = self.engine.scan(
-            self.source, self.time_opts, self.space_opts, self.__get_ds_tmp_path__()
+            self.source,
+            self.time_opts,
+            self.space_opts,
+            self.__get_ds_tmp_path__(),
+            band_locator,
         )
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function

@@ -149,7 +149,7 @@ class S3:
             logger.error(f"Error scanning S3 path {path}: {e} {stdout}")
             return pd.DataFrame(columns=["key"])
 
-    def scan(self, source, time_opts, space_opts, tmp_base_dir):
+    def scan(self, source, time_opts, space_opts, tmp_base_dir, band_locator):
         patterns_df = self.get_patterns(source, time_opts, space_opts)
         if "date" not in patterns_df.columns:
             patterns_df["date"] = None
@@ -171,7 +171,7 @@ class S3:
                 concurrent.futures.as_completed(futures),
                 total=len(futures),
                 desc="Scanning S3 patterns",
-                unit="paths/sec",
+                unit="path",
             ):
                 result_df = f.result()
                 scan_results.append(result_df)
@@ -196,7 +196,9 @@ class S3:
         inv_df["length_unit"] = None
         inv_df["bands"] = None
 
-        metadata = commons.get_tiles_metadata(inv_df["gdal_path"].tolist())
+        metadata = commons.get_tiles_metadata(
+            inv_df["gdal_path"].tolist(), band_locator
+        )
         for idx in range(len(metadata)):
             if metadata[idx] is None:
                 continue
@@ -230,6 +232,7 @@ class S3:
         return tiles
 
     def sync(self, df, tmp_base_dir, overwrite=False):
+        logger.warning("Overwrite has no effect for S3")
         # Iterate over the dataframe to get GDAL paths that need syncing
         file_list = []
         gdal_paths = []
@@ -237,18 +240,13 @@ class S3:
         for band_tile in df.itertuples():
             gdal_paths.append(band_tile.tile.gdal_path)
             file_list.append(band_tile.tile.gdal_path.replace("/vsis3/", "s3://"))
-            if overwrite:
-                try:
-                    geo.get_metadata(band_tile.tile.gdal_path)
-                    continue
-                except Exception as e:
-                    logger.debug("File not found, syncing")
 
-            cmd = f"cp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+            cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
             cmds.append(cmd)
 
         cmds = list(set(cmds))
         helpers.make_sure_dir_exists(f"{tmp_base_dir}/raw-data")
+        logger.info(f"Syncing {len(cmds)} files")
 
         pd.DataFrame(cmds).to_csv(
             f"{tmp_base_dir}/sync_cmds.txt", index=False, header=False

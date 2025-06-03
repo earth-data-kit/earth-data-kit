@@ -7,7 +7,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def get_tiles_metadata(gdal_paths):
+def get_tiles_metadata(gdal_paths, band_locator):
     # Concurrently fetch metadata and construct Tile objects
     tiles_md = []
 
@@ -16,7 +16,7 @@ def get_tiles_metadata(gdal_paths):
     ) as executor:
         # Submit all tasks and store futures
         futures = [
-            executor.submit(utilities.geo.get_metadata, gdal_path)
+            executor.submit(utilities.geo.get_metadata, gdal_path, band_locator)
             for gdal_path in gdal_paths
         ]
 

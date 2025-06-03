@@ -67,18 +67,28 @@ def get_bbox_from_raster(raster_path):
     return lon_min, lat_min, lon_max, lat_max
 
 
-def _get_bands(ds):
+def _get_bands(ds, band_locator="description"):
     bands = []
     band_count = ds.RasterCount
     for i in range(1, band_count + 1):
         band = ds.GetRasterBand(i)
+
+        if band_locator == "description":
+            band_name = band.GetDescription()
+        elif band_locator == "color_interp":
+            band_name = gdal.GetColorInterpretationName(band.GetColorInterpretation())
+        elif band_locator == "filename":
+            band_name = ds.GetName().split("/")[-1]
+            if "." in band_name:
+                band_name = band_name.split(".")[0]
+        else:
+            raise ValueError(
+                f"Invalid band locator: {band_locator}. Should be one of: `desc`, `color_interp`, `filename`"
+            )
+
         b = {
             "source_idx": i,
-            "description": (
-                band.GetDescription()
-                if band.GetDescription() != ""
-                else "NoDescription"
-            ),
+            "description": (band_name if band_name != "" else "NoDescription"),
             "dtype": gdal.GetDataTypeName(band.DataType),
             "nodataval": band.GetNoDataValue(),
         }
@@ -87,7 +97,7 @@ def _get_bands(ds):
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
-def get_metadata(raster_path):
+def get_metadata(raster_path, band_locator):
     # Figure out aws options
     ds = gdal.Open(raster_path)
     gt = ds.GetGeoTransform()
@@ -99,7 +109,7 @@ def get_metadata(raster_path):
         "y_size": ds.RasterXSize,
         "projection": projection,
         "crs": "EPSG:" + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
-        "bands": _get_bands(ds),
+        "bands": _get_bands(ds, band_locator),
         "length_unit": length_unit,
     }
     ds = None
