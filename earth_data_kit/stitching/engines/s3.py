@@ -232,17 +232,23 @@ class S3:
         return tiles
 
     def sync(self, df, tmp_base_dir, overwrite=False):
-        logger.warning("Overwrite has no effect for S3")
         # Iterate over the dataframe to get GDAL paths that need syncing
-        file_list = []
-        gdal_paths = []
         cmds = []
+        idxs_synced = []
         for band_tile in df.itertuples():
-            gdal_paths.append(band_tile.tile.gdal_path)
-            file_list.append(band_tile.tile.gdal_path.replace("/vsis3/", "s3://"))
-
-            cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
-            cmds.append(cmd)
+            try:
+                logger.debug(f"Trying to open file {band_tile.tile.gdal_path}")
+                gdal.Open(band_tile.tile.gdal_path)
+                # File exists and is valid, no need to sync, unless overwrite is True
+                if overwrite:
+                    cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+                    cmds.append(cmd)
+                    idxs_synced.append(band_tile.Index)
+            except Exception as e:
+                # Error getting metadata, file will be synced
+                cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+                cmds.append(cmd)
+                idxs_synced.append(band_tile.Index)
 
         cmds = list(set(cmds))
         helpers.make_sure_dir_exists(f"{tmp_base_dir}/raw-data")
@@ -255,8 +261,8 @@ class S3:
         os.remove(f"{tmp_base_dir}/sync_cmds.txt")
 
         # Update gdal_path in dataframe with local paths
-        for band_tile in df.itertuples():
-            output_path = f"{tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
-            df.at[band_tile.Index, "tile"].gdal_path = output_path
+        for idx in idxs_synced:  # Only update the files that were synced
+            output_path = f"{tmp_base_dir}/raw-data/{df.at[idx, 'tile'].gdal_path.replace('/vsis3/', '')}"
+            df.at[idx, "tile"].gdal_path = output_path
 
         return df
