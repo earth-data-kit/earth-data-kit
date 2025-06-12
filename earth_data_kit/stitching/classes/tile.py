@@ -4,7 +4,6 @@ import pandas as pd
 import earth_data_kit.stitching.decorators as decorators
 import json
 import uuid
-from earth_data_kit.stitching.classes.band import Band
 import numpy as np
 import earth_data_kit.utilities as utilities
 
@@ -14,22 +13,33 @@ logger = logging.getLogger(__name__)
 
 
 class Tile:
-    def __init__(self, engine_path, gdal_path, date, tile_name, metadata=None) -> None:
+    def __init__(
+        self,
+        engine_path,
+        gdal_path,
+        date,
+        tile_name,
+        geo_transform,
+        projection,
+        bands,
+        length_unit,
+        x_size,
+        y_size,
+        crs,
+    ) -> None:
         self.engine_path = engine_path
         self.gdal_path = gdal_path
         self.date = date
-        self.tile_name = f"{tile_name}-{uuid.uuid4()}"
+        self.tile_name = tile_name
 
-        if not metadata:
-            metadata = self.fetch_metadata()
-
-        self.geo_transform = metadata["geo_transform"]
-        self.projection = metadata["projection"]
-        self.bands = metadata["bands"]
-        self.length_unit = metadata["length_unit"]
-        self.x_size = metadata["x_size"]
-        self.y_size = metadata["y_size"]
-        self.crs = metadata["crs"]
+        self.geo_transform = geo_transform
+        self.projection = projection
+        # Should be array of jsons
+        self.bands = bands
+        self.length_unit = length_unit
+        self.x_size = x_size
+        self.y_size = y_size
+        self.crs = crs
 
     @staticmethod
     def to_df(tiles):
@@ -45,62 +55,17 @@ class Tile:
                 row.gdal_path,
                 row.date,
                 row.tile_name,
-                {
-                    "geo_transform": row.geo_transform,
-                    "projection": row.projection,
-                    "length_unit": row.length_unit,
-                    "x_size": row.x_size,
-                    "y_size": row.y_size,
-                    "crs": row.crs,
-                    "bands": row.bands,
-                },
+                row.geo_transform,
+                row.projection,
+                row.bands,
+                row.length_unit,
+                row.x_size,
+                row.y_size,
+                row.crs,
             )
-            tile.tile_name = row.tile_name
             tiles.append(tile)
 
         return tiles
-
-    @decorators.log_time
-    @decorators.log_init
-    def fetch_metadata(self):
-        """
-        Retrieve metadata for this tile.
-
-        Opens the GDAL dataset using the tile's gdal_path, extracts key spatial and band information,
-        and computes a reprojected extent in EPSG:4326 using an in-memory VRT. The metadata returned includes:
-          - geo_transform: The affine transformation parameters from the original dataset.
-          - x_size: The pixel width of the dataset.
-          - y_size: The pixel height of the dataset.
-          - projection: The projection string of the original dataset.
-          - crs: The coordinate reference system in EPSG format (derived from the dataset's projection).
-          - bands: A JSON string containing the band information retrieved from the dataset.
-          - length_unit: The unit of measurement for the spatial reference (e.g., meter).
-
-        Note:
-            The function currently reprojects the dataset solely to extract the raster extent,
-            which might be optimized in future revisions.
-
-        Returns:
-            dict: A dictionary containing the extracted metadata.
-        """
-
-        # Figure out aws options
-        ds = gdal.Open(self.gdal_path)
-        gt = ds.GetGeoTransform()
-        projection = ds.GetProjection()
-        length_unit = ds.GetSpatialRef().GetAttrValue("UNIT")
-        o = {
-            "geo_transform": gt,
-            "x_size": ds.RasterXSize,
-            "y_size": ds.RasterXSize,
-            "projection": projection,
-            "crs": "EPSG:"
-            + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
-            "bands": json.dumps(self.get_bands(ds)),
-            "length_unit": length_unit,
-        }
-        ds = None
-        return o
 
     def get_extent(self):
         x_min = self.geo_transform[0]
@@ -165,23 +130,3 @@ class Tile:
 
     def get_res(self):
         return (self.geo_transform[1], self.geo_transform[5])
-
-    @decorators.log_time
-    @decorators.log_init
-    def get_bands(self, ds):
-        bands = []
-        band_count = ds.RasterCount
-        for i in range(1, band_count + 1):
-            band = ds.GetRasterBand(i)
-            b = Band(
-                i,
-                (
-                    band.GetDescription()
-                    if band.GetDescription() != ""
-                    else "NoDescription"
-                ),
-                gdal.GetDataTypeName(band.DataType),
-                band.GetNoDataValue(),
-            )
-            bands.append(b)
-        return bands

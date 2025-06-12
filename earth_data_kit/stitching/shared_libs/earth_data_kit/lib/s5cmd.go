@@ -10,6 +10,11 @@ import (
 )
 
 func run_s5cmd(in_path string, out_path string, wg *sync.WaitGroup) {
+	// TODO: Fix this properly
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "DEBUG" {
+		log.Println("Running s5cmd for", in_path)
+	}
 	// TODO: Check the order of defer statements, maybe we should close the file first and then do function defer using wg.Done()
 	defer wg.Done()
 	// Check if AWS_NO_SIGN_REQUEST environment variable is set to "YES"
@@ -19,6 +24,11 @@ func run_s5cmd(in_path string, out_path string, wg *sync.WaitGroup) {
 	noSignRequest := os.Getenv("AWS_NO_SIGN_REQUEST")
 	if noSignRequest == "YES" {
 		args = append([]string{"--no-sign-request"}, args...)
+	}
+
+	requestPayer := os.Getenv("AWS_REQUEST_PAYER")
+	if requestPayer == "requester" {
+		args = append([]string{"--request-payer", "requester"}, args...)
 	}
 
 	cmd := exec.Command("s5cmd", args...)
