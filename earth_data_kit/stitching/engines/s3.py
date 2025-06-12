@@ -237,8 +237,8 @@ class S3:
         idxs_synced = []
         for band_tile in df.itertuples():
             try:
-                logger.debug(f"Trying to open file {band_tile.tile.gdal_path}")
-                gdal.Open(band_tile.tile.gdal_path)
+                logger.debug(f"Trying to open local file {band_tile.tile.gdal_path}")
+                gdal.Open(f"{tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}")
                 # File exists and is valid, no need to sync, unless overwrite is True
                 if overwrite:
                     cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
