@@ -23,6 +23,7 @@ from osgeo import gdal
 from tqdm import tqdm
 from datetime import datetime
 from xml.etree import ElementTree as ET
+import earth_data_kit.stitching.engines.stac as stac
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -64,6 +65,8 @@ class Dataset:
             self.engine = s3.S3()
         if engine == "earth_engine":
             self.engine = earth_engine.EarthEngine()
+        if engine == "stac":
+            self.engine = stac.STAC()
         self.source = source
 
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
@@ -201,7 +204,7 @@ class Dataset:
             self.__get_ds_tmp_path__(),
             band_locator,
         )
-
+        return
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
         intersecting_tiles = [
