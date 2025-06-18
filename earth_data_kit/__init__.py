@@ -5,7 +5,7 @@ import pandas as pd
 import logging
 import os
 
-__version__ = "0.1.3.dev20250612"
+__version__ = "0.1.3.dev20250619"
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
