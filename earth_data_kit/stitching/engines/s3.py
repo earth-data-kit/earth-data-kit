@@ -234,7 +234,6 @@ class S3:
     def sync(self, df, tmp_base_dir, overwrite=False):
         # Iterate over the dataframe to get GDAL paths that need syncing
         cmds = []
-        idxs_synced = []
         for band_tile in df.itertuples():
             try:
                 logger.debug(f"Trying to open local file {band_tile.tile.gdal_path}")
@@ -245,12 +244,10 @@ class S3:
                 if overwrite:
                     cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
                     cmds.append(cmd)
-                    idxs_synced.append(band_tile.Index)
             except Exception as e:
                 # Error getting metadata, file will be synced
                 cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
                 cmds.append(cmd)
-                idxs_synced.append(band_tile.Index)
 
         cmds = list(set(cmds))
         helpers.make_sure_dir_exists(f"{tmp_base_dir}/raw-data")
@@ -263,8 +260,8 @@ class S3:
         os.remove(f"{tmp_base_dir}/sync_cmds.txt")
 
         # Update gdal_path in dataframe with local paths
-        for idx in idxs_synced:  # Only update the files that were synced
-            output_path = f"{tmp_base_dir}/raw-data/{df.at[idx, 'tile'].gdal_path.replace('/vsis3/', '')}"
-            df.at[idx, "tile"].gdal_path = output_path
+        for band_tile in df.itertuples():
+            output_path = f"{tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+            band_tile.tile.gdal_path = output_path
 
         return df
