@@ -96,10 +96,17 @@ def _get_bands(ds, band_locator="description"):
     return bands
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True, retry_error_callback=lambda retry_state: retry_state.outcome.exception().args[0] != 404 if retry_state.outcome.exception() else True)
 def get_metadata(raster_path, band_locator):
     # Figure out aws options
     ds = gdal.Open(raster_path)
+    if ds is None:
+        # Check if it's a 404 error by examining the error message
+        error_msg = gdal.GetLastErrorMsg()
+        if "404" in error_msg or "not found" in error_msg.lower():
+            raise Exception(404)
+        raise Exception("Failed to open raster")
+    
     gt = ds.GetGeoTransform()
     projection = ds.GetProjection()
     length_unit = ds.GetSpatialRef().GetAttrValue("UNIT")

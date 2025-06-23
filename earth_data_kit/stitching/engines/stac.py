@@ -6,6 +6,8 @@ from earth_data_kit.stitching.classes.tile import Tile
 import logging
 from osgeo import gdal
 import os
+import earth_data_kit.stitching.engines.commons as commons
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,6 @@ class STAC:
         return _source, None
 
     def scan(self, source, time_opts, space_opts, tmp_path, band_locator):
-        logger.info(f"Scanning STAC source: {source}")
         catalog_url, collection_name = self._parse_stac_url(source)
         
         if collection_name is None:
@@ -54,7 +55,6 @@ class STAC:
         
         # Search for items using the collection
         results = catalog.search(**search_kwargs)
-        
         tiles = []
 
         # row.engine_path,
@@ -69,14 +69,51 @@ class STAC:
         # row.y_size,
         # row.crs,
 
-        item_urls = []
+        # Need 4 columns date, tile_name, engine_path, gdal_path
+        assets = []
         # Process each item/tile
         for item in results.items():
-            item_urls.append(os.path.join(catalog_url, 'collections', collection_name, 'items', item.id))
-            print (item_urls)
-            return
+            if item.ext.has("eo"):
+                bands = item.ext.eo.bands
+                print (bands, len(bands))
+                for band in bands:
+                    print (band.keys())
+                return
+
+            # Get the STAC item URL
+            for _, asset in item.assets.items():
+                if asset.media_type.startswith('image/'):
+                    asset_row = []
+                    asset_row.append(item.datetime)
+                    asset_row.append(item.id)
+                    asset_row.append(asset.href)
+                    if asset.href.startswith('s3://'):
+                        asset_row.append(asset.href.replace('s3://', '/vsis3/'))
+                    else:
+                        asset_row.append(asset.href)
+                    assets.append(asset_row)
+
+        df = pd.DataFrame(assets, columns=["date", "tile_name", "engine_path", "gdal_path"])
         
-        print (item_urls)
+
+        metadata = commons.get_tiles_metadata(
+            df["gdal_path"].tolist(), band_locator
+        )
+        for idx in range(len(metadata)):
+            if metadata[idx] is None:
+                continue
+            df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
+            df.at[idx, "projection"] = metadata[idx]["projection"]
+            df.at[idx, "x_size"] = metadata[idx]["x_size"]
+            df.at[idx, "y_size"] = metadata[idx]["y_size"]
+            df.at[idx, "crs"] = metadata[idx]["crs"]
+            df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
+            # Passing array of jsons in a dataframe "bands" column
+            df.at[idx, "bands"] = metadata[idx]["bands"]
+        df = df[df["geo_transform"].notna()].reset_index(drop=True)
+        print (df)
+        return
+        tiles = Tile.from_df(df)
         return tiles
 
     def sync(self):
