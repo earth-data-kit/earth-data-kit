@@ -35,13 +35,18 @@ formatter = logging.Formatter(
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+
 def get_s5cmd_version():
-    result = subprocess.run([S5CMD_PATH, "version"], 
-                            capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        [S5CMD_PATH, "version"], capture_output=True, text=True, check=True
+    )
     return result.stdout.strip()
+
 
 def get_gdal_version():
     import subprocess
-    result = subprocess.run(["gdalinfo", "--version"], 
-                            capture_output=True, text=True, check=True)
+
+    result = subprocess.run(
+        ["gdalinfo", "--version"], capture_output=True, text=True, check=True
+    )
     return result.stdout.strip()

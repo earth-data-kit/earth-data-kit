@@ -9,8 +9,10 @@ import subprocess
 
 __version__ = "0.1.3.dev20250619"
 
+
 def get_platform_and_arch():
-    return (sys.platform, platform.machine())    
+    return (sys.platform, platform.machine())
+
 
 def get_s5cmd_binaries():
     platform, arch = get_platform_and_arch()
@@ -24,38 +26,43 @@ def get_s5cmd_binaries():
             raise ValueError(f"Unsupported architecture: {arch}")
     else:
         raise ValueError(f"Unsupported os: {os}")
-    
+
     url = f"https://github.com/peak/s5cmd/releases/download/v{version}/s5cmd_{version}_{os_name}-{arch}.tar.gz"
 
     # Create build/s5cmd directory if it doesn't exist
     build_dir = os.path.join("earth_data_kit", "s5cmd")
     os.makedirs(build_dir, exist_ok=True)
-    
+
     # Download the file using urllib
     temp_file = os.path.join(tempfile.gettempdir(), f"s5cmd_{version}.tar.gz")
     urllib.request.urlretrieve(url, temp_file)
-    
+
     # Extract the tar.gz file
-    with tarfile.open(temp_file, 'r:gz') as tar:
-        tar.extractall(build_dir, filter='data')
-    
+    with tarfile.open(temp_file, "r:gz") as tar:
+        tar.extractall(build_dir, filter="data")
+
     # Clean up the temporary downloaded file
     os.remove(temp_file)
 
+
 get_s5cmd_binaries()
+
+
 def get_gdal_version():
     try:
-        result = subprocess.run(['gdal-config', '--version'], 
-                              capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            ["gdal-config", "--version"], capture_output=True, text=True, check=True
+        )
         return result.stdout.strip()
     except Exception as e:
         raise e
+
 
 gdal_ver = get_gdal_version()
 
 dependencies = [
     "geopandas~=0.14.4",
-    "python-dotenv~=1.0.1", 
+    "python-dotenv~=1.0.1",
     "zarr~=2.18.2",
     "netcdf4~=1.7.1.post2",
     "earthengine-api~=1.5.2",
