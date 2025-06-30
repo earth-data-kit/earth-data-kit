@@ -24,6 +24,12 @@ def get_s5cmd_binaries():
             pass
         else:
             raise ValueError(f"Unsupported architecture: {arch}")
+    elif platform == "linux":
+        os_name = "Linux"
+        if arch == "x86_64":
+            arch = "64bit"
+        else:
+            raise ValueError(f"Unsupported architecture: {arch}")
     else:
         raise ValueError(f"Unsupported os: {os}")
 
