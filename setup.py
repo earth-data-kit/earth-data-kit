@@ -7,7 +7,7 @@ import tarfile
 import urllib.request
 import subprocess
 
-__version__ = "0.1.3.dev20250619"
+__version__ = "0.1.3.dev20250630"
 
 
 def get_platform_and_arch():
