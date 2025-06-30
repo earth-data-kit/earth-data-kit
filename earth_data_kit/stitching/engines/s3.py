@@ -13,6 +13,7 @@ import geopandas as gpd
 import re
 import shapely
 import copy
+import earth_data_kit as edk
 from earth_data_kit.stitching import decorators
 import earth_data_kit.stitching.engines.commons as commons
 from earth_data_kit.stitching.classes.tile import Tile
@@ -44,10 +45,6 @@ class S3:
             profile_flag = f"--profile {profile_flag}"
         else:
             profile_flag = ""
-
-        self.base_cmd = (
-            f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
-        )
 
     def _expand_time(self, df, source, time_opts):
         if isinstance(source, list):
@@ -129,7 +126,7 @@ class S3:
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
     def _scan_s3_via_s5cmd(self, path):
-        ls_cmd = f"s5cmd --json ls '{path}'"
+        ls_cmd = f"{edk.S5CMD_PATH} --json ls '{path}'"
         proc = subprocess.Popen(
             ls_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -256,7 +253,7 @@ class S3:
         pd.DataFrame(cmds).to_csv(
             f"{tmp_base_dir}/sync_cmds.txt", index=False, header=False
         )
-        os.system(f"s5cmd run {tmp_base_dir}/sync_cmds.txt")
+        os.system(f"{edk.S5CMD_PATH} run {tmp_base_dir}/sync_cmds.txt")
         os.remove(f"{tmp_base_dir}/sync_cmds.txt")
 
         # Update gdal_path in dataframe with local paths
