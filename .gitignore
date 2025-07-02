@@ -18,6 +18,7 @@ dist
 
 # Golang builds
 earth_data_kit/stitching/shared_libs/builds/
+earth_data_kit/s5cmd/
 
 # Example files, helps in quick testing
 example.py

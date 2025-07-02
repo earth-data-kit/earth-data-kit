@@ -684,7 +684,7 @@ class Dataset:
         helpers.make_sure_dir_exists(f"{self.__get_ds_tmp_path__()}/pre-processing")
 
         if not sync and (resolution is not None or crs is not None):
-            raise ValueError(
+            logger.warning(
                 "When resampling (resolution or crs specified), sync=True is required. "
                 "This is because warping remote datasets is slow and inefficient. "
                 "Please set sync=True to download the data locally when mosaicing."
