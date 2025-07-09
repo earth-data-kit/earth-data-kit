@@ -4,7 +4,7 @@ from earth_data_kit.stitching import decorators
 import earth_data_kit as edk
 import shapely
 import json
-from tenacity import retry, stop_after_attempt, wait_fixed
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_not_exception_type
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +95,11 @@ def _get_bands(ds, band_locator="description"):
         bands.append(b)
     return bands
 
+class NonRetryableException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
 
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True, retry_error_callback=lambda retry_state: retry_state.outcome.exception().args[0] != 404 if retry_state.outcome.exception() else True)
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True, retry=retry_if_not_exception_type(NonRetryableException))
 def get_metadata(raster_path, band_locator):
     # Figure out aws options
     ds = gdal.Open(raster_path)
@@ -104,7 +107,7 @@ def get_metadata(raster_path, band_locator):
         # Check if it's a 404 error by examining the error message
         error_msg = gdal.GetLastErrorMsg()
         if "404" in error_msg or "not found" in error_msg.lower():
-            raise Exception(404)
+            raise NonRetryableException("not found")
         raise Exception("Failed to open raster")
     
     gt = ds.GetGeoTransform()

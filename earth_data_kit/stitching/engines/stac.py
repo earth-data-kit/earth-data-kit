@@ -36,7 +36,6 @@ class STAC:
             # URL is stac catalog, raise an error for no collection name
             raise ValueError("Collection name is required for STAC catalog")
         
-
         # Open STAC catalog
         catalog = Client.open(catalog_url)
         
@@ -57,30 +56,11 @@ class STAC:
         results = catalog.search(**search_kwargs)
         tiles = []
 
-        # row.engine_path,
-        # row.gdal_path,
-        # row.date,
-        # row.tile_name,
-        # row.geo_transform,
-        # row.projection,
-        # row.bands,
-        # row.length_unit,
-        # row.x_size,
-        # row.y_size,
-        # row.crs,
-
         # Need 4 columns date, tile_name, engine_path, gdal_path
         assets = []
         # Process each item/tile
         for item in results.items():
-            if item.ext.has("eo"):
-                bands = item.ext.eo.bands
-                print (bands, len(bands))
-                for band in bands:
-                    print (band.keys())
-                return
-
-            # Get the STAC item URL
+            # Get the STAC assets URLs
             for _, asset in item.assets.items():
                 if asset.media_type.startswith('image/'):
                     asset_row = []
@@ -89,18 +69,30 @@ class STAC:
                     asset_row.append(asset.href)
                     if asset.href.startswith('s3://'):
                         asset_row.append(asset.href.replace('s3://', '/vsis3/'))
+                    elif asset.href.startswith('https://'):
+                        asset_row.append(f'/vsicurl/{asset.href}')
                     else:
                         asset_row.append(asset.href)
                     assets.append(asset_row)
 
         df = pd.DataFrame(assets, columns=["date", "tile_name", "engine_path", "gdal_path"])
-        
 
         metadata = commons.get_tiles_metadata(
             df["gdal_path"].tolist(), band_locator
         )
+
+        df["geo_transform"] = None
+        df["projection"] = None
+        df["x_size"] = None
+        df["y_size"] = None
+        df["crs"] = None
+        df["length_unit"] = None
+        df["bands"] = None
+
         for idx in range(len(metadata)):
             if metadata[idx] is None:
+                continue
+            if type(metadata[idx]) != dict:
                 continue
             df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
             df.at[idx, "projection"] = metadata[idx]["projection"]
@@ -111,8 +103,7 @@ class STAC:
             # Passing array of jsons in a dataframe "bands" column
             df.at[idx, "bands"] = metadata[idx]["bands"]
         df = df[df["geo_transform"].notna()].reset_index(drop=True)
-        print (df)
-        return
+
         tiles = Tile.from_df(df)
         return tiles
 
