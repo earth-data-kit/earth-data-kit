@@ -15,8 +15,12 @@ logger = logging.getLogger(__name__)
 class STAC:
     def __init__(self) -> None:
         self.name = "stac"
-        pass
 
+    def is_media_type_allowed(self, media_type):
+        # Check if media_type starts with any of the allowed media types
+        allowed_media_types = ["image/jp2", "image/tiff"]
+        return any(media_type.startswith(allowed) for allowed in allowed_media_types)
+    
     def _parse_stac_url(self, source: str) -> tuple[str, str | None]:
         _source = source.rstrip('/')
         
@@ -62,7 +66,7 @@ class STAC:
         for item in results.items():
             # Get the STAC assets URLs
             for _, asset in item.assets.items():
-                if asset.media_type.startswith('image/'):
+                if self.is_media_type_allowed(asset.media_type):
                     asset_row = []
                     asset_row.append(item.datetime)
                     asset_row.append(item.id)
@@ -80,7 +84,6 @@ class STAC:
         metadata = commons.get_tiles_metadata(
             df["gdal_path"].tolist(), band_locator
         )
-
         df["geo_transform"] = None
         df["projection"] = None
         df["x_size"] = None

@@ -204,7 +204,7 @@ class Dataset:
             self.__get_ds_tmp_path__(),
             band_locator,
         )
-        return
+
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
         intersecting_tiles = [
