@@ -6,52 +6,13 @@ import tempfile
 import tarfile
 import urllib.request
 import subprocess
+from wheel.bdist_wheel import bdist_wheel
 
 __version__ = "0.1.3.dev20250630"
 
 
 def get_platform_and_arch():
     return (sys.platform, platform.machine())
-
-
-def get_s5cmd_binaries():
-    platform, arch = get_platform_and_arch()
-    version = "2.3.0"
-
-    if platform == "darwin":
-        os_name = "macOS"
-        if arch == "arm64":
-            pass
-        else:
-            raise ValueError(f"Unsupported architecture: {arch}")
-    elif platform == "linux":
-        os_name = "Linux"
-        if arch == "x86_64":
-            arch = "64bit"
-        else:
-            raise ValueError(f"Unsupported architecture: {arch}")
-    else:
-        raise ValueError(f"Unsupported os: {os}")
-
-    url = f"https://github.com/peak/s5cmd/releases/download/v{version}/s5cmd_{version}_{os_name}-{arch}.tar.gz"
-
-    # Create build/s5cmd directory if it doesn't exist
-    build_dir = os.path.join("earth_data_kit", "s5cmd")
-    os.makedirs(build_dir, exist_ok=True)
-
-    # Download the file using urllib
-    temp_file = os.path.join(tempfile.gettempdir(), f"s5cmd_{version}.tar.gz")
-    urllib.request.urlretrieve(url, temp_file)
-
-    # Extract the tar.gz file
-    with tarfile.open(temp_file, "r:gz") as tar:
-        tar.extractall(build_dir, filter="data")
-
-    # Clean up the temporary downloaded file
-    os.remove(temp_file)
-
-
-get_s5cmd_binaries()
 
 
 def get_gdal_version():
@@ -102,6 +63,17 @@ dev_dependencies = [
     "pytest-order~=1.3.0",
 ]
 
+
+class CustomBdistWheel(bdist_wheel):
+    def finalize_options(self):
+        super().finalize_options()
+        self.root_is_pure = False  # Mark as platform-specific
+
+    def get_tag(self):
+        # This will return something like ('cp312', 'cp312', 'macosx_10_9_x86_64')
+        return super().get_tag()
+
+
 setup(
     name="earth-data-kit",
     version=__version__,
@@ -111,14 +83,15 @@ setup(
     author="Siddhant Gupta",
     author_email="siddhantgupta3@gmail.com",
     license="Apache-2.0",
-    packages=find_packages(include=["earth_data_kit", "earth_data_kit.*"]),
-    include_package_data=True,
+    include_package_data=False,
+    zip_safe=False,
+    cmdclass={"bdist_wheel": CustomBdistWheel},
     package_data={
         "earth_data_kit": [
             "s5cmd/*",
-            "stitching/shared_libs/builds/*",
         ],
     },
+    packages=find_packages(include=["earth_data_kit", "earth_data_kit.*"]),
     python_requires=">=3.12",
     install_requires=dependencies,
     extras_require={

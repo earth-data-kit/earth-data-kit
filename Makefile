@@ -1,4 +1,4 @@
-.PHONY: build-shared-libs run-tests build build-package install-package build-docs rebuild-docs release release-docs prettify
+.PHONY: build-shared-libs run-tests build build-package install-package build-docs rebuild-docs release release-docs prettify build-wheels create-release release-wheels
 
 # Variables
 SHARED_LIBS_DIR := earth_data_kit/stitching/shared_libs/earth_data_kit
@@ -65,6 +65,29 @@ build:
 	@$(MAKE) build-shared-libs
 	@echo ""
 	@$(MAKE) build-package
+
+# Build Python wheels for Linux and macOS (arm64 and x86_64)
+build-wheels:
+	@echo "Cleaning dist/ folder..."
+	@rm -rf dist/*
+	@echo "Building wheels for Linux (x86_64, aarch64)..."
+	@BUILD_PLATFORM=linux BUILD_ARCHS=x86_64 bash build-edk.sh
+	@BUILD_PLATFORM=linux BUILD_ARCHS=aarch64 bash build-edk.sh
+	@echo "Building wheels for macOS (arm64, x86_64)..."
+	@BUILD_PLATFORM=macos BUILD_ARCHS=arm64 bash build-edk.sh
+	@BUILD_PLATFORM=macos BUILD_ARCHS=x86_64 bash build-edk.sh
+	@echo "\033[0;32mAll wheels built successfully.\033[0m"
+
+create-release:
+	@echo "Creating release $(TAG)..."
+	$(GH) release create $(TAG) --title $(TAG) --generate-notes
+
+release-wheels:
+	@echo "Uploading all wheels in dist/ to GitHub release $(TAG)..."
+	@for wheel in dist/*.whl; do \
+		echo "Uploading $$wheel..."; \
+		$(GH) release upload $(TAG) "$$wheel" --clobber; \
+	done
 
 # Create a new release
 release:
