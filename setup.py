@@ -14,6 +14,7 @@ __version__ = "0.1.3.dev20250630"
 def get_platform_and_arch():
     return (sys.platform, platform.machine())
 
+
 def get_gdal_version():
     try:
         result = subprocess.run(
@@ -62,6 +63,7 @@ dev_dependencies = [
     "pytest-order~=1.3.0",
 ]
 
+
 class CustomBdistWheel(bdist_wheel):
     def finalize_options(self):
         super().finalize_options()
@@ -70,7 +72,8 @@ class CustomBdistWheel(bdist_wheel):
     def get_tag(self):
         # This will return something like ('cp312', 'cp312', 'macosx_10_9_x86_64')
         return super().get_tag()
-    
+
+
 setup(
     name="earth-data-kit",
     version=__version__,
