@@ -7,7 +7,7 @@ import os
 import subprocess
 
 S5CMD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s5cmd", "s5cmd")
-__version__ = "0.1.3.dev20250630"
+__version__ = "0.1.3.dev20250802"
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
