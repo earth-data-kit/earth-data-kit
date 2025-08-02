@@ -8,7 +8,7 @@ import urllib.request
 import subprocess
 from wheel.bdist_wheel import bdist_wheel
 
-__version__ = "0.1.3.dev20250630"
+__version__ = "0.1.3.dev20250802"
 
 
 def get_platform_and_arch():
