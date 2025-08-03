@@ -1,0 +1,12 @@
+services:
+  edk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        WORKSPACE_DIR: ${WORKSPACE_DIR}  
+    container_name: edk
+    tty: true
+    volumes:
+      - ${WORKSPACE_DIR:-./workspace}:/app/workspace
+      - ${DATA_DIR:-./data}:/app/data

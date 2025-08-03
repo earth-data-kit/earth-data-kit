@@ -9,23 +9,10 @@ import subprocess
 from wheel.bdist_wheel import bdist_wheel
 
 __version__ = "0.1.3.dev20250802"
-
+gdal_version = "3.10.3"
 
 def get_platform_and_arch():
     return (sys.platform, platform.machine())
-
-
-def get_gdal_version():
-    try:
-        result = subprocess.run(
-            ["gdal-config", "--version"], capture_output=True, text=True, check=True
-        )
-        return result.stdout.strip()
-    except Exception as e:
-        raise e
-
-
-gdal_ver = get_gdal_version()
 
 dependencies = [
     "geopandas~=0.14.4",
@@ -42,7 +29,8 @@ dependencies = [
     "tqdm~=4.67.1",
     "rio-tiler~=7.6.0",
     "tenacity~=9.1.2",
-    f"gdal=={gdal_ver}",
+    f"gdal=={gdal_version}",
+    "pystac_client~=0.8.6"
 ]
 
 dev_dependencies = [
@@ -53,8 +41,6 @@ dev_dependencies = [
     "pytest-xdist~=3.6.1",
     "black~=25.1.0",
     "sphinx-copybutton~=0.5.2",
-    "rasterio~=1.4.3",
-    "rioxarray~=0.18.2",
     "pyarrow~=19.0.1",
     "ipycytoscape~=1.3.3",
     "gcsfs~=2025.3.0",
