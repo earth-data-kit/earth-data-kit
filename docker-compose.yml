@@ -14,5 +14,4 @@ services:
       - ${WORKSPACE_DIR:-./workspace}:/app/workspace
       - ${DATA_DIR:-./data}:/app/data
       - ${AWS_CONFIG_DIR:-./aws}:/root/.aws
-      - ${VENV_PATH:-./venv}:/opt/venv
       - ./earth_data_kit:/opt/venv/lib/python3.12/site-packages/earth_data_kit
