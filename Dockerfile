@@ -30,8 +30,11 @@ RUN poetry export --only main --format requirements.txt --without-hashes --outpu
 # Installing edk requirements
 RUN pip install -r /app/edk-requirements.txt
 
-# Copying edk code
-COPY earth_data_kit /opt/venv/lib/python3.12/site-packages/earth_data_kit
+# Installing aws cli
+RUN apt-get install -y unzip
+RUN wget -O "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"
+RUN unzip awscliv2.zip
+RUN ./aws/install
 
 # Copy requirements.txt from the workspace directory if it exists and install it
 ARG WORKSPACE_DIR
