@@ -1,47 +1,60 @@
 Getting Started
 ===============
 
-Prerequisites
--------------
-Before using Earth Data Kit, ensure that the following are installed:
+Primary Usage: Docker
+---------------------
+The recommended and primary way to run Earth Data Kit (EDK) is via Docker. This approach avoids dependency issues and ensures a consistent environment across platforms.
 
-- Python 3.12 or newer
-- GDAL 3.8.4 or above - https://gdal.org/en/stable/download.html#binaries
-- s5cmd (optional) - https://github.com/peak/s5cmd - Only required if you plan to query data from S3 buckets or export to S3
-
-Installation
-------------
-To install Earth Data Kit, follow these steps:
-
-1. Clone the GitHub repository:
+Quick Start
+-----------
+1. **Clone the repository:**
 
    .. code-block:: console
 
       $ git clone https://github.com/earth-data-kit/earth-data-kit.git
       $ cd earth-data-kit
 
-2. Switch to the master or a release branch:
+2. **Create your `.env` file:**
+
+   Set up your environment variables in a `.env` file in the root of the repository. See the "Environment Configuration" section below for details on available options.
+
+3. **Initialize the Docker container:**
 
    .. code-block:: console
 
-      $ git checkout master
+      $ bash init.sh
 
-3. Run the installation script:
+   This will build and start the EDK Docker container with all dependencies pre-installed.  
+   Additionally, if you have a `requirements.txt` file inside the `workspace` directory, it will be installed automatically inside the container.
+
+4. **Run your Python script inside the container:**
+
+   Place your script (e.g., `my_script.py`) inside the `workspace` directory. Then run:
 
    .. code-block:: console
 
-      $ bash install.sh
+      $ bash launcher.sh my_script.py
 
-This will check prerequisites, download the latest tarball from GitHub releases, and install EDK automatically.
+   This will execute your script using Python 3 inside the running EDK container.
 
+5. **(Optional) SSH into the container:**
+
+   If you want an interactive shell inside the container, run:
+
+   .. code-block:: console
+
+      $ bash exec-edk.sh
+
+   This will open a bash shell inside the EDK container, allowing you to run commands interactively.
 
 Environment Configuration
 -------------------------
-Earth Data Kit can be customized via environment variables. This approach lets you easily configure settings such as AWS credentials, GDAL options, and other operational parameters. You can maintain these settings in a ``.env`` file and load them using the ``python-dotenv`` package.
+Earth Data Kit can be customized via environment variables, which you should define in your `.env` file. This lets you easily configure settings such as AWS credentials, GDAL options, and other operational parameters.
 
 General Options
 ~~~~~~~~~~~~~~~
-* ``TMP_DIR`` *(Required)*: The directory path used for storing temporary files (e.g., catalog, pre-processed VRTs).
+* ``DATA_DIR`` *(Required)*: The directory path used for storing and sharing data within the container (e.g., catalog, pre-processed VRTs). Is also used to create any intermediate files.
+* ``WORKSPACE_DIR`` *(Required)*: The directory path used for storing your scripts, notebooks, etc.
 * ``EDK_MAX_WORKERS``: The maximum number of workers to use for parallel processing. If not set, it will use ``num_cores - 2`` for CPU intensive tasks and ``(2 * num_cores) - 1`` for I/O intensive tasks.
 
 AWS Options
@@ -53,9 +66,5 @@ AWS Options
 Google Earth Engine Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ``GOOGLE_APPLICATION_CREDENTIALS``: Specifies the path to the JSON credentials file for authenticating with the Earth Engine API.
-
-GDAL Options
-~~~~~~~~~~~~
-* ``GDAL_HTTP_TCP_KEEPALIVE`` (YES/NO): Determines whether to enable TCP keep-alive for GDAL HTTP connections (defaults to NO).
 
 This configuration setup provides flexibility to adapt Earth Data Kit to your specific environment and processing needs.

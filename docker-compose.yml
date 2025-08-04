@@ -4,9 +4,12 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        # Needed for requirements.txt to work
         WORKSPACE_DIR: ${WORKSPACE_DIR}  
     container_name: edk
     tty: true
+    env_file:
+      - .env
     volumes:
       - ${WORKSPACE_DIR:-./workspace}:/app/workspace
       - ${DATA_DIR:-./data}:/app/data

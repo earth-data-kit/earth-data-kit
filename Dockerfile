@@ -10,27 +10,28 @@ RUN apt-get update && apt-get install -y \
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install poetry
+RUN poetry self add "poetry-plugin-export"
 
 # Getting s5cmd
 RUN apt-get install -y wget
 RUN wget -O s5cmd.tar.gz https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Linux-64bit.tar.gz
 RUN tar -xzf s5cmd.tar.gz -C /bin s5cmd
 
-# Building EDK
+# Copying EDK code without building it
 WORKDIR /app/earth-data-kit
 
-COPY setup.py /app/earth-data-kit/setup.py
+# Installing edk requirements
 COPY pyproject.toml /app/earth-data-kit/pyproject.toml
 COPY poetry.lock /app/earth-data-kit/poetry.lock
 COPY README.md /app/earth-data-kit/README.md
 COPY LICENSE.md /app/earth-data-kit/LICENSE.md
+RUN poetry export --only main --format requirements.txt --without-hashes --output /app/edk-requirements.txt
 
-COPY earth_data_kit /app/earth-data-kit/earth_data_kit
+# Installing edk requirements
+RUN pip install -r /app/edk-requirements.txt
 
-RUN poetry build
-
-# Installing EDK
-RUN PKG_FILE=$(ls dist/*.tar.gz | head -n 1) && pip install "$PKG_FILE"
+# Copying edk code
+COPY earth_data_kit /opt/venv/lib/python3.12/site-packages/earth_data_kit
 
 # Copy requirements.txt from the workspace directory if it exists and install it
 ARG WORKSPACE_DIR

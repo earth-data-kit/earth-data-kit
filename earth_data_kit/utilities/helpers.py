@@ -72,7 +72,7 @@ def remove_file_if_exists(file_path):
 
 
 def get_tmp_dir():
-    tmp_dir = f'{os.getenv("TMP_DIR")}/tmp'
+    tmp_dir = f'{os.getenv("DATA_DIR")}/tmp'
     make_sure_dir_exists(tmp_dir)
     return tmp_dir
 
