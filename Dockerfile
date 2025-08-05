@@ -36,6 +36,9 @@ RUN wget -O "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-linux-aarch6
 RUN unzip awscliv2.zip
 RUN ./aws/install
 
+# Installing jupyterlab
+RUN pip install jupyterlab
+
 # Copy requirements.txt from the workspace directory if it exists and install it
 ARG WORKSPACE_DIR
 ENV WORKSPACE_DIR=${WORKSPACE_DIR}

@@ -10,6 +10,8 @@ services:
     tty: true
     env_file:
       - .env
+    ports:
+      - "8888:8888"
     volumes:
       - ${WORKSPACE_DIR:-./workspace}:/app/workspace
       - ${DATA_DIR:-./data}:/app/data
