@@ -1,14 +1,25 @@
 import os
+from tqdm import tqdm
+from osgeo import gdal
+import subprocess
+import io
 import pandas as pd
 import logging
 import earth_data_kit.utilities.helpers as helpers
+import earth_data_kit.utilities.geo as geo
 import pathlib
 import Levenshtein as levenshtein
 import geopandas as gpd
 import re
 import shapely
 import copy
+import earth_data_kit as edk
 from earth_data_kit.stitching import decorators
+import earth_data_kit.stitching.engines.commons as commons
+from earth_data_kit.stitching.classes.tile import Tile
+import json
+from tenacity import retry, stop_after_attempt, wait_fixed
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +45,6 @@ class S3:
             profile_flag = f"--profile {profile_flag}"
         else:
             profile_flag = ""
-
-        self.base_cmd = (
-            f"s5cmd {no_sign_flag} {request_payer_flag} {profile_flag} {json_flag}"
-        )
 
     def _expand_time(self, df, source, time_opts):
         if isinstance(source, list):
@@ -117,55 +124,143 @@ class S3:
 
         return patterns_df
 
-    def scan(self, source, time_opts, space_opts, tmp_base_dir):
-        patterns_df = self.get_patterns(source, time_opts, space_opts)
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
+    def _scan_s3_via_s5cmd(self, path):
+        ls_cmd = f"{edk.S5CMD_PATH} --json ls '{path}'"
+        proc = subprocess.Popen(
+            ls_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = proc.communicate()
+        if proc.returncode != 0:
+            if "no object found" not in stderr.decode("utf-8").lower():
+                raise Exception(
+                    f"Error scanning S3 path {path}: {stderr.decode('utf-8')}"
+                )
+            return pd.DataFrame(columns=["key"])
+        try:
+            stdout = stdout.decode("utf-8")
+            df = pd.read_json(io.StringIO(stdout), lines=True)
+            if "key" in df.columns:
+                return df[["key"]]
+            else:
+                return pd.DataFrame(columns=["key"])
+        except Exception as e:
+            logger.error(f"Error scanning S3 path {path}: {e} {stdout}")
+            return pd.DataFrame(columns=["key"])
 
-        ls_cmds_fp = f"{tmp_base_dir}/ls_commands.txt"
-        inventory_file_path = f"{tmp_base_dir}/inventory.csv"
+    def scan(self, source, time_opts, space_opts, tmp_base_dir, band_locator):
+        patterns_df = self.get_patterns(source, time_opts, space_opts)
         if "date" not in patterns_df.columns:
             patterns_df["date"] = None
 
-        # go-lib expects paths in unix style
-        patterns_df["unix_path"] = patterns_df["search_path"].str.replace("s3://", "/")
+        def scan_pattern(row):
+            result_df = self._scan_s3_via_s5cmd(row.search_path)
+            if hasattr(row, "date"):
+                result_df["date"] = row.date
+            return result_df
 
-        patterns_df[["unix_path"]].to_csv(ls_cmds_fp, index=False, header=False)
-        lib_path = helpers.get_shared_lib_path()
-
-        ls_cmd = f"{lib_path} {ls_cmds_fp} {inventory_file_path}"
-        os.system(ls_cmd)
-
-        inv_df = pd.read_csv(inventory_file_path, names=["key"])
-
-        # Fixing output from go-lib
-        inv_df["key"] = "s3://" + inv_df["key"].str[1:]
-
-        for in_row in inv_df.itertuples():
-            max_score = -99
-            max_score_idx = -1
-            for out_row in patterns_df.itertuples():
-                s = levenshtein.ratio(in_row.key, out_row.search_path)  # type: ignore
-                if s > max_score:
-                    max_score = s
-                    max_score_idx = out_row.Index
-
-            inv_df.at[in_row.Index, "date"] = patterns_df["date"][max_score_idx]
-            inv_df.at[in_row.Index, "search_path"] = patterns_df["search_path"][
-                max_score_idx
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            futures = [
+                executor.submit(scan_pattern, row) for row in patterns_df.itertuples()
             ]
-            inv_df.at[in_row.Index, "unix_path"] = patterns_df["unix_path"][
-                max_score_idx
-            ]
-            inv_df.at[in_row.Index, "tile_name"] = ".".join(
-                inv_df.at[in_row.Index, "key"].split("/")[-1].split(".")[:-1]
-            )
+            scan_results = []
+            for f in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Scanning S3 patterns",
+                unit="path",
+            ):
+                result_df = f.result()
+                scan_results.append(result_df)
+
+        if scan_results:
+            inv_df = pd.concat(scan_results, ignore_index=True)
+        else:
+            inv_df = pd.DataFrame(columns=["key"])
 
         # Adding gdal_path
         inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
         inv_df["engine_path"] = inv_df["key"]
+        inv_df["tile_name"] = inv_df["key"].str.split("/").str[-1]
+        inv_df.drop(columns=["key"], inplace=True)
 
-        # Removing extra files created
-        os.remove(inventory_file_path)
-        os.remove(ls_cmds_fp)
+        # Add new columns to the dataframe
+        inv_df["geo_transform"] = None
+        inv_df["projection"] = None
+        inv_df["x_size"] = None
+        inv_df["y_size"] = None
+        inv_df["crs"] = None
+        inv_df["length_unit"] = None
+        inv_df["bands"] = None
 
-        # TODO: Add code to handle daily resolution
-        return inv_df[["date", "engine_path", "gdal_path", "tile_name"]]
+        metadata = commons.get_tiles_metadata(
+            inv_df["gdal_path"].tolist(), band_locator
+        )
+        for idx in range(len(metadata)):
+            if metadata[idx] is None:
+                continue
+            inv_df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
+            inv_df.at[idx, "projection"] = metadata[idx]["projection"]
+            inv_df.at[idx, "x_size"] = metadata[idx]["x_size"]
+            inv_df.at[idx, "y_size"] = metadata[idx]["y_size"]
+            inv_df.at[idx, "crs"] = metadata[idx]["crs"]
+            inv_df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
+            # Passing array of jsons in a dataframe "bands" column
+            inv_df.at[idx, "bands"] = metadata[idx]["bands"]
+        inv_df = inv_df[inv_df["geo_transform"].notna()].reset_index(drop=True)
+        if (
+            time_opts
+            and "resolution" in time_opts
+            and time_opts["resolution"] is not None
+        ):
+            # Convert time_opts dates to pandas Timestamp to ensure consistent types
+            inv_df["date"] = pd.to_datetime(inv_df["date"], format="ISO8601")
+            # Set the time part of the date according to resolution
+
+            # Convert datetime[ns] to datetime[ns, UTC]
+            inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
+            inv_df = commons.aggregate_temporally(
+                inv_df,
+                pd.to_datetime(time_opts["start"]),
+                pd.to_datetime(time_opts["end"]),
+                time_opts["resolution"],
+            )
+        tiles = Tile.from_df(inv_df)
+        return tiles
+
+    def sync(self, df, tmp_base_dir, overwrite=False):
+        # Iterate over the dataframe to get GDAL paths that need syncing
+        cmds = []
+        for band_tile in df.itertuples():
+            try:
+                logger.debug(f"Trying to open local file {band_tile.tile.gdal_path}")
+                gdal.Open(
+                    f"{tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+                )
+                # File exists and is valid, no need to sync, unless overwrite is True
+                if overwrite:
+                    cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+                    cmds.append(cmd)
+            except Exception as e:
+                # Error getting metadata, file will be synced
+                cmd = f"cp --sp {band_tile.tile.gdal_path.replace('/vsis3/', 's3://')} {tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+                cmds.append(cmd)
+
+        cmds = list(set(cmds))
+        helpers.make_sure_dir_exists(f"{tmp_base_dir}/raw-data")
+        logger.info(f"Syncing {len(cmds)} files")
+
+        pd.DataFrame(cmds).to_csv(
+            f"{tmp_base_dir}/sync_cmds.txt", index=False, header=False
+        )
+        os.system(f"{edk.S5CMD_PATH} run {tmp_base_dir}/sync_cmds.txt")
+        os.remove(f"{tmp_base_dir}/sync_cmds.txt")
+
+        # Update gdal_path in dataframe with local paths
+        for band_tile in df.itertuples():
+            output_path = f"{tmp_base_dir}/raw-data/{band_tile.tile.gdal_path.replace('/vsis3/', '')}"
+            band_tile.tile.gdal_path = output_path
+
+        return df

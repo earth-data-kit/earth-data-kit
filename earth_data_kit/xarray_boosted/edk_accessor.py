@@ -10,8 +10,7 @@ import os
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-# from tqdm import tqdm
-from tqdm import tqdm_notebook as tqdm
+from tqdm import tqdm
 import math
 from datetime import datetime
 import glob

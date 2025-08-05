@@ -18,10 +18,11 @@ dist
 
 # Golang builds
 earth_data_kit/stitching/shared_libs/builds/
+earth_data_kit/s5cmd/
 
 # Example files, helps in quick testing
-example.py
-example.ipynb
+workspace
+data
 
 # Created by tests
 *.tar.gz.properties

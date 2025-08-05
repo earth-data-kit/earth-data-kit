@@ -1,8 +1,10 @@
-from osgeo import gdal
+from osgeo import gdal, osr
 import logging
 from earth_data_kit.stitching import decorators
 import earth_data_kit as edk
 import shapely
+import json
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_not_exception_type
 
 logger = logging.getLogger(__name__)
 
@@ -63,3 +65,93 @@ def get_bbox_from_raster(raster_path):
     )
 
     return lon_min, lat_min, lon_max, lat_max
+
+
+def _get_bands(ds, band_locator="description"):
+    bands = []
+    band_count = ds.RasterCount
+    for i in range(1, band_count + 1):
+        band = ds.GetRasterBand(i)
+
+        if band_locator == "description":
+            band_name = band.GetDescription()
+        elif band_locator == "color_interp":
+            band_name = gdal.GetColorInterpretationName(band.GetColorInterpretation())
+        elif band_locator == "filename":
+            band_name = ds.GetName().split("/")[-1]
+            if "." in band_name:
+                band_name = band_name.split(".")[0]
+        else:
+            raise ValueError(
+                f"Invalid band locator: {band_locator}. Should be one of: `desc`, `color_interp`, `filename`"
+            )
+
+        b = {
+            "source_idx": i,
+            "description": (band_name if band_name != "" else "NoDescription"),
+            "dtype": gdal.GetDataTypeName(band.DataType),
+            "nodataval": band.GetNoDataValue(),
+        }
+        bands.append(b)
+    return bands
+
+
+class NonRetryableException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(3),
+    reraise=True,
+    retry=retry_if_not_exception_type(NonRetryableException),
+)
+def get_metadata(raster_path, band_locator):
+    # Figure out aws options
+    ds = gdal.Open(raster_path)
+    if ds is None:
+        # Check if it's a 404 error by examining the error message
+        error_msg = gdal.GetLastErrorMsg()
+        if "404" in error_msg or "not found" in error_msg.lower():
+            raise NonRetryableException("not found")
+        raise Exception("Failed to open raster")
+
+    gt = ds.GetGeoTransform()
+    projection = ds.GetProjection()
+    length_unit = ds.GetSpatialRef().GetAttrValue("UNIT")
+    o = {
+        "geo_transform": gt,
+        "x_size": ds.RasterXSize,
+        "y_size": ds.RasterXSize,
+        "projection": projection,
+        "crs": "EPSG:" + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
+        "bands": _get_bands(ds, band_locator),
+        "length_unit": length_unit,
+    }
+    ds = None
+    return o
+
+
+def get_subdatasets(gdal_path):
+    def get_subdatasets_recursive(path):
+        result = []
+        ds = gdal.Info(path, format="json")
+
+        # Get subdatasets from the metadata json
+        subdatasets = ds.get("metadata", {}).get("SUBDATASETS", {})
+
+        # Extract subdataset paths from the json
+        for key in subdatasets:
+            if key.startswith("SUBDATASET_") and key.endswith("_NAME"):
+                subdataset_path = subdatasets[key]
+                result.append(subdataset_path)
+
+                # Recursively check if this subdataset has its own subdatasets
+                nested_subdatasets = get_subdatasets_recursive(subdataset_path)
+                result.extend(nested_subdatasets)
+
+        return result
+
+    # Start the recursive process with the initial gdal_path
+    return get_subdatasets_recursive(gdal_path)

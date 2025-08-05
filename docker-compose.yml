@@ -1,0 +1,19 @@
+services:
+  edk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Needed for requirements.txt to work
+        WORKSPACE_DIR: ${WORKSPACE_DIR}
+    container_name: edk
+    tty: true
+    env_file:
+      - .env
+    ports:
+      - "8888:8888"
+    volumes:
+      - ${WORKSPACE_DIR:-./workspace}:/app/workspace
+      - ${DATA_DIR:-./data}:/app/data
+      - ${AWS_CONFIG_DIR:-~./aws}:/root/.aws
+      - ./earth_data_kit:/opt/venv/lib/python3.12/site-packages/earth_data_kit
