@@ -12,7 +12,7 @@ import pandas as pd
 import logging
 import subprocess
 
-__version__ = "0.1.3.dev20250802"
+__version__ = "0.1.3.dev20250805"
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
