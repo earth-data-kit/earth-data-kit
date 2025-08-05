@@ -1,4 +1,4 @@
-.PHONY: build-shared-libs run-tests build build-package install-package build-docs rebuild-docs release release-docs prettify build-wheels create-release release-wheels
+.PHONY: run-tests build-docs release-docs release-dev-docs prettify bump-dev bump-version
 
 # Variables
 SHARED_LIBS_DIR := earth_data_kit/stitching/shared_libs/earth_data_kit
