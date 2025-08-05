@@ -17,7 +17,7 @@ RUN apt-get install -y wget
 RUN wget -O s5cmd.tar.gz https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Linux-64bit.tar.gz
 RUN tar -xzf s5cmd.tar.gz -C /bin s5cmd
 
-# Copying EDK code without building it
+# Copying EDK requirements and installing the dependencies
 WORKDIR /app/earth-data-kit
 
 # Installing edk requirements

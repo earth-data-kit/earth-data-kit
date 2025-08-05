@@ -27,3 +27,17 @@ To use `launcher.sh`, simply provide the path to your script (relative to the `w
 **Example usage:**
 
 `bash launcher.sh /workspace/scripts/my_script.py arg1 arg2`
+
+## 3. `start-notebook.sh`: Launch Jupyter Notebook in Docker
+
+The `start-notebook.sh` script is a convenience tool to start a Jupyter Notebook server inside the Docker container, making it easy to interactively explore and analyze your data and code. When you run this script, it will:
+
+- Start a Jupyter Notebook server inside the container, using the Python environment and dependencies already set up.
+- Expose the notebook interface on port `8888`, so you can access it from your browser at [http://localhost:8888](http://localhost:8888).
+- Use the `workspace` directory as the root for your notebooks, so you can create, edit, and run notebooks directly on your project files.
+
+**Example usage:**
+
+`bash start-notebook.sh`
+
+After running the script, open your browser and go to [http://localhost:8888](http://localhost:8888) to access the Jupyter Notebook interface.

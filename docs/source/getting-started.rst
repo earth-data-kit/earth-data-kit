@@ -46,6 +46,16 @@ Quick Start
       $ bash exec-edk.sh
 
    This will open a bash shell inside the EDK container, allowing you to run commands interactively.
+   
+6. **(Optional) Start a JupyterLab server inside the container:**
+
+   If you want to use JupyterLab for interactive development, you can launch a JupyterLab server inside the EDK container by running:
+
+   .. code-block:: console
+
+      $ bash start-notebook.sh
+
+   This will start a JupyterLab server accessible from your browser. By default, it will be available at `http://localhost:8888` on your host machine. You can then open notebooks and interact with your code and data directly within the container environment.
 
 Environment Configuration
 -------------------------
@@ -59,7 +69,8 @@ General Options
 
 AWS Options
 ~~~~~~~~~~~
-* ``AWS_REGION``: Specifies the AWS region where the data is stored (e.g., us-west-2). Use the region data is stored in when downloading data from AWS S3.
+* ``AWS_CONFIG_DIR``: By default, EDK uses `~/.aws` for AWS credentials and config. Set this variable to override the location.
+* ``AWS_REGION``: AWS region where your data is stored (e.g., us-west-2). Use this when accessing S3.
 * ``AWS_NO_SIGN_REQUEST`` (YES/NO): If set to YES, this option disables request signing, meaning AWS credentials will be bypassed.
 * ``AWS_REQUEST_PAYER`` (requester): Indicates that the requester accepts any charges that may result from the request. Use this when accessing buckets that require payer confirmation.
 

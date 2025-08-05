@@ -133,7 +133,9 @@ class S3:
         stdout, stderr = proc.communicate()
         if proc.returncode != 0:
             if "no object found" not in stderr.decode("utf-8").lower():
-                raise Exception(f"Error scanning S3 path {path}: {stderr.decode('utf-8')}")
+                raise Exception(
+                    f"Error scanning S3 path {path}: {stderr.decode('utf-8')}"
+                )
             return pd.DataFrame(columns=["key"])
         try:
             stdout = stdout.decode("utf-8")
@@ -152,7 +154,6 @@ class S3:
             patterns_df["date"] = None
 
         def scan_pattern(row):
-            logger.info(f"Scanning S3 path {row.search_path}")
             result_df = self._scan_s3_via_s5cmd(row.search_path)
             if hasattr(row, "date"):
                 result_df["date"] = row.date
