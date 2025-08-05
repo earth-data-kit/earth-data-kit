@@ -76,7 +76,10 @@ class STAC:
                     elif asset.href.startswith("https://"):
                         asset_row.append(f"/vsicurl/{asset.href}")
                     else:
-                        asset_row.append(asset.href)
+                        raise ValueError(
+                            f"Unknown protocol found in asset href: {asset.href}. "
+                            "Please raise an issue at https://github.com/earth-data-kit/earth-data-kit/issues with details about the STAC asset."
+                        )
                     assets.append(asset_row)
 
         df = pd.DataFrame(

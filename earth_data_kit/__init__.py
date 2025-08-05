@@ -1,13 +1,18 @@
+import os
+
+S5CMD_PATH = os.environ.get("S5CMD_PATH", "/usr/bin/s5cmd")
+os.environ["GDAL_HTTP_TCP_KEEPALIVE"] = "YES"
+os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
+os.environ["GDAL_MAX_DATASET_POOL_SIZE"] = "1024"
+
 from earth_data_kit import stitching
 from earth_data_kit import xarray_boosted
 from earth_data_kit import utilities
 import pandas as pd
 import logging
-import os
 import subprocess
 
-S5CMD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s5cmd", "s5cmd")
-__version__ = "0.1.3.dev20250802"
+__version__ = "0.1.3.dev20250805"
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()

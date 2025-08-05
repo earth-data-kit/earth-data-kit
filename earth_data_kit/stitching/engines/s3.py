@@ -130,10 +130,12 @@ class S3:
         proc = subprocess.Popen(
             ls_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        stdout, _ = proc.communicate()
+        stdout, stderr = proc.communicate()
         if proc.returncode != 0:
-            if stdout.decode("utf-8") != "":
-                logger.error(f"Error scanning S3 path {path}: {stdout}")
+            if "no object found" not in stderr.decode("utf-8").lower():
+                raise Exception(
+                    f"Error scanning S3 path {path}: {stderr.decode('utf-8')}"
+                )
             return pd.DataFrame(columns=["key"])
         try:
             stdout = stdout.decode("utf-8")

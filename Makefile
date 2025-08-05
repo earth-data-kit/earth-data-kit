@@ -1,4 +1,4 @@
-.PHONY: build-shared-libs run-tests build build-package install-package build-docs rebuild-docs release release-docs prettify build-wheels create-release release-wheels
+.PHONY: run-tests build-docs release-docs release-dev-docs prettify bump-dev bump-version
 
 # Variables
 SHARED_LIBS_DIR := earth_data_kit/stitching/shared_libs/earth_data_kit
@@ -20,80 +20,16 @@ GH ?= gh
 # Prefer using TAG over tag for consistency; fall back to tag if TAG is not set.
 TAG ?= $(tag)
 
-# Install the built Python package
-install-package:
-	@echo "Installing EDK..."
-	@echo "Fetching latest release tarball URL..."
-	@TARBALL_URL=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.assets[0].browser_download_url'); \
-	VERSION_NUM=$$(curl -s https://api.github.com/repos/earth-data-kit/earth-data-kit/releases/latest | jq -r '.tag_name'); \
-	if [ -z "$$VERSION_NUM" ] || [ "$$VERSION_NUM" = "null" ]; then \
-		echo "\033[0;31mError: Unable to fetch the latest version information.\033[0m"; \
-		exit 1; \
-	fi; \
-	echo "Found version $$VERSION_NUM from $$TARBALL_URL"; \
-	$(PIP) install "$$TARBALL_URL" --no-cache-dir; \
-	echo "\033[0;32mYou can now use EDK $$VERSION_NUM in your Python environment.\033[0m"
-
 # Run tests using pytest
 run-tests:
 	@echo "Running tests..."
 	$(PYTHON) -m pytest ./ -rx
-
-# Build shared libraries using Go
-build-shared-libs:
-	@echo "Building shared libraries..."
-	@echo "Bulding for macos/arm64"
-	@cd $(SHARED_LIBS_DIR) && env GOOS=darwin GOARCH=arm64 go build -o $(GO_LIB_OUTPUT)-darwin-arm64 main.go
-	@echo "Bulding for linux/amd64"
-	@cd $(SHARED_LIBS_DIR) && env GOOS=linux GOARCH=amd64 go build -o $(GO_LIB_OUTPUT)-linux-amd64 main.go
-	@echo "\033[0;32mShared libraries built successfully.\033[0m"
-
-# Build the Python package with Poetry
-build-package:
-	@echo "Building Python package..."
-	@$(POETRY) build -q
-	@echo "\033[0;32mPython package built successfully.\033[0m"
 
 # Build project documentation using Sphinx
 build-docs:
 	@echo "Building documentation..."
 	rm -rf $(DOCS_BUILD_DIR)/*
 	$(SPHINXBUILD) -M html $(DOCS_SOURCE_DIR) $(DOCS_BUILD_DIR)
-
-# Builds the shared-libs and package
-build:
-	@$(MAKE) build-shared-libs
-	@echo ""
-	@$(MAKE) build-package
-
-# Build Python wheels for Linux and macOS (arm64 and x86_64)
-build-wheels:
-	@echo "Cleaning dist/ folder..."
-	@rm -rf dist/*
-	@echo "Building wheels for Linux (x86_64, aarch64)..."
-	@BUILD_PLATFORM=linux BUILD_ARCHS=x86_64 bash build-edk.sh
-	@BUILD_PLATFORM=linux BUILD_ARCHS=aarch64 bash build-edk.sh
-	@echo "Building wheels for macOS (arm64, x86_64)..."
-	@BUILD_PLATFORM=macos BUILD_ARCHS=arm64 bash build-edk.sh
-	@BUILD_PLATFORM=macos BUILD_ARCHS=x86_64 bash build-edk.sh
-	@echo "\033[0;32mAll wheels built successfully.\033[0m"
-
-create-release:
-	@echo "Creating release $(TAG)..."
-	$(GH) release create $(TAG) --title $(TAG) --generate-notes
-
-release-wheels:
-	@echo "Uploading all wheels in dist/ to GitHub release $(TAG)..."
-	@for wheel in dist/*.whl; do \
-		echo "Uploading $$wheel..."; \
-		$(GH) release upload $(TAG) "$$wheel" --clobber; \
-	done
-
-# Create a new release
-release:
-	@echo "Creating release $(TAG)..."
-	$(GH) release create $(TAG) --title $(TAG) --generate-notes
-	$(GH) release upload $(TAG) dist/earth_data_kit-$(TAG).tar.gz
 
 # Update GitHub Pages with the latest documentation
 release-docs:
