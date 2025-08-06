@@ -72,9 +72,36 @@ def remove_file_if_exists(file_path):
 
 
 def get_tmp_dir():
-    tmp_dir = f'{os.getenv("DATA_DIR")}/tmp'
+    # Giving path inside container
+    if is_running_in_docker():
+        tmp_dir = f"/app/data/tmp"
+    else:
+        tmp_dir = f'{os.getenv("DATA_DIR")}/tmp'
     make_sure_dir_exists(tmp_dir)
     return tmp_dir
+
+
+def is_running_in_docker():
+    """
+    Returns True if the current process is running inside a Docker container.
+    """
+    # Check for the existence of /.dockerenv
+    if os.path.exists("/.dockerenv"):
+        return True
+    # Check cgroup info for docker/lxc keywords
+    try:
+        with open("/proc/1/cgroup", "rt") as f:
+            content = f.read()
+            if (
+                "docker" in content
+                or "kubepods" in content
+                or "containerd" in content
+                or "lxc" in content
+            ):
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def delete_dir(dir):

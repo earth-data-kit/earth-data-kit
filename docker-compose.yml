@@ -8,6 +8,7 @@ services:
         WORKSPACE_DIR: ${WORKSPACE_DIR}
     container_name: edk
     tty: true
+    command: /bin/bash -c "pip install -e /app/earth-data-kit && tail -f /dev/null"
     env_file:
       - .env
     ports:
@@ -16,4 +17,4 @@ services:
       - ${WORKSPACE_DIR:-./workspace}:/app/workspace
       - ${DATA_DIR:-./data}:/app/data
       - ${AWS_CONFIG_DIR:-~./aws}:/root/.aws
-      - ./earth_data_kit:/opt/venv/lib/python3.12/site-packages/earth_data_kit
+      - ./earth_data_kit:/app/earth-data-kit/earth_data_kit
