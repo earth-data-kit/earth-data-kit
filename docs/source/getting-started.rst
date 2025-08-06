@@ -76,6 +76,6 @@ AWS Options
 
 Google Earth Engine Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ``GOOGLE_APPLICATION_CREDENTIALS``: Specifies the path to the JSON credentials file for authenticating with the Earth Engine API.
+* ``GOOGLE_APPLICATION_CREDENTIALS``: Specifies the path to the JSON credentials file for authenticating with the Earth Engine API. See the `Earth Engine service account guide <https://developers.google.com/earth-engine/guides/service_account>`_ for more information.
 
 This configuration setup provides flexibility to adapt Earth Data Kit to your specific environment and processing needs.

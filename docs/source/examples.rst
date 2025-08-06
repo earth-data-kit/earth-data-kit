@@ -9,11 +9,4 @@ The examples cover various use cases and data sources to help you get started wi
    examples/s3
    examples/earth_engine
 
-Additional examples are hosted in the `edk-examples <https://github.com/earth-data-kit/edk-examples>`_ repository.
-
-You can run these examples interactively as Jupyter notebooks using Binder without installing anything on your local machine. 
-
-Simply click on the Binder badge in the repository or use this link: |binder| to launch a live environment where you can experiment with Earth Data Kit.
-
-.. |binder| image:: https://mybinder.org/badge_logo.svg
-   :target: https://mybinder.org/v2/gh/earth-data-kit/edk-examples.git/master
+More examples are available in the `examples <https://github.com/earth-data-kit/earth-data-kit/tree/master/examples>`_ folder.

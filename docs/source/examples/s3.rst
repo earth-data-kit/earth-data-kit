@@ -39,16 +39,14 @@ This example demonstrates how to use the Earth Data Kit to stitch together a col
     available_bands = ds.get_bands()
     print("Discovered bands:", available_bands)
     
-    # Optionally, configure GDAL options (e.g., setting the target spatial reference).
-    ds.set_target_options({
-        "-t_srs": "EPSG:3857",
-    })
 
     # Define the ordered list of band descriptions you wish to stitch together.
     bands = ["red", "green", "blue"]
 
     # Create the stitched VRTs from the provided S3 data.
-    ds.mosaic(bands)
+    ds.mosaic(bands, sync=True, overwrite=True,crs="EPSG:3857", resolution=(10, -10), dtype="uint16")
 
+    ds.save()
+    
     # This returns a dataarray with the stitched bands
     da = ds.to_dataarray()
