@@ -31,16 +31,14 @@ This example demonstrates how to use the Earth Data Kit to stitch together a Ear
     # Discover the available images within the specified temporal and spatial bounds.
     ds.discover()
 
-    # Optionally, configure GDAL options (e.g., setting the target spatial reference).
-    ds.set_target_options({
-        "-t_srs": "EPSG:3857",
-    })
-
     # Define the ordered list of band descriptions you wish to stitch together.
     bands = ["B4", "B3", "B2"]
 
     # Create the stitched VRTs from the provided Earth Engine data.
-    ds.mosaic(bands)
+    ds.mosaic(bands, sync=True, overwrite=True)
+
+    # Should save for to_dataarray to work. Also creates a json file with the stitched bands which can be directly loaded later
+    ds.save()
 
     # This returns a dataarray with the stitched bands
     da = ds.to_dataarray()

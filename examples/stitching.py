@@ -56,10 +56,6 @@ def get_sentinel_2():
 def get_era5():
     # Example: How to download data from Earth Engine using the ERA5 Daily aggregates
 
-    # Setting the path to your google credentials file
-    # TODO: Change this path
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/path/to/your/google_credentials.json'
-
     # ERA5 Daily aggregates
 
     # Creating a dataset
