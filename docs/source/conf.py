@@ -9,7 +9,7 @@
 project = "Earth Data Kit"
 copyright = "2025, Siddhant Gupta"
 author = "Siddhant Gupta"
-release = "0.1.3.dev20250805"
+release = "0.1.3.dev20250807"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
