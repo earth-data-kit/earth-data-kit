@@ -108,6 +108,6 @@ da = ds.to_dataarray()
 
 Checkout the [docs](https://earth-data-kit.github.io/) for more details.
 
-Checkout the [examples](https://github.com/earth-data-kit/edk-examples).
+See the [examples](./examples) in this repository.
 
 Checkout the [roadmap](https://earth-data-kit.github.io/roadmap.html).
