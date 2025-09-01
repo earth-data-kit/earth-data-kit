@@ -1,4 +1,5 @@
 from pystac_client import Client
+from urllib.parse import urlparse
 from pystac.extensions.eo import EOExtension
 from datetime import datetime
 import shapely.geometry
@@ -8,6 +9,8 @@ from osgeo import gdal
 import os
 import earth_data_kit.stitching.engines.commons as commons
 import pandas as pd
+import concurrent.futures
+import earth_data_kit.utilities.helpers as helpers
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +113,89 @@ class STAC:
             df.at[idx, "bands"] = metadata[idx]["bands"]
         df = df[df["geo_transform"].notna()].reset_index(drop=True)
 
+        if (
+            time_opts
+            and "resolution" in time_opts
+            and time_opts["resolution"] is not None
+        ):
+            # Convert time_opts dates to pandas Timestamp to ensure consistent types
+            df["date"] = pd.to_datetime(df["date"], format="ISO8601")
+            # Set the time part of the date according to resolution
+
+            # Convert datetime[ns] to datetime[ns, UTC]
+            df["date"] = df["date"].dt.tz_convert("UTC")
+            df = commons.aggregate_temporally(
+                df,
+                pd.to_datetime(time_opts["start"]),
+                pd.to_datetime(time_opts["end"]),
+                time_opts["resolution"],
+            )
         tiles = Tile.from_df(df)
         return tiles
 
-    def sync(self):
+    def _sync_s3(self, source, dest):
         pass
+
+    def _sync_http(self, source, dest):
+        # Will have /vsicurl/ in the beginning
+        # Remove the /vsicurl/ prefix to get the actual URL
+        url = source[len("/vsicurl/") :]
+        # Ensure the destination directory exists
+        dest_dir = os.path.dirname(dest)
+        if not os.path.exists(dest_dir):
+            os.makedirs(dest_dir, exist_ok=True)
+        # Download the file using wget
+        os.system(f"wget -O '{dest}' '{url}'")
+        return dest
+
+    def sync(self, df, tmp_base_dir, overwrite=False):
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=helpers.get_threadpool_workers()
+        ) as executor:
+            for band_tile in df.itertuples():
+                local_path = None
+                protocol = None
+                if band_tile.tile.gdal_path.startswith("/vsicurl/"):
+                    url = band_tile.tile.gdal_path
+                    url_wo_gdal_prefix = url[len("/vsicurl/") :]
+                    url_parts = urlparse(url_wo_gdal_prefix)
+                    local_path = f"{tmp_base_dir}/raw-data{url_parts.path}"
+                    protocol = "http"
+                elif band_tile.tile.gdal_path.startswith("/vsis3/"):
+                    protocol = "s3"
+                    raise ValueError("S3 assets syncing is not yet supported for STAC")
+                else:
+                    raise ValueError(
+                        f"Unknown protocol found in asset href: {band_tile.tile.gdal_path}. "
+                        "Please raise an issue at https://github.com/earth-data-kit/earth-data-kit/issues with details about the STAC asset."
+                    )
+                try:
+                    ds = gdal.Open(local_path)
+                    # File exists and is valid, no need to sync, unless overwrite is True
+                    if overwrite:
+                        if protocol == "http":
+                            executor.submit(
+                                self._sync_http, band_tile.tile.gdal_path, local_path
+                            )
+                        elif protocol == "s3":
+                            executor.submit(
+                                self._sync_s3, band_tile.tile.gdal_path, local_path
+                            )
+                    else:
+                        logger.info("Tile found, not overwriting")
+                except Exception as e:
+                    # Error getting metadata, file will be synced
+                    if protocol == "http":
+                        executor.submit(
+                            self._sync_http, band_tile.tile.gdal_path, local_path
+                        )
+                    elif protocol == "s3":
+                        executor.submit(
+                            self._sync_s3, band_tile.tile.gdal_path, local_path
+                        )
+                # Updating the file path to local_path
+                band_tile.tile.gdal_path = local_path
+
+            executor.shutdown(wait=True)
+
+        return df
