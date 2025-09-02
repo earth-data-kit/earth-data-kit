@@ -30,21 +30,26 @@ class S3:
         no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
         request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
         profile_flag = os.getenv("AWS_PROFILE")
-        json_flag = "--json"
-        if no_sign_flag and (no_sign_flag.upper() == "YES"):
-            no_sign_flag = "--no-sign-request"
-        else:
-            no_sign_flag = ""
 
-        if (request_payer_flag) and (request_payer_flag.upper() == "requester"):
-            request_payer_flag = f"--request-payer requester"
-        else:
-            request_payer_flag = ""
+        no_sign_flag_env = os.getenv("AWS_NO_SIGN_REQUEST")
+        request_payer_env = os.getenv("AWS_REQUEST_PAYER")
+        profile_env = os.getenv("AWS_PROFILE")
 
-        if profile_flag:
-            profile_flag = f"--profile {profile_flag}"
+        if no_sign_flag_env and (no_sign_flag_env.upper() in ["YES", "TRUE", "1"]):
+            self.no_sign_flag = "--no-sign-request"
         else:
-            profile_flag = ""
+            self.no_sign_flag = ""
+
+        if request_payer_env and (request_payer_env.lower() == "requester"):
+            self.request_payer_flag = "--request-payer requester"
+        else:
+            self.request_payer_flag = ""
+
+        if profile_env:
+            self.profile_flag = f"--profile {profile_env}"
+        else:
+            self.profile_flag = ""
+
 
     def _expand_time(self, df, source, time_opts):
         if isinstance(source, list):
@@ -126,7 +131,7 @@ class S3:
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
     def _scan_s3_via_s5cmd(self, path):
-        ls_cmd = f"{edk.S5CMD_PATH} --json ls '{path}'"
+        ls_cmd = f"{edk.S5CMD_PATH} {self.no_sign_flag} {self.request_payer_flag} {self.profile_flag} --json ls '{path}'"
         proc = subprocess.Popen(
             ls_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -158,7 +163,7 @@ class S3:
             if hasattr(row, "date"):
                 result_df["date"] = row.date
             return result_df
-
+          
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
@@ -174,7 +179,6 @@ class S3:
             ):
                 result_df = f.result()
                 scan_results.append(result_df)
-
         if scan_results:
             inv_df = pd.concat(scan_results, ignore_index=True)
         else:
