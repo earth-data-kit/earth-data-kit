@@ -74,17 +74,19 @@ def _get_bands(ds, band_locator="description"):
         band = ds.GetRasterBand(i)
 
         if band_locator == "description":
-            band_name = band.GetDescription()
+           band_name = band.GetDescription()
+           if band_name and "?" in band_name:
+              band_name = band_name.split("?")[0]  
         elif band_locator == "color_interp":
-            band_name = gdal.GetColorInterpretationName(band.GetColorInterpretation())
+           band_name = gdal.GetColorInterpretationName(band.GetColorInterpretation())
         elif band_locator == "filename":
-            band_name = ds.GetName().split("/")[-1]
-            if "." in band_name:
-                band_name = band_name.split(".")[0]
+           band_name = ds.GetName().split("/")[-1]
+           if "." in band_name:
+            band_name = band_name.split(".")[0]
         else:
-            raise ValueError(
-                f"Invalid band locator: {band_locator}. Should be one of: `desc`, `color_interp`, `filename`"
-            )
+         raise ValueError(
+        f"Invalid band locator: {band_locator}. Should be one of: `desc`, `color_interp`, `filename`"
+         )
 
         b = {
             "source_idx": i,

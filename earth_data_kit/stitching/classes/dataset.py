@@ -24,6 +24,8 @@ from tqdm import tqdm
 from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
+import earth_data_kit.stitching.engines.planetary_comp as planetary_comp
+
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -55,8 +57,11 @@ class Dataset:
             >>> # Or with S3
             >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3")
         """
+
         if engine not in constants.ENGINES_SUPPORTED:
             raise Exception(f"{engine} not supported")
+        
+        
 
         self.name = name
         self.time_opts = {}
@@ -67,6 +72,8 @@ class Dataset:
             self.engine = earth_engine.EarthEngine()
         if engine == "stac":
             self.engine = stac.STAC()
+        if engine == "planetary_comp":
+            self.engine = planetary_comp.PlanetaryComp()
         self.source = source
 
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
