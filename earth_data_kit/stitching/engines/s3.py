@@ -50,7 +50,6 @@ class S3:
         else:
             self.profile_flag = ""
 
-
     def _expand_time(self, df, source, time_opts):
         if isinstance(source, list):
             # If source is a list, we don't need to expand time as user has provided direct path to multiple files
@@ -163,7 +162,7 @@ class S3:
             if hasattr(row, "date"):
                 result_df["date"] = row.date
             return result_df
-          
+
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
