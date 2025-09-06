@@ -115,6 +115,9 @@ class EDKDatasetBackendArray(BackendArray):
             band_list=[band_num],
             buf_type=commons.get_gdal_dtype(self.dtype),
         )
+        # Data returned by gdal is in the order band, y, x or y, x but we want the order to be band, x, y so we transpose it
+        data = data.T
+
         band = ds.GetRasterBand(band_num)
         nodataval = band.GetNoDataValue()
         scale = band.GetScale()
@@ -170,22 +173,13 @@ class EDKDatasetBackendArray(BackendArray):
         band_nums = self._get_band_nums(key[1])
 
         x_coords, y_coords = self._get_x_y_coords(key[2], key[3])
-
         data = self._read_bands(df, time_coords, band_nums, x_coords, y_coords)
 
-        data = np.squeeze(data)
+        if not isinstance(key[0], slice):
+            data = data[0]
 
-        if len(band_nums) == 1:
-            data = np.transpose(data, axes=(1, 0))
-        else:
-            data = np.transpose(data, axes=(0, 2, 1))
-
-        if isinstance(key[1], slice) and len(band_nums) == 1:
-            data = np.array([data])
-
-        if isinstance(key[0], slice):
-            # Adding time dimension to the data, just need to wrap it in a list
-            data = np.array([data])
+        if not isinstance(key[1], slice):
+            data = data[0]
 
         return data
 

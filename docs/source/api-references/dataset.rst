@@ -7,3 +7,6 @@ Dataset
 
 .. automethod:: earth_data_kit.stitching.Dataset.dataarray_from_file
    :no-index:
+
+.. automethod:: earth_data_kit.stitching.Dataset.combine
+   :no-index:

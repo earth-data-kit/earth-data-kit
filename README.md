@@ -111,3 +111,18 @@ Checkout the [docs](https://earth-data-kit.github.io/) for more details.
 See the [examples](./examples) in this repository.
 
 Checkout the [roadmap](https://earth-data-kit.github.io/roadmap.html).
+
+> **Note:**  
+> 
+> In this toolkit, `x` = longitude (**-180** to **180**), `y` = latitude (**-90** to **90**).  
+> **Always use (x, y) = (longitude, latitude) order** for bounding boxes and coordinates.
+>
+> Many GIS tools (like QGIS) display coordinates as (latitude, longitude) or (y, x).  
+> **Double-check coordinate order** when copying from GIS tools.
+>
+> For rasters:  
+> - `x` (longitude) = column (horizontal)  
+> - `y` (latitude) = row (vertical)  
+> 
+> **GDAL** and most raster libraries return data as `[row, col]` or `[y, x]` (not `[x, y]`).  
+> **Be careful to use the correct axis order** when working with arrays and coordinates.
