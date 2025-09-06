@@ -126,7 +126,7 @@ class EDKAccessor:
         data = da.isel(
             band=band_idx, x=slice(xoff, xoff + xsize), y=slice(yoff, yoff + ysize)
         ).values
-        self._write_block(out_file, band_idx, xoff, yoff, data)
+        return data
 
     def _write_data_to_cog(self, da, output_path):
         futures = []
@@ -135,6 +135,7 @@ class EDKAccessor:
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=helpers.get_threadpool_workers()
         ) as executor:
+            args = []
             for band_idx in range(0, num_bands):
                 x_chunk_size, y_chunk_size = (
                     self.da.chunksizes["x"][0],
@@ -153,6 +154,8 @@ class EDKAccessor:
                         else:
                             ysize = y_chunk_size
 
+                        args.append((band_idx, xoff, yoff))
+
                         futures.append(
                             executor.submit(
                                 self.__read_and_write_block__,
@@ -166,13 +169,17 @@ class EDKAccessor:
                             )
                         )
 
-            for future in tqdm(
-                concurrent.futures.as_completed(futures),
-                total=len(futures),
-                desc="Writing blocks to COG",
-                position=1,
+            for idx, future in enumerate(
+                tqdm(
+                    futures,
+                    total=len(futures),
+                    desc="Writing blocks to COG",
+                    position=1,
+                )
             ):
-                future.result()
+                data = future.result()
+                band_idx, xoff, yoff = args[idx]
+                self._write_block(output_path, band_idx, xoff, yoff, data)
         return True
 
     def _export_to_cog(self, da, output_file_path, overwrite):

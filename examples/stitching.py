@@ -17,7 +17,7 @@ def get_timebounds():
 def get_sentinel_2():
     # Example: How to download data from S3 using the Sentinel-2 L1C public bucket
     source = (
-        "s3://sentinel-s2-l1c/tiles/{utm_code}/{lat_band}/{square}/%Y/%-m/%-d/*/*.jp2"
+        "s3://e84-earth-search-sentinel-data/sentinel-2-c1-l2a/{utm_code}/{lat_band}/{square}/%Y/%-m/*_%Y%m%dT*/*.tif"
     )
     # File should be downloaded https://sentinels.copernicus.eu/documents/247904/1955685/S2A_OPER_GIP_TILPAR_MPC__20151209T095117_V20150622T000000_21000101T000000_B00.kml and kept inside DATA_DIR
     grid_fp = "/app/data/sentinel-2.kml"
@@ -33,7 +33,7 @@ def get_sentinel_2():
     date_range = get_timebounds()
 
     # Creating a dataset
-    ds = edk.stitching.Dataset("sentinel-2-l1c", source, "s3", True)
+    ds = edk.stitching.Dataset("sentinel-2-l2a", source, "s3", True)
 
     # Setting time bounds
     ds.set_timebounds(date_range[0], date_range[1])
