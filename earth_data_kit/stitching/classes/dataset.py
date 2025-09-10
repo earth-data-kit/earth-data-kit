@@ -24,7 +24,7 @@ from tqdm import tqdm
 from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
-import earth_data_kit.stitching.engines.planetary_comp as planetary_comp
+import earth_data_kit.stitching.engines.planetary_computer as planetary_computer
 
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
@@ -72,8 +72,8 @@ class Dataset:
             self.engine = earth_engine.EarthEngine()
         if engine == "stac":
             self.engine = stac.STAC()
-        if engine == "planetary_comp":
-            self.engine = planetary_comp.PlanetaryComp()
+        if engine == "planetary_computer":
+            self.engine = planetary_computer.PlanetaryComputer()
         self.source = source
 
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"

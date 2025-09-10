@@ -5,6 +5,10 @@ import earth_data_kit as edk
 import shapely
 import json
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_not_exception_type
+import re
+from urllib.parse import urlparse, unquote
+import os
+from pystac_client import Client
 
 logger = logging.getLogger(__name__)
 
@@ -12,19 +16,6 @@ logger = logging.getLogger(__name__)
 @decorators.log_time
 @decorators.log_init
 def set_band_descriptions(filepath, bands):
-    """
-    Set the descriptions for bands in a GDAL raster file.
-
-    Parameters:
-        filepath (str): The path to the raster file to be updated.
-        bands (list of str): A list of description strings for each raster band.
-
-    Returns:
-        None
-
-    Raises:
-        Exception: If the file cannot be opened or updated.
-    """
     ds = gdal.Open(filepath, gdal.GA_Update)
     for idx in range(len(bands)):
         rb = ds.GetRasterBand(idx + 1)
@@ -60,33 +51,62 @@ def get_bbox_from_raster(raster_path):
     xmin, ymax, xmax, ymin = ulx, uly, lrx, lry
 
     # TODO: Make the fetching of CRS dynamic instead of hardcoding it to 3857
-    lon_min, lat_min, lon_max, lat_max = edk.utilities.transform.transform_bbox(
+    from earth_data_kit.utilities.transform import transform_bbox
+    lon_min, lat_min, lon_max, lat_max = transform_bbox(
         xmin, ymin, xmax, ymax, 3857, 4326
     )
 
     return lon_min, lat_min, lon_max, lat_max
 
 
-def _get_bands(ds, band_locator="description"):
+def _get_bands(ds, band_locator="description", stac_asset_key=None):
     bands = []
     band_count = ds.RasterCount
+
     for i in range(1, band_count + 1):
         band = ds.GetRasterBand(i)
 
         if band_locator == "description":
-           band_name = band.GetDescription()
-           if band_name and "?" in band_name:
-              band_name = band_name.split("?")[0]  
+            band_name = band.GetDescription() or "NoDescription"
+
         elif band_locator == "color_interp":
-           band_name = gdal.GetColorInterpretationName(band.GetColorInterpretation())
+            band_name = gdal.GetColorInterpretationName(band.GetColorInterpretation()) or "NoDescription"
+
         elif band_locator == "filename":
-           band_name = ds.GetName().split("/")[-1]
-           if "." in band_name:
-            band_name = band_name.split(".")[0]
+            # Derive band name from file path
+            url = ds.GetDescription()
+            if url.startswith("/vsicurl/"):
+                url = url[len("/vsicurl/"):]
+            parsed_url = urlparse(url)
+            filename = os.path.basename(parsed_url.path)
+            filename = os.path.splitext(filename)[0]
+            filename = unquote(filename)
+            band_name = filename
+
+        elif band_locator == "stac":
+            # Use the STAC asset key if provided, otherwise fall back to filename
+            if stac_asset_key:
+                band_name = stac_asset_key
+            else:
+                # Fallback to filename extraction
+                url = ds.GetDescription()
+                try:
+                    if url.startswith("/vsicurl/"):
+                        url = url[len("/vsicurl/"):]
+                    parsed_url = urlparse(url)
+                    filename = os.path.basename(parsed_url.path)
+                    filename = os.path.splitext(filename)[0]
+                    filename = unquote(filename)
+                    band_name = filename
+                except Exception as e:
+                    logger.warning(f"Could not extract band name from STAC URL: {e}")
+                    band_name = "NoDescription"
+
         else:
-         raise ValueError(
-        f"Invalid band locator: {band_locator}. Should be one of: `desc`, `color_interp`, `filename`"
-         )
+            raise ValueError(
+                f"Invalid band locator: {band_locator}. "
+                f"Should be one of: `description`, `color_interp`, `filename`, `stac`"
+            )
 
         b = {
             "source_idx": i,
@@ -95,7 +115,9 @@ def _get_bands(ds, band_locator="description"):
             "nodataval": band.GetNoDataValue(),
         }
         bands.append(b)
+
     return bands
+
 
 
 class NonRetryableException(Exception):
@@ -109,7 +131,13 @@ class NonRetryableException(Exception):
     reraise=True,
     retry=retry_if_not_exception_type(NonRetryableException),
 )
-def get_metadata(raster_path, band_locator):
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(3),
+    reraise=True,
+    retry=retry_if_not_exception_type(NonRetryableException),
+)
+def get_metadata(raster_path, band_locator, stac_asset_key=None):
     # Figure out aws options
     ds = gdal.Open(raster_path)
     if ds is None:
@@ -125,10 +153,10 @@ def get_metadata(raster_path, band_locator):
     o = {
         "geo_transform": gt,
         "x_size": ds.RasterXSize,
-        "y_size": ds.RasterXSize,
+        "y_size": ds.RasterYSize,
         "projection": projection,
         "crs": "EPSG:" + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
-        "bands": _get_bands(ds, band_locator),
+        "bands": _get_bands(ds, band_locator, stac_asset_key),
         "length_unit": length_unit,
     }
     ds = None
@@ -157,3 +185,20 @@ def get_subdatasets(gdal_path):
 
     # Start the recursive process with the initial gdal_path
     return get_subdatasets_recursive(gdal_path)
+
+def get_band_names_with_pystac(collection_id, catalog_url=None):
+    if catalog_url is None:
+        raise ValueError("catalog_url must be provided by the caller")
+
+    catalog = Client.open(catalog_url)
+    collection = catalog.get_collection(collection_id)
+
+    band_names = []
+
+    assets = collection.extra_fields.get("item_assets", {})
+    for name, meta in assets.items():
+        roles = meta.get("roles", [])
+        if any(role.lower() == "data" for role in roles):
+            band_names.append(name)
+
+    return band_names
