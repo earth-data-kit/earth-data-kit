@@ -19,11 +19,6 @@ class STAC:
     def __init__(self) -> None:
         self.name = "stac"
 
-    def is_media_type_allowed(self, media_type):
-        # Check if media_type starts with any of the allowed media types
-        allowed_media_types = ["image/jp2", "image/tiff"]
-        return any(media_type.startswith(allowed) for allowed in allowed_media_types)
-
     def _parse_stac_url(self, source: str) -> tuple[str, str | None]:
         _source = source.rstrip("/")
 
@@ -64,77 +59,21 @@ class STAC:
         tiles = []
 
         # Need 4 columns date, tile_name, engine_path, gdal_path
-        assets = []
+        items = []
         # Process each item/tile
         for item in results.items():
-            # Get the STAC assets URLs
-            for _, asset in item.assets.items():
-                if self.is_media_type_allowed(asset.media_type):
-                    asset_row = []
-                    asset_row.append(item.datetime)
-                    asset_row.append(item.id)
-                    asset_row.append(asset.href)
-                    if asset.href.startswith("s3://"):
-                        asset_row.append(asset.href.replace("s3://", "/vsis3/"))
-                    elif asset.href.startswith("https://"):
-                        asset_row.append(f"/vsicurl/{asset.href}")
-                    else:
-                        raise ValueError(
-                            f"Unknown protocol found in asset href: {asset.href}. "
-                            "Please raise an issue at https://github.com/earth-data-kit/earth-data-kit/issues with details about the STAC asset."
-                        )
-                    assets.append(asset_row)
+            # gdal.Open takes a remote URL directly without the need for STACIT prefix
+            item_row = [item.datetime, item.id, item.self_href, item.self_href]
+            items.append(item_row)
 
         df = pd.DataFrame(
-            assets, columns=["date", "tile_name", "engine_path", "gdal_path"]
+            items, columns=["date", "tile_name", "engine_path", "gdal_path"]
         )
 
-        metadata = commons.get_tiles_metadata(df["gdal_path"].tolist(), band_locator)
-        df["geo_transform"] = None
-        df["projection"] = None
-        df["x_size"] = None
-        df["y_size"] = None
-        df["crs"] = None
-        df["length_unit"] = None
-        df["bands"] = None
-
-        for idx in range(len(metadata)):
-            if metadata[idx] is None:
-                continue
-            if type(metadata[idx]) != dict:
-                continue
-            df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
-            df.at[idx, "projection"] = metadata[idx]["projection"]
-            df.at[idx, "x_size"] = metadata[idx]["x_size"]
-            df.at[idx, "y_size"] = metadata[idx]["y_size"]
-            df.at[idx, "crs"] = metadata[idx]["crs"]
-            df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
-            # Passing array of jsons in a dataframe "bands" column
-            df.at[idx, "bands"] = metadata[idx]["bands"]
-        df = df[df["geo_transform"].notna()].reset_index(drop=True)
-
-        if (
-            time_opts
-            and "resolution" in time_opts
-            and time_opts["resolution"] is not None
-        ):
-            # Convert time_opts dates to pandas Timestamp to ensure consistent types
-            df["date"] = pd.to_datetime(df["date"], format="ISO8601")
-            # Set the time part of the date according to resolution
-
-            # Convert datetime[ns] to datetime[ns, UTC]
-            df["date"] = df["date"].dt.tz_convert("UTC")
-            df = commons.aggregate_temporally(
-                df,
-                pd.to_datetime(time_opts["start"]),
-                pd.to_datetime(time_opts["end"]),
-                time_opts["resolution"],
-            )
-        tiles = Tile.from_df(df)
-        return tiles
+        return df
 
     def _sync_s3(self, source, dest):
-        pass
+        raise NotImplementedError("S3 assets syncing is not yet supported for STAC")
 
     def _sync_http(self, source, dest):
         # Will have /vsicurl/ in the beginning

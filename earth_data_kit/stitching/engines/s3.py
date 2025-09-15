@@ -16,7 +16,6 @@ import copy
 import earth_data_kit as edk
 from earth_data_kit.stitching import decorators
 import earth_data_kit.stitching.engines.commons as commons
-from earth_data_kit.stitching.classes.tile import Tile
 import json
 from tenacity import retry, stop_after_attempt, wait_fixed
 import concurrent.futures
@@ -189,49 +188,9 @@ class S3:
         inv_df["tile_name"] = inv_df["key"].str.split("/").str[-1]
         inv_df.drop(columns=["key"], inplace=True)
 
-        # Add new columns to the dataframe
-        inv_df["geo_transform"] = None
-        inv_df["projection"] = None
-        inv_df["x_size"] = None
-        inv_df["y_size"] = None
-        inv_df["crs"] = None
-        inv_df["length_unit"] = None
-        inv_df["bands"] = None
-
-        metadata = commons.get_tiles_metadata(
-            inv_df["gdal_path"].tolist(), band_locator
-        )
-        for idx in range(len(metadata)):
-            if metadata[idx] is None:
-                continue
-            inv_df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
-            inv_df.at[idx, "projection"] = metadata[idx]["projection"]
-            inv_df.at[idx, "x_size"] = metadata[idx]["x_size"]
-            inv_df.at[idx, "y_size"] = metadata[idx]["y_size"]
-            inv_df.at[idx, "crs"] = metadata[idx]["crs"]
-            inv_df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
-            # Passing array of jsons in a dataframe "bands" column
-            inv_df.at[idx, "bands"] = metadata[idx]["bands"]
-        inv_df = inv_df[inv_df["geo_transform"].notna()].reset_index(drop=True)
-        if (
-            time_opts
-            and "resolution" in time_opts
-            and time_opts["resolution"] is not None
-        ):
-            # Convert time_opts dates to pandas Timestamp to ensure consistent types
-            inv_df["date"] = pd.to_datetime(inv_df["date"], format="ISO8601")
-            # Set the time part of the date according to resolution
-
-            # Convert datetime[ns] to datetime[ns, UTC]
-            inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
-            inv_df = commons.aggregate_temporally(
-                inv_df,
-                pd.to_datetime(time_opts["start"]),
-                pd.to_datetime(time_opts["end"]),
-                time_opts["resolution"],
-            )
-        tiles = Tile.from_df(inv_df)
-        return tiles
+        # Convert datetime[ns] to datetime[ns, UTC]
+        inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
+        return inv_df
 
     def sync(self, df, tmp_base_dir, overwrite=False):
         # Iterate over the dataframe to get GDAL paths that need syncing

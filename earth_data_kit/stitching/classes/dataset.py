@@ -1,3 +1,7 @@
+from earth_data_kit.stitching.formats.geotiff import GeoTiffAdapter
+from earth_data_kit.stitching.formats.earth_engine import EarthEngineAdapter
+from earth_data_kit.stitching.formats.stac_asset import STACAssetAdapter
+import earth_data_kit.stitching.engines.commons as commons
 import pandas as pd
 import ast
 import geopandas as gpd
@@ -37,7 +41,7 @@ class Dataset:
     The Dataset class is the main class implemented by the stitching module. It acts as a dataset wrapper and maps to a single remote dataset. A remote dataset can contain multiple files.
     """
 
-    def __init__(self, name, source, engine, clean=True) -> None:
+    def __init__(self, name, source, engine, format, clean=True) -> None:
         """Initialize a new dataset instance.
 
         Args:
@@ -61,12 +65,21 @@ class Dataset:
         self.name = name
         self.time_opts = {}
         self.space_opts = {}
+
         if engine == "s3":
             self.engine = s3.S3()
         if engine == "earth_engine":
             self.engine = earth_engine.EarthEngine()
         if engine == "stac":
             self.engine = stac.STAC()
+
+        if format == "geotiff":
+            self.format = GeoTiffAdapter()
+        if format == "earth_engine":
+            self.format = EarthEngineAdapter()
+        if format == "stac_asset":
+            self.format = STACAssetAdapter()
+
         self.source = source
 
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
@@ -197,13 +210,35 @@ class Dataset:
             >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles
         """
         # Retrieve tile metadata using the engine's scan function
-        tiles = self.engine.scan(
+        scan_df = self.engine.scan(
             self.source,
             self.time_opts,
             self.space_opts,
             self.__get_ds_tmp_path__(),
             band_locator,
         )
+
+        # Temporal aggregation
+        time_opts = self.time_opts
+
+        if (
+            time_opts
+            and "resolution" in time_opts
+            and time_opts["resolution"] is not None
+        ):
+            # Convert time_opts dates to pandas Timestamp to ensure consistent types
+            scan_df["date"] = pd.to_datetime(scan_df["date"], format="ISO8601")
+            # Set the time part of the date according to resolution
+
+            scan_df = commons.aggregate_temporally(
+                scan_df,
+                pd.to_datetime(time_opts["start"]),
+                pd.to_datetime(time_opts["end"]),
+                time_opts["resolution"],
+            )
+
+        # Create tiles
+        tiles = self.format.create_tiles(scan_df, band_locator)
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
