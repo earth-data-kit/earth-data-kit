@@ -1,5 +1,6 @@
 from earth_data_kit.stitching.formats.geotiff import GeoTiffAdapter
 from earth_data_kit.stitching.formats.earth_engine import EarthEngineAdapter
+from earth_data_kit.stitching.formats.netcdf import NetCDFAdapter
 from earth_data_kit.stitching.formats.stac_asset import STACAssetAdapter
 import earth_data_kit.stitching.engines.commons as commons
 import pandas as pd
@@ -65,6 +66,7 @@ class Dataset:
         self.name = name
         self.time_opts = {}
         self.space_opts = {}
+        self.format = None
 
         if engine == "s3":
             self.engine = s3.S3()
@@ -79,6 +81,11 @@ class Dataset:
             self.format = EarthEngineAdapter()
         if format == "stac_asset":
             self.format = STACAssetAdapter()
+        if format == "netcdf":
+            self.format = NetCDFAdapter()
+
+        if self.format is None:
+            raise NotImplementedError(f"Format {format} not supported.")
 
         self.source = source
 
