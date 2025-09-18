@@ -150,7 +150,7 @@ class S3:
         # --- expansion with pandas date_range ---
         def _align_start(ts: pd.Timestamp, unit: str) -> pd.Timestamp:
             if unit == "minute":
-                return ts.floor("T")
+                return ts.floor("min")
             if unit == "hour":
                 return ts.floor("h")
             if unit == "day":
@@ -165,7 +165,7 @@ class S3:
             2023-06-01 12:34:56 with unit='hour' → 2023-06-01 13:00:00
             """
             if unit == "minute":
-                return ts.ceil("T")
+                return ts.ceil("min")
             if unit == "hour":
                 return ts.ceil("h")
             if unit == "day":
@@ -176,7 +176,7 @@ class S3:
 
         def _freq_for(unit: str) -> str:
             # YS = Year-Start (Jan 1). T = minute
-            return {"minute": "T", "hour": "h", "day": "D", "year": "YS"}[unit]
+            return {"minute": "min", "hour": "h", "day": "D", "year": "YS"}[unit]
 
         s = pd.to_datetime(start)
         e = pd.to_datetime(end)
