@@ -250,13 +250,19 @@ class Dataset:
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=helpers.get_processpool_workers()) as executor:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        ) as executor:
             futures = []
             for tile in tiles:
                 futures.append(executor.submit(geo.tile_intersects, tile, bbox))
 
-            results = []            
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Checking tile intersections"):
+            results = []
+            for future in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Checking tile intersections",
+            ):
                 results.append(future.result())
 
         intersecting_tiles = []

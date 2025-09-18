@@ -95,15 +95,31 @@ class S3:
                 raise ValueError("No recognized strftime directives in template.")
 
             # Tokens that imply at least MINUTE (we cap seconds/micros/time to minute)
-            minute_like = {"%M", "%S", "%f", "%X", "%c"}  # %c usually includes time; cap to minute
+            minute_like = {
+                "%M",
+                "%S",
+                "%f",
+                "%X",
+                "%c",
+            }  # %c usually includes time; cap to minute
             # Tokens that imply HOUR (12/24h)
             hour_like = {"%H", "%I", "%p"}
             # Tokens that imply at least DAY (weekday/day/month/week-of-year/date/ISO-weekday)
             day_like = {
-                "%d", "%e", "%j", "%a", "%A", "%w",
-                "%m", "%b", "%B",
-                "%U", "%W", "%V", "%u",
-                "%x"  # locale date
+                "%d",
+                "%e",
+                "%j",
+                "%a",
+                "%A",
+                "%w",
+                "%m",
+                "%b",
+                "%B",
+                "%U",
+                "%W",
+                "%V",
+                "%u",
+                "%x",  # locale date
             }
             # Tokens that are YEAR-level only
             year_like = {"%Y", "%y", "%G"}  # include ISO year
@@ -127,15 +143,21 @@ class S3:
             # Fallbacks:
             if tset & year_like:
                 return "year"
-            raise ValueError("Template has directives, but none that imply granularity up to minute/year.")
+            raise ValueError(
+                "Template has directives, but none that imply granularity up to minute/year."
+            )
 
         # --- expansion with pandas date_range ---
         def _align_start(ts: pd.Timestamp, unit: str) -> pd.Timestamp:
-            if unit == "minute": return ts.floor("T")
-            if unit == "hour":   return ts.floor("h")
-            if unit == "day":    return ts.floor("D")
+            if unit == "minute":
+                return ts.floor("T")
+            if unit == "hour":
+                return ts.floor("h")
+            if unit == "day":
+                return ts.floor("D")
             # year: align to Jan 1 00:00:00 (start-of-year)
             return pd.Timestamp(year=ts.year, month=1, day=1, tz=ts.tz).floor("D")
+
         def _align_end(ts: pd.Timestamp, unit: str) -> pd.Timestamp:
             """
             Align the end timestamp up to the next boundary of the unit.
@@ -163,7 +185,9 @@ class S3:
         s = _align_start(s, unit)
         e = _align_end(e, unit)
 
-        rng = pd.date_range(start=s, end=e, freq=_freq_for(unit), inclusive="left")  # inclusive on left; includes end if aligned
+        rng = pd.date_range(
+            start=s, end=e, freq=_freq_for(unit), inclusive="left"
+        )  # inclusive on left; includes end if aligned
 
         df["date"] = rng
         df["search_path"] = df["date"].dt.strftime(source)

@@ -14,28 +14,52 @@ logger = logging.getLogger(__name__)
 class NetCDFAdapter:
     def __init__(self) -> None:
         self.name = "NetCDF"
-    
+
     def create_tiles(self, df, band_locator="description"):
         # df is a DataFrame with a "gdal_path" column pointing to NetCDF files
         # This function will extract metadata and bands for each NetCDF file and including its subdatasets
         rows = []
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=utilities.helpers.get_processpool_workers()) as executor:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=utilities.helpers.get_processpool_workers()
+        ) as executor:
             futures = []
             for df_row in df.itertuples():
-                futures.append(executor.submit(process_row, tuple(df_row), band_locator))
+                futures.append(
+                    executor.submit(process_row, tuple(df_row), band_locator)
+                )
 
-            for f in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Getting metadata"):
+            for f in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Getting metadata",
+            ):
                 try:
                     row_list = f.result()
                     rows.extend(row_list)
                 except Exception as e:
                     logger.error(f"Error processing future: {e}", exc_info=True)
 
-        df = pd.DataFrame(rows, columns=["date", "tile_name", "engine_path", "gdal_path", "geo_transform", "projection", "x_size", "y_size", "crs", "length_unit", "bands"])
+        df = pd.DataFrame(
+            rows,
+            columns=[
+                "date",
+                "tile_name",
+                "engine_path",
+                "gdal_path",
+                "geo_transform",
+                "projection",
+                "x_size",
+                "y_size",
+                "crs",
+                "length_unit",
+                "bands",
+            ],
+        )
 
         tiles = Tile.from_df(df)
         return tiles
+
 
 def process_row(df_row_tuple, band_locator):
     # Accept a tuple instead of a pandas namedtuple to avoid pickling issues
