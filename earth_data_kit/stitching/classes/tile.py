@@ -75,6 +75,47 @@ class Tile:
 
         return (x_min, y_min, x_max, y_max)
 
+    def get_wgs84_bbox_via_warp(self):
+        """
+        Return (west, south, east, north) in EPSG:4326 by warping to an in-memory VRT.
+        Uses only gdal.Warp (fallback approach).
+        """
+        src = gdal.Open(self.gdal_path)
+        if src is None:
+            raise RuntimeError(f"Cannot open: {self.gdal_path}")
+
+        # Create an in-memory VRT in WGS84
+        vrt = gdal.Warp(
+            destNameOrDestDS="",
+            srcDSOrSrcDSTab=src,
+            dstSRS="EPSG:4326",
+            format="VRT",
+            multithread=True
+        )
+        if vrt is None:
+            raise RuntimeError("gdal.Warp failed to create VRT in EPSG:4326.")
+
+        w, h = vrt.RasterXSize, vrt.RasterYSize
+        gt = vrt.GetGeoTransform()
+        if gt is None:
+            raise RuntimeError("Warped VRT has no geotransform.")
+
+        # Compute bbox from the VRT geotransform (handles rotation if any)
+        west  = gt[0]
+        east  = gt[0] + gt[1] * w + gt[2] * h
+        north = gt[3]
+        south = gt[3] + gt[4] * w + gt[5] * h
+
+        # Normalize to (minx, miny, maxx, maxy)
+        west, east   = (min(west, east), max(west, east))
+        south, north = (min(south, north), max(south, north))
+
+        # Clean up
+        vrt = None
+        src = None
+        bbox = [west, south, east, north]
+        return bbox
+
     def get_wgs_extent(self):
         # Get the geotransform
         gt = self.geo_transform
@@ -108,14 +149,22 @@ class Tile:
         transform = osr.CoordinateTransformation(src_srs, tgt_srs)
 
         # Transform all corners to WGS84
+        use_fallback = False
         wgs84_ext = []
         for x, y in ext:
             try:
                 point = transform.TransformPoint(x, y)
+                if any(np.isinf(coord) for coord in point):
+                    raise ValueError(f"Transformed point has inf values. Will fallback to warp implementation")
                 wgs84_ext.append([point[0], point[1]])
             except Exception as e:
-                print(f"Warning: Transformation failed: {e}")
-
+                logger.warning(e)
+                use_fallback = True
+                break
+        
+        if use_fallback:
+            return self.get_wgs84_bbox_via_warp()
+        
         wgs84_ext = np.array(wgs84_ext)
 
         # Get min/max coordinates

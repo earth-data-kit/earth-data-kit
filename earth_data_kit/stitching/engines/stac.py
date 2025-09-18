@@ -56,7 +56,6 @@ class STAC:
 
         # Search for items using the collection
         results = catalog.search(**search_kwargs)
-        tiles = []
 
         # Need 4 columns date, tile_name, engine_path, gdal_path
         items = []
