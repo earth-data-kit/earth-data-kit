@@ -44,7 +44,6 @@ Contents
 
    getting-started
    stitching
-   examples
    roadmap
    releases
    developer-docs
