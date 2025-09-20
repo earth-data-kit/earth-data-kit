@@ -11,8 +11,8 @@ def get_tiles_metadata(gdal_paths, band_locator):
     # Concurrently fetch metadata and construct Tile objects
     tiles_md = []
 
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=utilities.helpers.get_threadpool_workers()
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=utilities.helpers.get_processpool_workers()
     ) as executor:
         # Submit all tasks and store futures
         futures = [

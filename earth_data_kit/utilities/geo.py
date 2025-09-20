@@ -67,7 +67,7 @@ def get_bbox_from_raster(raster_path):
     return lon_min, lat_min, lon_max, lat_max
 
 
-def _get_bands(ds, band_locator="description"):
+def _get_bands(ds, band_locator="description", driver_short_name=None):
     bands = []
     band_count = ds.RasterCount
     for i in range(1, band_count + 1):
@@ -90,7 +90,8 @@ def _get_bands(ds, band_locator="description"):
             "source_idx": i,
             "description": (band_name if band_name != "" else "NoDescription"),
             "dtype": gdal.GetDataTypeName(band.DataType),
-            "nodataval": band.GetNoDataValue(),
+            # TODO: Not getting nodataval for GRIB too as it can be too slow
+            "nodataval": band.GetNoDataValue() if driver_short_name != "GRIB" else None,
         }
         bands.append(b)
     return bands
@@ -110,6 +111,8 @@ class NonRetryableException(Exception):
 def get_metadata(raster_path, band_locator):
     # Figure out aws options
     ds = gdal.Open(raster_path)
+    driver = ds.GetDriver()
+
     if ds is None:
         # Check if it's a 404 error by examining the error message
         error_msg = gdal.GetLastErrorMsg()
@@ -126,7 +129,7 @@ def get_metadata(raster_path, band_locator):
         "y_size": ds.RasterXSize,
         "projection": projection,
         "crs": "EPSG:" + osr.SpatialReference(projection).GetAttrValue("AUTHORITY", 1),
-        "bands": _get_bands(ds, band_locator),
+        "bands": _get_bands(ds, band_locator, driver.ShortName),
         "length_unit": length_unit,
     }
     ds = None

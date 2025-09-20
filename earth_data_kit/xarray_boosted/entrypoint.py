@@ -120,6 +120,7 @@ class EDKDatasetBackendArray(BackendArray):
 
         band = ds.GetRasterBand(band_num)
         nodataval = band.GetNoDataValue()
+        # TODO: Raise a warning if nodataval is set to None
         scale = band.GetScale()
         offset = band.GetOffset()
 

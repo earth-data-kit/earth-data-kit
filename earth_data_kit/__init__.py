@@ -2,6 +2,7 @@ import os
 
 S5CMD_PATH = os.environ.get("S5CMD_PATH", "/usr/bin/s5cmd")
 os.environ["GDAL_HTTP_TCP_KEEPALIVE"] = "YES"
+# TODO: Make this format dependent, example we need this for GRIB2 but not necessary for maybe GeoTIFF
 os.environ["GDAL_DISABLE_READDIR_ON_OPEN"] = "EMPTY_DIR"
 os.environ["GDAL_MAX_DATASET_POOL_SIZE"] = "1024"
 

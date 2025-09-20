@@ -1,5 +1,6 @@
 from earth_data_kit.stitching.formats.geotiff import GeoTiffAdapter
 from earth_data_kit.stitching.formats.earth_engine import EarthEngineAdapter
+from earth_data_kit.stitching.formats.grib2 import Grib2Adapter
 from earth_data_kit.stitching.formats.netcdf import NetCDFAdapter
 from earth_data_kit.stitching.formats.stac_asset import STACAssetAdapter
 import earth_data_kit.stitching.engines.commons as commons
@@ -83,6 +84,8 @@ class Dataset:
             self.format = STACAssetAdapter()
         if format == "netcdf":
             self.format = NetCDFAdapter()
+        if format == "grib2":
+            self.format = Grib2Adapter()
 
         if self.format is None:
             raise NotImplementedError(f"Format {format} not supported.")
