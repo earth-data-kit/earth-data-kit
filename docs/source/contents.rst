@@ -25,17 +25,26 @@ Modules
 
 * **Stitching** - Combines multiple scene files (tiles) from a variety of remote data sources such as S3, Google Earth Engine, and HTTP/HTTPS servers.
 
-Input Data Sources
-------------------
+Supported Engines
+~~~~~~~~~~~~~~~~~
 
-1. S3 - *Implemented*
-2. Google Earth Engine - *Implemented*
-3. HTTP/HTTPs Servers - *Planned*
+- ``s3``: Files stored in S3
 
-Output Formats
---------------
+- ``earth_engine``: Google Earth Engine
 
-1. Virtual Raster (VRT) - *Implemented*
+- ``stac``: STAC Collections
+
+Supported Formats
+~~~~~~~~~~~~~~~~~
+
+- ``geotiff``: GeoTIFF/COGs
+
+- ``netcdf``: NetCDF  
+  **Only supported on Linux environments**
+
+- ``stac_asset``: Assets referenced via STAC
+
+- ``earth_engine``: Google Earth Engine assets
 
 Contents
 --------
@@ -44,7 +53,6 @@ Contents
 
    getting-started
    stitching
-   examples
    roadmap
    releases
    developer-docs

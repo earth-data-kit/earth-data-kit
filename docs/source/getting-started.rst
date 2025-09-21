@@ -57,6 +57,11 @@ Quick Start
 
    This will start a JupyterLab server accessible from your browser. By default, it will be available at `http://localhost:8888` on your host machine. You can then open notebooks and interact with your code and data directly within the container environment.
 
+For more practical usage, check out the `examples` folder in the repository:  
+https://github.com/earth-data-kit/earth-data-kit/tree/master/examples
+
+You'll find sample scripts and workflows demonstrating how to use Earth Data Kit with different data sources and scenarios.
+
 Environment Configuration
 -------------------------
 Earth Data Kit can be customized via environment variables, which you should define in your `.env` file. This lets you easily configure settings such as AWS credentials, GDAL options, and other operational parameters.

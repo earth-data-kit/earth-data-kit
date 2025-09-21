@@ -34,7 +34,7 @@ class EarthEngine:
 
         if time_opts and "start" in time_opts and "end" in time_opts:
             layer.SetAttributeFilter(
-                f"startTime >= '{time_opts['start']}' and endTime <= '{time_opts['end']}'"
+                f"startTime >= '{time_opts['start']}' and endTime < '{time_opts['end']}'"
             )
         tiles = []
         for feature in layer:

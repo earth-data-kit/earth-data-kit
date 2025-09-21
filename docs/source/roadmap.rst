@@ -10,17 +10,7 @@ Below is the tentative roadmap for Earth Data Kit. Our approach is to look close
 1. **Stitching**
     * A module dedicated to collecting and stitching data from varied sources.
     * Prepares data for analysis with functionalities such as clipping, reprojecting, and regridding.
-    * Supported Sources:
-        - Rasters:
-            * S3
-            * Google Earth Engine
-            * HTTP/HTTP(s) servers (*Planned*)
-            * NASA Earth Data (*Planned*)
-        - Vectors (*Planned*):
-            * OSM
-            * Overture Maps
-            * Google Buildings
-            * Bing Buildings
+    * Support for an expanding range of data sources and formats.
 
 2. **Visualization**
     - Extend xarray and geopandas to support large scale visualization.
