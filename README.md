@@ -2,6 +2,12 @@
 
 EDK is designed to simplify building complete end-to-end data pipeline, helping you connect various parts of the GIS process with ease. With Earth Data Kit, data scientists can focus on analyzing data and drawing insights instead of wrestling with complex data processes and engineering challenges.
 
+## Warning
+
+### This project is under active development
+
+**If you wish to contribute please reach out on <siddhantgupta3@gmail.com>**
+
 ## Getting Started
 
 ### Prerequisites
@@ -46,11 +52,29 @@ To use Earth Data Kit, follow these steps:
 
 > There are more example scripts available inside the `examples/` directory of this repository. Explore them to see how to use Earth Data Kit for different geospatial workflows.
 
-## Warning
+## Supported Engines and Formats
 
-### This project is under active development
+Earth Data Kit supports several data engines and formats, as summarized below. We're working to add more—feel free to contact the maintainers if you'd like to contribute!
 
-**If you wish to contribute please reach out on <siddhantgupta3@gmail.com>**
+**Supported Engines**
+
+| Engine         | Description                                      | Notes                                                      |
+|----------------|--------------------------------------------------|------------------------------------------------------------|
+| `s3`           | Files stored on S3                               |                                                            |
+| `earth_engine` | Google Earth Engine                              |                                                            |
+| `stac`         | STAC Collections                                 |                                                            |
+
+
+**Supported Formats**
+
+| Format         | Description                                      | Notes                                                      |
+|----------------|--------------------------------------------------|------------------------------------------------------------|
+| `geotiff`      | GeoTIFF/COGs                                     | Most portable and widely supported                         |
+| `netcdf`       | NetCDF                                           | **Only supported on Linux environments**                   |
+| `stac_asset`   | Assets referenced via STAC                       |                                                            |
+| `earth_engine` | Google Earth Engine assets                       |                                                            |
+
+If you need a format or engine not listed here, please [open an issue](https://github.com/earth-data-kit/earth-data-kit/issues) or contact the maintainers.
 
 Checkout the [docs](https://earth-data-kit.github.io/) for more details.
 
