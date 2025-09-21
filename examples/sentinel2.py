@@ -104,4 +104,4 @@ if __name__ == "__main__":
     # Export the mosaic to the specified directory
     S2_da.edk.export("/app/data/examples/sentinel2")
 
-    print("Export complete. Files saved in ./sentinel2")
+    print("Export complete. Files saved in /app/data/examples/sentinel2")

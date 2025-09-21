@@ -112,4 +112,4 @@ if __name__ == "__main__":
 
     # Export the combined dataset as COGs using the .edk.export function
     combined_ds.edk.export("/app/data/examples/sentinel2-era5")
-    print("Combined Dataset exported to ./sentinel2-era5")
+    print("Combined Dataset exported to /app/data/examples/sentinel2-era5")
