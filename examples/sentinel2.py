@@ -13,13 +13,15 @@ Requirements:
 """
 
 from fiona.drvsupport import supported_drivers
-supported_drivers['LIBKML'] = 'rw'
+
+supported_drivers["LIBKML"] = "rw"
 
 import earth_data_kit as edk
 import country_bboxes
 import geopandas as gpd
 import datetime
 import os
+
 
 def get_aoi():
     """
@@ -28,11 +30,13 @@ def get_aoi():
     """
     return country_bboxes.country_bounding_boxes["AL"][1]
 
+
 def get_timebounds():
     """
     Returns the time range for the data query.
     """
     return (datetime.datetime(2023, 12, 28), datetime.datetime(2023, 12, 31))
+
 
 def get_sentinel_2():
     """
@@ -59,9 +63,7 @@ def get_sentinel_2():
     date_range = get_timebounds()
 
     # Create a Dataset object for Sentinel-2
-    ds = edk.stitching.Dataset(
-        "sentinel-2-l2a", source, "s3", "geotiff", True
-    )
+    ds = edk.stitching.Dataset("sentinel-2-l2a", source, "s3", "geotiff", True)
 
     # Set the time and spatial bounds
     ds.set_timebounds(date_range[0], date_range[1])
@@ -88,6 +90,7 @@ def get_sentinel_2():
 
     # Return the mosaic as an xarray.DataArray
     return ds.to_dataarray()
+
 
 if __name__ == "__main__":
     # Run the example workflow

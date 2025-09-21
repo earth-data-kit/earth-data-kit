@@ -1,4 +1,3 @@
-
 """
 Example: Download, Mosaic, and Export GOES-19 NetCDF Data from AWS S3 using Earth Data Kit (EDK)
 
@@ -14,6 +13,7 @@ Requirements:
 
 import datetime
 import earth_data_kit as edk
+
 
 def main():
     # Define the S3 path template for GOES-19 NetCDFs
@@ -42,20 +42,21 @@ def main():
         bands=["TEMP"],
         sync=False,
         overwrite=True,
-        crs="EPSG:3857",           # Project to Web Mercator
-        resolution=(2000, 2000),   # Output pixel size (meters)
+        crs="EPSG:3857",  # Project to Web Mercator
+        resolution=(2000, 2000),  # Output pixel size (meters)
     )
     ds.save()
 
     # Convert to xarray.DataArray
     da = ds.to_dataarray()
 
-    print (da)
+    print(da)
 
     # Uncomment to export the single timestamp as a Cloud-Optimized GeoTIFF (COG)
     # output_path = "/app/data/examples/goes19/2025-06-01-00:00:00.tif"
     # da.sel(time="2025-06-01T00:00:00").edk.export(output_path)
     # print(f"GOES-19 mosaic exported to {output_path}")
+
 
 if __name__ == "__main__":
     main()

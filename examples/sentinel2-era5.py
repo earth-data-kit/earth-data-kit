@@ -16,20 +16,24 @@ This example is intended to show how you can combine two different datasets usin
 """
 
 from fiona.drvsupport import supported_drivers
-supported_drivers['LIBKML'] = 'rw'
+
+supported_drivers["LIBKML"] = "rw"
 
 import earth_data_kit as edk
 import country_bboxes
 import geopandas as gpd
 import datetime
 
+
 def get_aoi():
     # Albania bounding box as example
     return country_bboxes.country_bounding_boxes["AL"][1]
 
+
 def get_timebounds():
     # Example time range
     return (datetime.datetime(2023, 12, 28), datetime.datetime(2023, 12, 31))
+
 
 def get_sentinel2_dataset():
     # Sentinel-2 L2A S3 bucket template
@@ -61,10 +65,10 @@ def get_sentinel2_dataset():
         resolution=(0.0006, -0.0006),
         dtype="uint16",
         crs="EPSG:4326",
-
     )
     s2_ds.save()
     return s2_ds
+
 
 def get_era5_dataset():
     # ERA5 Daily aggregates from Earth Engine
@@ -89,6 +93,7 @@ def get_era5_dataset():
     era5_ds.save()
     return era5_ds
 
+
 if __name__ == "__main__":
     # Download, mosaic, and save Sentinel-2 and ERA5 as COGs
     s2_ds = get_sentinel2_dataset()
@@ -101,8 +106,7 @@ if __name__ == "__main__":
     # Example: Combine the two datasets into a single multi-band dataset
     # This will align the datasets spatially and temporally as much as possible
     combined_ds = edk.stitching.Dataset.combine(
-        s2_ds.to_dataarray(),
-        [era5_ds.to_dataarray()]
+        s2_ds.to_dataarray(), [era5_ds.to_dataarray()]
     )
     print("Combined Dataset:", combined_ds)
 
