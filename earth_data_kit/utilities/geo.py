@@ -155,3 +155,9 @@ def get_subdatasets(gdal_path):
 
     # Start the recursive process with the initial gdal_path
     return get_subdatasets_recursive(gdal_path)
+
+
+def tile_intersects(tile, bbox):
+    return shapely.intersects(
+        shapely.geometry.box(*tile.get_wgs_extent(), ccw=True), bbox
+    )

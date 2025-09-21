@@ -20,8 +20,6 @@ class EarthEngine:
         self.app_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         self.service_account = os.getenv("GOOGLE_SERVICE_ACCOUNT")
 
-    @decorators.log_time
-    @decorators.log_init
     def _get_parent_tiles(self, source, time_opts, space_opts):
         ds = ogr.GetDriverByName("EEDA").Open(
             f"EEDA:projects/earthengine-public/assets/{source}"
@@ -36,7 +34,7 @@ class EarthEngine:
 
         if time_opts and "start" in time_opts and "end" in time_opts:
             layer.SetAttributeFilter(
-                f"startTime >= '{time_opts['start']}' and endTime <= '{time_opts['end']}'"
+                f"startTime >= '{time_opts['start']}' and endTime < '{time_opts['end']}'"
             )
         tiles = []
         for feature in layer:
@@ -48,111 +46,14 @@ class EarthEngine:
 
         return df
 
-    def _get_subdatasets(self, df):
-        # Get all subdatasets
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=utilities.helpers.get_threadpool_workers()
-        ) as executor:
-            futures = [
-                executor.submit(utilities.geo.get_subdatasets, tile.gdal_path)
-                for tile in df.itertuples()
-            ]
-            subdataset_paths = [
-                future.result()
-                for future in tqdm(futures, desc="Getting subdatasets", unit="tile")
-            ]
-        df["subdataset_paths"] = subdataset_paths
-        subdataset_paths = [path for sublist in subdataset_paths for path in sublist]
-        return subdataset_paths
-
-    def _expand_catalog(self, catalog_df):
-        expanded_catalog_df = []
-        for row in catalog_df:
-            parent_gdal_path = ":".join(row["gdal_path"].split(":")[0:2])
-            for band in row["bands"]:
-                # Create a copy of the row without the bands field
-                new_row = {k: v for k, v in row.items() if k != "bands"}
-                # Add single band with source_idx 1
-                new_row["bands"] = [{**band, "source_idx": 1}]
-                new_row["gdal_path"] = f"{parent_gdal_path}:{band['description']}"
-                new_row["engine_path"] = f"{parent_gdal_path}:{band['description']}"
-                expanded_catalog_df.append(new_row)
-        return expanded_catalog_df
-
     def scan(self, source, time_opts, space_opts, tmp_base_dir, band_locator):
         df = self._get_parent_tiles(source, time_opts, space_opts)
-
-        # Check if time_opts has resolution set to daily
-        if (
-            time_opts
-            and "resolution" in time_opts
-            and time_opts["resolution"] is not None
-        ):
-            # Set the time part of the date to according to resolution
-            df = commons.aggregate_temporally(
-                df, time_opts["start"], time_opts["end"], time_opts["resolution"]
-            )
-
-        subdataset_paths = self._get_subdatasets(df)
-
-        catalog_df = []
-
-        if len(subdataset_paths) > 0:
-            # Get metadata for all subdatasets
-            subdatasets_metadata = commons.get_tiles_metadata(
-                subdataset_paths, band_locator
-            )
-            k = 0
-            for row in df.itertuples():
-                for subdataset_path in row.subdataset_paths:
-                    subdataset_metadata = subdatasets_metadata[k]
-                    k += 1
-                    catalog_df.append(
-                        {
-                            "gdal_path": subdataset_path,
-                            "engine_path": subdataset_path,
-                            "date": row.date,
-                            "tile_name": row.tile_name,
-                            "geo_transform": subdataset_metadata["geo_transform"],
-                            "projection": subdataset_metadata["projection"],
-                            "x_size": subdataset_metadata["x_size"],
-                            "y_size": subdataset_metadata["y_size"],
-                            "crs": subdataset_metadata["crs"],
-                            "length_unit": subdataset_metadata["length_unit"],
-                            "bands": subdataset_metadata["bands"],
-                        }
-                    )
-
-        else:
-            # Get metadata for all parent tiles
-            parent_tiles_metadata = commons.get_tiles_metadata(
-                df["gdal_path"].tolist(), band_locator
-            )
-            k = 0
-            for row in df.itertuples():
-                tile_metadata = parent_tiles_metadata[k]
-                k += 1
-                catalog_df.append(
-                    {
-                        "gdal_path": row.gdal_path,
-                        "engine_path": row.engine_path,
-                        "date": row.date,
-                        "tile_name": row.tile_name,
-                        "geo_transform": tile_metadata["geo_transform"],
-                        "projection": tile_metadata["projection"],
-                        "x_size": tile_metadata["x_size"],
-                        "y_size": tile_metadata["y_size"],
-                        "crs": tile_metadata["crs"],
-                        "length_unit": tile_metadata["length_unit"],
-                        "bands": tile_metadata["bands"],
-                    }
-                )
-
-        catalog_df = self._expand_catalog(catalog_df)
-
-        # Passing array of jsons in a dataframe "bands" column
-        tiles = Tile.from_df(pd.DataFrame(catalog_df))
-        return tiles
+        df["date"] = (
+            df["date"].dt.tz_convert("UTC")
+            if df["date"].dt.tz is not None
+            else df["date"].dt.tz_localize("UTC")
+        )
+        return df
 
     def _sync_one(self, gdal_path, sync_idx, output_path, overwrite=False):
         if not overwrite and os.path.exists(output_path):
