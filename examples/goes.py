@@ -1,72 +1,61 @@
 
 """
-Example: Accessing and Combining GOES-19 NetCDF Files from AWS S3
+Example: Download, Mosaic, and Export GOES-19 NetCDF Data from AWS S3 using Earth Data Kit (EDK)
 
-This script demonstrates how you can use Earth Data Kit (EDK) to discover and combine
-GOES-19 NetCDF files stored in AWS S3. The example covers dataset discovery and combination
-for a specified time range. Note this only works on Linux systems
+This example demonstrates how to:
+- Define a time range and spatial extent for GOES-19 data
+- Discover available NetCDF files on AWS S3 using EDK
+- Mosaic the "TEMP" band into a single rasters
+- Export the result as a Cloud-Optimized GeoTIFF (COG)
+
+Requirements:
+- Linux system (NetCDF S3 access doesn't work on Windows/Mac)
 """
 
 import datetime
 import earth_data_kit as edk
 
-def goes19_example():
-    """
-    Example function to access and combine GOES-19 NetCDF files from AWS S3 using EDK.
-    """
-    # Define the S3 source template for GOES-19 ABI L2 Cloud Top Height Full Disk data
-    source = "s3://noaa-goes19/ABI-L2-ACHTF/%Y/%j/*/*.nc"
+def main():
+    # Define the S3 path template for GOES-19 NetCDFs
+    source = "s3://noaa-goes19/ABI-L2-ACHA2KMF/%Y/%j/%H/*_s%Y%j%H%M*.nc"
     engine = "s3"
     format = "netcdf"
 
-    # Set the time range for data discovery (June 1, 2025 to July 7, 2025)
-    timebounds = (datetime.datetime(2025, 6, 1), datetime.datetime(2025, 6, 7))
+    # Set the time range (UTC) and spatial bounds (lon/lat in EPSG:4326)
+    time_start = datetime.datetime(2025, 6, 1)
+    time_end = datetime.datetime(2025, 6, 2)
+    spatial_bounds = (-170, -81, -50, 81)  # (min_lon, min_lat, max_lon, max_lat)
 
-    # Optionally, define spatial bounds as a bounding box (minx, miny, maxx, maxy)
-    # For this example, we use the full disk (no spatial subsetting)
-    spatial_bounds = (-180, -90, 180, 90)
-
-    # Create the EDK Dataset object
-    ds_name = "goes19"
-    ds = edk.stitching.Dataset(
-        name=ds_name,
-        source=source,
-        engine=engine,
-        format=format
-    )
-
-    # Set the temporal bounds for the dataset
-    ds.set_timebounds(timebounds[0], timebounds[1])
-
-    # Optionally, set spatial bounds if you want to subset the data
+    # Create the EDK Dataset
+    ds = edk.stitching.Dataset("goes19", source, engine, format, clean=True)
+    ds.set_timebounds(time_start, time_end)
     ds.set_spacebounds(spatial_bounds)
 
-    # Discover available scenes/files within the specified time range
+    # Discover available files/tiles
     ds.discover()
 
-    print("GOES19 bands:", ds.get_bands())
-    
-    # Example: Mosaic and export the data as a Cloud-Optimized GeoTIFF (COG)
-    # You can adjust bands, CRS, and resolution as needed
-    # Uncomment the following lines to perform mosaic and export
+    # Print available bands
+    print("Available bands:", ds.get_bands())
+
+    # Mosaic the "TEMP" band to a single raster
     ds.mosaic(
-        bands=["TEMP"],  # Specify the band(s) to mosaic, e.g., "CMI" for Cloud and Moisture Imagery
+        bands=["TEMP"],
         sync=False,
         overwrite=True,
-        crs="EPSG:3857",  # Output projection
-        resolution=(2000, -2000)  # Output resolution in meters (example: 2km)
+        crs="EPSG:3857",           # Project to Web Mercator
+        resolution=(2000, 2000),   # Output pixel size (meters)
     )
+    ds.save()
 
-    # After discovering, you can get the xarray.DataArray directly:
+    # Convert to xarray.DataArray
     da = ds.to_dataarray()
-    print(da)
 
-    # Export the mosaicked dataset as a Cloud-Optimized GeoTIFF (COG)
-    # Specify the output directory or file path as needed
-    # Uncomment the following lines to export
-    # output_path = "/app/data/examples/goes19"
-    # ds.export(output_path)
-    # print(f"GOES19 dataset exported to {output_path}")
+    print (da)
 
-if __name__ == '__main__':
-    goes19_example()
+    # Uncomment to export the single timestamp as a Cloud-Optimized GeoTIFF (COG)
+    # output_path = "/app/data/examples/goes19/2025-06-01-00:00:00.tif"
+    # da.sel(time="2025-06-01T00:00:00").edk.export(output_path)
+    # print(f"GOES-19 mosaic exported to {output_path}")
+
+if __name__ == "__main__":
+    main()

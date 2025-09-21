@@ -132,8 +132,8 @@ class EDKAccessor:
         futures = []
         num_bands, width, height = da.shape
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
         ) as executor:
             args = []
             for band_idx in range(0, num_bands):
