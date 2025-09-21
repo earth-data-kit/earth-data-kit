@@ -16,7 +16,6 @@ import copy
 import earth_data_kit as edk
 from earth_data_kit.stitching import decorators
 import earth_data_kit.stitching.engines.commons as commons
-from earth_data_kit.stitching.classes.tile import Tile
 import json
 from tenacity import retry, stop_after_attempt, wait_fixed
 import concurrent.futures
@@ -30,21 +29,25 @@ class S3:
         no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
         request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
         profile_flag = os.getenv("AWS_PROFILE")
-        json_flag = "--json"
-        if no_sign_flag and (no_sign_flag.upper() == "YES"):
-            no_sign_flag = "--no-sign-request"
-        else:
-            no_sign_flag = ""
 
-        if (request_payer_flag) and (request_payer_flag.upper() == "requester"):
-            request_payer_flag = f"--request-payer requester"
-        else:
-            request_payer_flag = ""
+        no_sign_flag_env = os.getenv("AWS_NO_SIGN_REQUEST")
+        request_payer_env = os.getenv("AWS_REQUEST_PAYER")
+        profile_env = os.getenv("AWS_PROFILE")
 
-        if profile_flag:
-            profile_flag = f"--profile {profile_flag}"
+        if no_sign_flag_env and (no_sign_flag_env.upper() in ["YES", "TRUE", "1"]):
+            self.no_sign_flag = "--no-sign-request"
         else:
-            profile_flag = ""
+            self.no_sign_flag = ""
+
+        if request_payer_env and (request_payer_env.lower() == "requester"):
+            self.request_payer_flag = "--request-payer requester"
+        else:
+            self.request_payer_flag = ""
+
+        if profile_env:
+            self.profile_flag = f"--profile {profile_env}"
+        else:
+            self.profile_flag = ""
 
     def _expand_time(self, df, source, time_opts):
         if isinstance(source, list):
@@ -63,7 +66,130 @@ class S3:
 
         start = time_opts["start"]
         end = time_opts["end"]
-        df["date"] = pd.date_range(start=start, end=end, inclusive="both")
+
+        def _extract_tokens(template: str):
+            """Return normalized tokens like '%Y', '%m', '%d', '%H', '%M', ..."""
+            # Match %-directives with optional padding/flags:
+            #  - Flags: -, _, 0, ^, # (common across platforms), and optional ':' (for %:z)
+            #  - Directive letter: [A-Za-z]
+            #  - '%%' is a literal percent, we'll skip it later
+            _TOKEN_RE = re.compile(r"%(?:%|[:]?[-_0^#]?[A-Za-z])")
+            tokens = []
+            for m in _TOKEN_RE.finditer(template):
+                t = m.group(0)
+                if t == "%%":
+                    continue  # literal '%'
+                # Normalize: strip optional leading ':' and flag chars, keep the letter.
+                # Examples: '%-d' -> '%d', '%_m' -> '%m', '%#H' -> '%H', '%:z' -> '%z'
+                letter = t[-1]
+                tokens.append("%" + letter)
+            return tokens
+
+        def smallest_unit(template: str) -> str:
+            """
+            Return the smallest granularity implied by the template,
+            capped at: 'minute' > 'hour' > 'day' > 'year'.
+            """
+            tset = set(_extract_tokens(template))
+            if not tset:
+                raise ValueError("No recognized strftime directives in template.")
+
+            # Tokens that imply at least MINUTE (we cap seconds/micros/time to minute)
+            minute_like = {
+                "%M",
+                "%S",
+                "%f",
+                "%X",
+                "%c",
+            }  # %c usually includes time; cap to minute
+            # Tokens that imply HOUR (12/24h)
+            hour_like = {"%H", "%I", "%p"}
+            # Tokens that imply at least DAY (weekday/day/month/week-of-year/date/ISO-weekday)
+            day_like = {
+                "%d",
+                "%e",
+                "%j",
+                "%a",
+                "%A",
+                "%w",
+                "%m",
+                "%b",
+                "%B",
+                "%U",
+                "%W",
+                "%V",
+                "%u",
+                "%x",  # locale date
+            }
+            # Tokens that are YEAR-level only
+            year_like = {"%Y", "%y", "%G"}  # include ISO year
+
+            # Timezone tokens (do not affect stepping granularity)
+            tz_like = {"%z", "%Z"}  # (%:z normalizes to %z above)
+
+            # If any minute-or-finer token appears, choose 'minute'
+            if tset & minute_like:
+                return "minute"
+            # Else if any hour token appears, choose 'hour'
+            if tset & hour_like:
+                return "hour"
+            # Else if any day-ish token appears, choose 'day'
+            if tset & day_like:
+                return "day"
+            # Else if only year-ish tokens appear, choose 'year'
+            if (tset - tz_like) <= year_like and (tset - tz_like):
+                return "year"
+
+            # Fallbacks:
+            if tset & year_like:
+                return "year"
+            raise ValueError(
+                "Template has directives, but none that imply granularity up to minute/year."
+            )
+
+        # --- expansion with pandas date_range ---
+        def _align_start(ts: pd.Timestamp, unit: str) -> pd.Timestamp:
+            if unit == "minute":
+                return ts.floor("min")
+            if unit == "hour":
+                return ts.floor("h")
+            if unit == "day":
+                return ts.floor("D")
+            # year: align to Jan 1 00:00:00 (start-of-year)
+            return pd.Timestamp(year=ts.year, month=1, day=1, tz=ts.tz).floor("D")
+
+        def _align_end(ts: pd.Timestamp, unit: str) -> pd.Timestamp:
+            """
+            Align the end timestamp up to the next boundary of the unit.
+            Example:
+            2023-06-01 12:34:56 with unit='hour' → 2023-06-01 13:00:00
+            """
+            if unit == "minute":
+                return ts.ceil("min")
+            if unit == "hour":
+                return ts.ceil("h")
+            if unit == "day":
+                return ts.ceil("D")
+            if unit == "year":
+                return ts.ceil("Y")
+            raise ValueError(f"Unsupported unit: {unit}")
+
+        def _freq_for(unit: str) -> str:
+            # YS = Year-Start (Jan 1). T = minute
+            return {"minute": "min", "hour": "h", "day": "D", "year": "YS"}[unit]
+
+        s = pd.to_datetime(start)
+        e = pd.to_datetime(end)
+
+        unit = smallest_unit(source)
+        s = _align_start(s, unit)
+        e = _align_end(e, unit)
+
+        rng = pd.date_range(
+            start=s, end=e, freq=_freq_for(unit), inclusive="left"
+        )  # inclusive on left; includes end if aligned
+
+        df["date"] = rng
         df["search_path"] = df["date"].dt.strftime(source)
         return df
 
@@ -126,7 +252,7 @@ class S3:
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
     def _scan_s3_via_s5cmd(self, path):
-        ls_cmd = f"{edk.S5CMD_PATH} --json ls '{path}'"
+        ls_cmd = f"{edk.S5CMD_PATH} {self.no_sign_flag} {self.request_payer_flag} {self.profile_flag} --json ls '{path}'"
         proc = subprocess.Popen(
             ls_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -174,7 +300,6 @@ class S3:
             ):
                 result_df = f.result()
                 scan_results.append(result_df)
-
         if scan_results:
             inv_df = pd.concat(scan_results, ignore_index=True)
         else:
@@ -186,52 +311,13 @@ class S3:
         inv_df["tile_name"] = inv_df["key"].str.split("/").str[-1]
         inv_df.drop(columns=["key"], inplace=True)
 
-        # Add new columns to the dataframe
-        inv_df["geo_transform"] = None
-        inv_df["projection"] = None
-        inv_df["x_size"] = None
-        inv_df["y_size"] = None
-        inv_df["crs"] = None
-        inv_df["length_unit"] = None
-        inv_df["bands"] = None
-
-        metadata = commons.get_tiles_metadata(
-            inv_df["gdal_path"].tolist(), band_locator
-        )
-        for idx in range(len(metadata)):
-            if metadata[idx] is None:
-                continue
-            inv_df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
-            inv_df.at[idx, "projection"] = metadata[idx]["projection"]
-            inv_df.at[idx, "x_size"] = metadata[idx]["x_size"]
-            inv_df.at[idx, "y_size"] = metadata[idx]["y_size"]
-            inv_df.at[idx, "crs"] = metadata[idx]["crs"]
-            inv_df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
-            # Passing array of jsons in a dataframe "bands" column
-            inv_df.at[idx, "bands"] = metadata[idx]["bands"]
-        inv_df = inv_df[inv_df["geo_transform"].notna()].reset_index(drop=True)
-        if (
-            time_opts
-            and "resolution" in time_opts
-            and time_opts["resolution"] is not None
-        ):
-            # Convert time_opts dates to pandas Timestamp to ensure consistent types
-            inv_df["date"] = pd.to_datetime(inv_df["date"], format="ISO8601")
-            # Set the time part of the date according to resolution
-
-            # Convert datetime[ns] to datetime[ns, UTC]
-            inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
-            inv_df = commons.aggregate_temporally(
-                inv_df,
-                pd.to_datetime(time_opts["start"]),
-                pd.to_datetime(time_opts["end"]),
-                time_opts["resolution"],
-            )
-        tiles = Tile.from_df(inv_df)
-        return tiles
+        # Convert datetime[ns] to datetime[ns, UTC]
+        inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
+        return inv_df
 
     def sync(self, df, tmp_base_dir, overwrite=False):
         # Iterate over the dataframe to get GDAL paths that need syncing
+        # TODO: Use engine_path to download from S3 instead of gdal_path.
         cmds = []
         for band_tile in df.itertuples():
             try:

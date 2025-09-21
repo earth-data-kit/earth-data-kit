@@ -1,3 +1,8 @@
+from earth_data_kit.stitching.formats.geotiff import GeoTiffAdapter
+from earth_data_kit.stitching.formats.earth_engine import EarthEngineAdapter
+from earth_data_kit.stitching.formats.netcdf import NetCDFAdapter
+from earth_data_kit.stitching.formats.stac_asset import STACAssetAdapter
+import earth_data_kit.stitching.engines.commons as commons
 import pandas as pd
 import ast
 import geopandas as gpd
@@ -37,7 +42,7 @@ class Dataset:
     The Dataset class is the main class implemented by the stitching module. It acts as a dataset wrapper and maps to a single remote dataset. A remote dataset can contain multiple files.
     """
 
-    def __init__(self, name, source, engine, clean=True) -> None:
+    def __init__(self, name, source, engine, format, clean=True) -> None:
         """Initialize a new dataset instance.
 
         Args:
@@ -61,12 +66,27 @@ class Dataset:
         self.name = name
         self.time_opts = {}
         self.space_opts = {}
+        self.format = None
+
         if engine == "s3":
             self.engine = s3.S3()
         if engine == "earth_engine":
             self.engine = earth_engine.EarthEngine()
         if engine == "stac":
             self.engine = stac.STAC()
+
+        if format == "geotiff":
+            self.format = GeoTiffAdapter()
+        if format == "earth_engine":
+            self.format = EarthEngineAdapter()
+        if format == "stac_asset":
+            self.format = STACAssetAdapter()
+        if format == "netcdf":
+            self.format = NetCDFAdapter()
+
+        if self.format is None:
+            raise NotImplementedError(f"Format {format} not supported.")
+
         self.source = source
 
         self.catalog_path = f"{self.__get_ds_tmp_path__()}/catalog.csv"
@@ -197,7 +217,7 @@ class Dataset:
             >>> ds.discover() # This will scan the dataset and save the catalog of intersecting tiles
         """
         # Retrieve tile metadata using the engine's scan function
-        tiles = self.engine.scan(
+        scan_df = self.engine.scan(
             self.source,
             self.time_opts,
             self.space_opts,
@@ -205,15 +225,52 @@ class Dataset:
             band_locator,
         )
 
+        # Temporal aggregation
+        time_opts = self.time_opts
+
+        if (
+            time_opts
+            and "resolution" in time_opts
+            and time_opts["resolution"] is not None
+        ):
+            # Convert time_opts dates to pandas Timestamp to ensure consistent types
+            scan_df["date"] = pd.to_datetime(scan_df["date"], format="ISO8601")
+            # Set the time part of the date according to resolution
+
+            scan_df = commons.aggregate_temporally(
+                scan_df,
+                pd.to_datetime(time_opts["start"]),
+                pd.to_datetime(time_opts["end"]),
+                time_opts["resolution"],
+            )
+
+        # Create tiles
+        tiles = self.format.create_tiles(scan_df, band_locator)
+
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
-        intersecting_tiles = [
-            tile
-            for tile in tiles
-            if shapely.intersects(
-                shapely.geometry.box(*tile.get_wgs_extent(), ccw=True), bbox
-            )
-        ]
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        ) as executor:
+            futures = []
+            for tile in tiles:
+                futures.append(executor.submit(geo.tile_intersects, tile, bbox))
+
+            results = []
+            for future in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Checking tile intersections",
+            ):
+                results.append(future.result())
+
+        intersecting_tiles = []
+        for idx in range(len(results)):
+            intersects = results[idx]
+            tile = tiles[idx]
+            if intersects:
+                intersecting_tiles.append(tile)
 
         if len(intersecting_tiles) == 0:
             raise Exception("No tiles found for the given time and spatial constraints")
@@ -708,8 +765,8 @@ class Dataset:
         outputs_by_dates = df.groupby(by=["date"], dropna=False)
         output_vrts = []
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
         ) as executor:
             futures = []
             # Iterate over each date group to create VRTs.
@@ -835,3 +892,48 @@ class Dataset:
         )
 
         return ds[dataset_name]
+
+    @staticmethod
+    def combine(ref_da, das, method=None):
+        """
+        Combine a list of DataArrays by interpolating each to the grid of the reference DataArray,
+        using the specified interpolation methods for each DataArray.
+
+        The reference DataArray (`ref_da`) and the DataArrays in `das` are typically returned by the `.to_dataarray()` function,
+        and are expected to have dimensions: "time", "band", "x", and "y".
+
+        Parameters
+        ----------
+        ref_da : xarray.DataArray
+            The reference DataArray whose grid will be used for interpolation.
+        das : list of xarray.DataArray
+            List of DataArrays to combine (excluding the reference DataArray).
+        method : str or list of str, optional
+            Interpolation method(s) to use for each DataArray in das. If a single string is provided,
+            it is used for all DataArrays. If a list is provided, it must be the same length as das.
+            Default is "linear" for all.
+
+        Returns
+        -------
+        xarray.DataArray
+            Concatenated DataArray with a new 'band' dimension, with the reference DataArray as the first band.
+        """
+        if method is None:
+            method = ["linear"] * len(das)
+        elif isinstance(method, str):
+            method = [method] * len(das)
+        elif isinstance(method, (list, tuple)):
+            if len(method) != len(das):
+                raise ValueError(
+                    "Length of method list must match number of DataArrays in das."
+                )
+        else:
+            raise TypeError("method must be a string or a list/tuple of strings.")
+
+        interped = [
+            da.interp(x=ref_da.x, y=ref_da.y, method=m) for da, m in zip(das, method)
+        ]
+        all_das = [ref_da] + interped
+        out = xr.concat(all_das, dim="band", join="outer")
+        out = out.assign_coords(band=("band", np.arange(1, out.sizes["band"] + 1)))
+        return out

@@ -23,6 +23,7 @@ earth_data_kit/s5cmd/
 # Example files, helps in quick testing
 workspace
 data
+examples/requirements.txt
 
 # Created by tests
 *.tar.gz.properties
