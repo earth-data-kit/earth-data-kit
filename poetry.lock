@@ -4878,6 +4878,21 @@ standalone = ["Sphinx (>=5)"]
 test = ["pytest"]
 
 [[package]]
+name = "sphinxcontrib-googleanalytics"
+version = "0.5"
+description = "Sphinx extension googleanalytics"
+optional = false
+python-versions = "*"
+groups = ["dev"]
+files = [
+    {file = "sphinxcontrib_googleanalytics-0.5-py3-none-any.whl", hash = "sha256:437e529c33c441bcccceabe3ead1585115e6ba83fe90e23bd42e42521333cc0a"},
+    {file = "sphinxcontrib_googleanalytics-0.5.tar.gz", hash = "sha256:a2ac6df9d16b9c124febf6b44e714c1fd9725e692b73ee84ec6b52b377ff5561"},
+]
+
+[package.dependencies]
+Sphinx = ">=0.6"
+
+[[package]]
 name = "sphinxcontrib-htmlhelp"
 version = "2.1.0"
 description = "sphinxcontrib-htmlhelp is a sphinx extension which renders HTML help files"
@@ -5415,4 +5430,4 @@ jupyter = ["ipytree (>=0.2.2)", "ipywidgets (>=8.0.0)", "notebook"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4"
-content-hash = "62c08afa5372640ac703e1ba8c99f1460f8c252a9c0458275a0f8a85338a3e3a"
+content-hash = "0ff35490c833da4f8451a64abe5f16e8a9c92f229afc6e8ef9a9aa3e6988cf64"
