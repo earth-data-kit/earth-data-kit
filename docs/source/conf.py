@@ -19,6 +19,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "sphinxcontrib.googleanalytics"
 ]
 
 autodoc_member_order = "bysource"
@@ -33,7 +34,6 @@ exclude_patterns = []
 
 html_theme = "furo"
 html_static_path = ["_static"]
-html_additional_pages = {"index": "index.html"}
 
 
 # These paths are either relative to html_static_path
@@ -42,7 +42,9 @@ html_css_files = [
     "css/custom.css",
 ]
 
-master_doc = "contents"
+master_doc = "index"
 
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
 copybutton_prompt_is_regexp = True
+
+googleanalytics_id = 'G-9F0X7Y9CNY'
