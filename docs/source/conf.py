@@ -19,7 +19,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
-    "sphinxcontrib.googleanalytics"
+    "sphinxcontrib.googleanalytics",
 ]
 
 autodoc_member_order = "bysource"
@@ -47,4 +47,4 @@ master_doc = "index"
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
 copybutton_prompt_is_regexp = True
 
-googleanalytics_id = 'G-9F0X7Y9CNY'
+googleanalytics_id = "G-9F0X7Y9CNY"

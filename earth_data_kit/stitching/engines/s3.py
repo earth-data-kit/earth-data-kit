@@ -1,24 +1,14 @@
 import os
-from tqdm import tqdm
+import datetime
+from urllib.parse import urlparse
 from osgeo import gdal
-import subprocess
-import io
 import pandas as pd
 import logging
 import earth_data_kit.utilities.helpers as helpers
-import earth_data_kit.utilities.geo as geo
-import pathlib
-import Levenshtein as levenshtein
-import geopandas as gpd
 import re
 import shapely
 import copy
 import earth_data_kit as edk
-from earth_data_kit.stitching import decorators
-import earth_data_kit.stitching.engines.commons as commons
-import json
-from tenacity import retry, stop_after_attempt, wait_fixed
-import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +16,6 @@ logger = logging.getLogger(__name__)
 class S3:
     def __init__(self) -> None:
         self.name = "s3"
-        no_sign_flag = os.getenv("AWS_NO_SIGN_REQUEST")
-        request_payer_flag = os.getenv("AWS_REQUEST_PAYER")
-        profile_flag = os.getenv("AWS_PROFILE")
 
         no_sign_flag_env = os.getenv("AWS_NO_SIGN_REQUEST")
         request_payer_env = os.getenv("AWS_REQUEST_PAYER")
@@ -227,7 +214,9 @@ class S3:
                     tmp_p = tmp_p.replace("{" + var + "}", grid[var])
                 new_patterns.append([path.date, tmp_p])
 
-        new_patterns_df = pd.DataFrame(new_patterns, columns=["date", "search_path"])
+        new_patterns_df = pd.DataFrame(
+            new_patterns, columns=pd.Index(["date", "search_path"])
+        )
 
         return new_patterns_df
 
@@ -250,70 +239,42 @@ class S3:
 
         return patterns_df
 
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
-    def _scan_s3_via_s5cmd(self, path):
-        ls_cmd = f"{edk.S5CMD_PATH} {self.no_sign_flag} {self.request_payer_flag} {self.profile_flag} --json ls '{path}'"
-        proc = subprocess.Popen(
-            ls_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = proc.communicate()
-        if proc.returncode != 0:
-            if "no object found" not in stderr.decode("utf-8").lower():
-                raise Exception(
-                    f"Error scanning S3 path {path}: {stderr.decode('utf-8')}"
-                )
-            return pd.DataFrame(columns=["key"])
-        try:
-            stdout = stdout.decode("utf-8")
-            df = pd.read_json(io.StringIO(stdout), lines=True)
-            if "key" in df.columns:
-                return df[["key"]]
-            else:
-                return pd.DataFrame(columns=["key"])
-        except Exception as e:
-            logger.error(f"Error scanning S3 path {path}: {e} {stdout}")
-            return pd.DataFrame(columns=["key"])
-
+    # TODO: Use s5cmd run commands.txt as its much faster than ThreadPoolExecutor.
+    # TODO: Also add functionality to do search based on year but
+    # date creation based on the full wildcard pattern supplied by the user. We might have to filter the paths later
     def scan(self, source, time_opts, space_opts, tmp_base_dir, band_locator):
         patterns_df = self.get_patterns(source, time_opts, space_opts)
         if "date" not in patterns_df.columns:
             patterns_df["date"] = None
 
-        def scan_pattern(row):
-            result_df = self._scan_s3_via_s5cmd(row.search_path)
-            if hasattr(row, "date"):
-                result_df["date"] = row.date
-            return result_df
+        s = "ls " + patterns_df["search_path"]
+        s.to_csv(f"{tmp_base_dir}/commands.txt", index=False, header=False)
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=helpers.get_threadpool_workers()
-        ) as executor:
-            futures = [
-                executor.submit(scan_pattern, row) for row in patterns_df.itertuples()
-            ]
-            scan_results = []
-            for f in tqdm(
-                concurrent.futures.as_completed(futures),
-                total=len(futures),
-                desc="Scanning S3 patterns",
-                unit="path",
-            ):
-                result_df = f.result()
-                scan_results.append(result_df)
-        if scan_results:
-            inv_df = pd.concat(scan_results, ignore_index=True)
-        else:
-            inv_df = pd.DataFrame(columns=["key"])
+        # Running s5cmd and outputting everything to output.json
+        os.system(
+            f"{edk.S5CMD_PATH} {self.no_sign_flag} {self.request_payer_flag} {self.profile_flag} --json run {tmp_base_dir}/commands.txt > {tmp_base_dir}/output.json"
+        )
 
-        # Adding gdal_path
-        inv_df["gdal_path"] = inv_df["key"].str.replace("s3://", "/vsis3/")
-        inv_df["engine_path"] = inv_df["key"]
-        inv_df["tile_name"] = inv_df["key"].str.split("/").str[-1]
-        inv_df.drop(columns=["key"], inplace=True)
+        # Reading output.json
+        df = pd.read_json(f"{tmp_base_dir}/output.json", lines=True)
 
-        # Convert datetime[ns] to datetime[ns, UTC]
-        inv_df["date"] = inv_df["date"].dt.tz_localize("UTC")
-        return inv_df
+        files = []
+        for row in df.itertuples():
+            file = []
+            k = row.key
+            file.append(k)
+            file.append(k.replace("s3://", "/vsis3/"))
+            file.append(k.split("/")[-1])
+            dt = extract_date_components(k, source)
+            file.append(dt)
+            files.append(file)
+
+        df = pd.DataFrame(
+            files, columns=pd.Index(["engine_path", "gdal_path", "tile_name", "date"])
+        )
+        df["date"] = df["date"].dt.tz_localize("UTC")
+
+        return df
 
     def sync(self, df, tmp_base_dir, overwrite=False):
         # Iterate over the dataframe to get GDAL paths that need syncing
@@ -350,3 +311,46 @@ class S3:
             band_tile.tile.gdal_path = output_path
 
         return df
+
+
+def create_regex_template(template):
+    mts = (
+        template.replace("*", "(.*)")
+        .replace("%Y", r"(?P<year>\d{4})")
+        .replace("%-m", r"(?P<month>\d{1,2})")
+        .replace("%m", r"(?P<month>\d{2})")
+        .replace("%d", r"(?P<day>\d{2})")
+    )
+    return mts
+
+
+def create_parts(path):
+    parts = urlparse(path).path.strip("/").split("/")
+    return parts
+
+
+def contains_time_component(template):
+    comps = ["%Y", "%-m", "%m", "%d"]
+    for c in comps:
+        if c in template:
+            return True
+
+
+def extract_date_components(test_str, template_str):
+    template_parts = create_parts(template_str)
+    test_parts = create_parts(test_str)
+    year, month, day, hour, min, sec = 1970, 1, 1, 0, 0, 0
+    for i in range(len(template_parts)):
+        if contains_time_component(template_parts[i]):
+            mts = create_regex_template(template_parts[i])
+            res = re.search(mts, test_parts[i])
+            if res:
+                groups = res.groupdict()
+                if "year" in groups:
+                    year = int(groups["year"])
+                if "month" in groups:
+                    month = int(groups["month"])
+                if "day" in groups:
+                    day = int(groups["day"])
+
+    return datetime.datetime(year, month, day, hour, min, sec)
