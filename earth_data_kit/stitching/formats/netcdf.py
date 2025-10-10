@@ -1,7 +1,7 @@
 import logging
 from osgeo import gdal
 from earth_data_kit.stitching.classes.tile import Tile
-import earth_data_kit.utilities as utilities
+from earth_data_kit.utilities import geo, helpers
 import concurrent.futures
 from tqdm import tqdm
 import pandas as pd
@@ -21,7 +21,7 @@ class NetCDFAdapter:
         rows = []
 
         with concurrent.futures.ProcessPoolExecutor(
-            max_workers=utilities.helpers.get_processpool_workers()
+            max_workers=helpers.get_processpool_workers()
         ) as executor:
             futures = []
             for df_row in df.itertuples():
@@ -42,19 +42,21 @@ class NetCDFAdapter:
 
         df = pd.DataFrame(
             rows,
-            columns=[
-                "date",
-                "tile_name",
-                "engine_path",
-                "gdal_path",
-                "geo_transform",
-                "projection",
-                "x_size",
-                "y_size",
-                "crs",
-                "length_unit",
-                "bands",
-            ],
+            columns=pd.Index(
+                [
+                    "date",
+                    "tile_name",
+                    "engine_path",
+                    "gdal_path",
+                    "geo_transform",
+                    "projection",
+                    "x_size",
+                    "y_size",
+                    "crs",
+                    "length_unit",
+                    "bands",
+                ]
+            ),
         )
 
         tiles = Tile.from_df(df)
@@ -70,7 +72,7 @@ def process_row(df_row_tuple, band_locator):
     for subdataset in ds.GetSubDatasets():
         row = [date, tile_name, engine_path, subdataset[0]]
         # Remove the break so all subdatasets are processed
-        metadata = utilities.geo.get_metadata(subdataset[0], band_locator)
+        metadata = geo.get_metadata(subdataset[0], band_locator)
         row.append(metadata.get("geo_transform"))
         row.append(metadata.get("projection"))
         row.append(metadata.get("x_size"))

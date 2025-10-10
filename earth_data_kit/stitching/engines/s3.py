@@ -143,7 +143,7 @@ class S3:
             if unit == "day":
                 return ts.floor("D")
             # year: align to Jan 1 00:00:00 (start-of-year)
-            return pd.Timestamp(year=ts.year, month=1, day=1, tz=ts.tz).floor("D") # type: ignore
+            return pd.Timestamp(year=ts.year, month=1, day=1, tz=ts.tz).floor("D")  # type: ignore
 
         def _align_end(ts: pd.Timestamp, unit: str) -> pd.Timestamp:
             """
@@ -261,7 +261,7 @@ class S3:
         files = []
         for row in df.itertuples():
             file = []
-            k = row.key # type: ignore
+            k = row.key  # type: ignore
             file.append(k)
             file.append(k.replace("s3://", "/vsis3/"))
             file.append(k.split("/")[-1])
