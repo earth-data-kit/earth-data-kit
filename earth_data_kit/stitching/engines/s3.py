@@ -313,6 +313,7 @@ class S3:
         return df
 
 
+# TODO: Add more date formats like hour, minute, seconds, day of year
 def create_regex_template(template):
     mts = (
         template.replace("*", "(.*)")

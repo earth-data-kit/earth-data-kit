@@ -244,8 +244,12 @@ class Dataset:
                 time_opts["resolution"],
             )
 
+        # Creating tiles uses gdal internally. So before running that we sign the urls via sign function.
+
         # Create tiles
         tiles = self.format.create_tiles(scan_df, band_locator)
+
+        # We use the normal urls, i.e. before signing so we don't save tokens anywhere
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -751,6 +755,8 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
+        # Sign the urls for authentication. Do it only for planetary computer.
+
         # Filter bands based on the user-supplied list.
         # TODO: May need special handling for non-unique band descriptions in the future
         df = df[df["description"].isin(bands)]
@@ -869,7 +875,7 @@ class Dataset:
                 first_vrt = vrt_datasets[0]
                 if isinstance(first_vrt, dict) and "source" in first_vrt:
                     first_vrt_path = first_vrt["source"]
-
+        # Will have to sign the url for planetary computer
         ds = gdal.Open(first_vrt_path)
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
 
