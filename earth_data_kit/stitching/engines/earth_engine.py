@@ -40,7 +40,7 @@ class EarthEngine:
         for feature in layer:
             tiles.append([feature["gdal_dataset"], feature["id"], feature["startTime"]])
 
-        df = pd.DataFrame(tiles, columns=["gdal_path", "engine_path", "date"])
+        df = pd.DataFrame(tiles, columns=pd.Index(["gdal_path", "engine_path", "date"]))
         df["tile_name"] = df["gdal_path"].str.split("/").str[-1]
         df["date"] = pd.to_datetime(df["date"], format="ISO8601")
 

@@ -1,6 +1,7 @@
 import concurrent.futures
 import logging
-import earth_data_kit.utilities as utilities
+from earth_data_kit.utilities import geo
+from earth_data_kit.utilities import helpers
 from tqdm import tqdm
 import pandas as pd
 
@@ -12,11 +13,11 @@ def get_tiles_metadata(gdal_paths, band_locator):
     tiles_md = []
 
     with concurrent.futures.ThreadPoolExecutor(
-        max_workers=utilities.helpers.get_threadpool_workers()
+        max_workers=helpers.get_threadpool_workers()
     ) as executor:
         # Submit all tasks and store futures
         futures = [
-            executor.submit(utilities.geo.get_metadata, gdal_path, band_locator)
+            executor.submit(geo.get_metadata, gdal_path, band_locator)
             for gdal_path in gdal_paths
         ]
 

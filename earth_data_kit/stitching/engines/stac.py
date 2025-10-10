@@ -1,8 +1,5 @@
 from pystac_client import Client
 from urllib.parse import urlparse
-from pystac.extensions.eo import EOExtension
-from datetime import datetime
-import shapely.geometry
 from earth_data_kit.stitching.classes.tile import Tile
 import logging
 from osgeo import gdal
@@ -66,7 +63,7 @@ class STAC:
             items.append(item_row)
 
         df = pd.DataFrame(
-            items, columns=["date", "tile_name", "engine_path", "gdal_path"]
+            items, columns=pd.Index(["date", "tile_name", "engine_path", "gdal_path"])
         )
 
         return df
