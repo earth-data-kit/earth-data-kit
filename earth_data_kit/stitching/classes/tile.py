@@ -95,8 +95,8 @@ class Tile:
         if vrt is None:
             raise RuntimeError("gdal.Warp failed to create VRT in EPSG:4326.")
 
-        w, h = vrt.RasterXSize, vrt.RasterYSize
-        gt = vrt.GetGeoTransform()
+        w, h = vrt.RasterXSize, vrt.RasterYSize # type: ignore
+        gt = vrt.GetGeoTransform() # type: ignore
         if gt is None:
             raise RuntimeError("Warped VRT has no geotransform.")
 

@@ -1,6 +1,6 @@
 from fiona.drvsupport import supported_drivers
 
-supported_drivers["LIBKML"] = "rw"
+supported_drivers["LIBKML"] = "rw" # type: ignore
 
 import os
 from fixtures.country_bboxes import country_bounding_boxes
