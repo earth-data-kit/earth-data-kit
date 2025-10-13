@@ -180,4 +180,4 @@ class Tile:
         return bbox
 
     def get_res(self):
-        return (self.geo_transform[1], self.geo_transform[5])
+        return tuple(round(coord, 6) for coord in (self.geo_transform[1], self.geo_transform[5]))

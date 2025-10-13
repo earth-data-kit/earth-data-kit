@@ -265,7 +265,10 @@ class S3:
             file.append(k)
             file.append(k.replace("s3://", "/vsis3/"))
             file.append(k.split("/")[-1])
-            dt = extract_date_components(k, source)
+            if isinstance(source, list):
+                dt = datetime.datetime(1970, 1, 1, 0, 0, 0)
+            else:
+                dt = extract_date_components(k, source)
             file.append(dt)
             files.append(file)
 
@@ -318,7 +321,9 @@ def create_regex_template(template):
         template.replace("*", "(.*)")
         .replace("%Y", r"(?P<year>\d{4})")
         .replace("%-m", r"(?P<month>\d{1,2})")
+        .replace("%-j", r"(?P<day_of_year>\d{1,3})")
         .replace("%m", r"(?P<month>\d{2})")
+        .replace("%j", r"(?P<day_of_year>\d{1,3})")
         .replace("%d", r"(?P<day>\d{2})")
     )
     return mts
@@ -340,6 +345,7 @@ def extract_date_components(test_str, template_str):
     template_parts = create_parts(template_str)
     test_parts = create_parts(test_str)
     year, month, day, hour, min, sec = 1970, 1, 1, 0, 0, 0
+    day_of_year = None
     for i in range(len(template_parts)):
         if contains_time_component(template_parts[i]):
             mts = create_regex_template(template_parts[i])
@@ -352,5 +358,10 @@ def extract_date_components(test_str, template_str):
                     month = int(groups["month"])
                 if "day" in groups:
                     day = int(groups["day"])
+                if "day_of_year" in groups:
+                    day_of_year = int(groups["day_of_year"])
+
+    if day_of_year and year:
+        day = datetime.datetime.strptime(str(day_of_year), "%j").day
 
     return datetime.datetime(year, month, day, hour, min, sec)
