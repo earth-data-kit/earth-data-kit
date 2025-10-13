@@ -26,5 +26,5 @@ def test_gdal_version():
 def test_xarray_edk_engine():
     """Test that xarray recognizes edk_dataset as an available engine"""
 
-    engines = xr.backends.list_engines()
+    engines = xr.backends.list_engines() # type: ignore
     assert "edk_dataset" in engines

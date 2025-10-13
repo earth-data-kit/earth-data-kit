@@ -1,16 +1,13 @@
 import earth_data_kit as edk
 import os
 import pytest
-from tests.fixtures.country_bboxes import country_bounding_boxes
+from fixtures.country_bboxes import country_bounding_boxes
 import datetime
 from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 
-CONFIG_FILE_PATH = "tests/config.env"
 FIXTURES_DIR = "tests/fixtures"
-load_dotenv(CONFIG_FILE_PATH)
-
 
 def _test():
     output_base_vrt = (
@@ -46,6 +43,7 @@ def _run():
         source,
         "s3",
         clean=True,
+        format="geotiff",
     )
 
     # Setting time bounds
@@ -66,7 +64,8 @@ def _run():
 
 
 @pytest.mark.order(0)
-def test_wo_grid_file():
+def _test_wo_grid_file():
+    # TODO: This is too slow. s5cmd tries to get all files till first wildcard and filter them in memory
     os.environ["AWS_REGION"] = "us-west-2"
     os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
 
