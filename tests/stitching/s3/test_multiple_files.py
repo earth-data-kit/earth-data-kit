@@ -54,6 +54,8 @@ def _run():
     # Stitching data together as VRTs
     ds.mosaic(
         bands=["NoDescription"],
+        crs="EPSG:4326",
+        resolution=(0.0042, -0.0042),
     )
 
     ds.save()
