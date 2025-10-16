@@ -42,4 +42,4 @@ RUN pip install jupyterlab
 # Copying edk codebase
 COPY ./earth_data_kit /app/earth-data-kit/earth_data_kit
 
-LABEL org.opencontainers.image.source https://github.com/earth-data-kit/earth-data-kit
+LABEL org.opencontainers.image.source=https://github.com/earth-data-kit/earth-data-kit
