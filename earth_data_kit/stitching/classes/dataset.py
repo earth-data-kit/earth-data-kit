@@ -29,6 +29,8 @@ from tqdm import tqdm
 from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
+import earth_data_kit.stitching.engines.planetary_computer as planetary_computer
+from earth_data_kit.stitching.engines.planetary_computer import sign_url
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -74,6 +76,8 @@ class Dataset:
             self.engine = earth_engine.EarthEngine()
         if engine == "stac":
             self.engine = stac.STAC()
+        if engine == "planetary_computer":
+            self.engine = planetary_computer.PlanetaryComputer()
 
         if format == "geotiff":
             self.format = GeoTiffAdapter()
@@ -245,11 +249,19 @@ class Dataset:
             )
 
         # Creating tiles uses gdal internally. So before running that we sign the urls via sign function.
+        if self.engine.name == "planetary_computer":
+            scan_df = planetary_computer.PlanetaryComputer.sign_stac_items(scan_df, self.__get_ds_tmp_path__())
 
         # Create tiles
         tiles = self.format.create_tiles(scan_df, band_locator)
 
         # We use the normal urls, i.e. before signing so we don't save tokens anywhere
+        if self.engine.name == "planetary_computer":
+            # Restore unsigned URLs in tiles
+            for tile in tiles:
+                # Remove SAS token from gdal_path by stripping query parameters
+                if "?" in tile.gdal_path:
+                    tile.gdal_path = tile.gdal_path.split("?")[0]
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -755,7 +767,14 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
-        # Sign the urls for authentication. Do it only for planetary computer.
+        
+        if self.engine.name == "planetary_computer":
+            # Sign URLs in tiles' gdal_path for GDAL operations
+            def sign_tile_gdal_path(tile):
+                if hasattr(tile, "gdal_path"):
+                    tile.gdal_path = sign_url(tile.gdal_path)
+                return tile
+            df["tile"] = df["tile"].apply(sign_tile_gdal_path)
 
         # Filter bands based on the user-supplied list.
         # TODO: May need special handling for non-unique band descriptions in the future
@@ -875,8 +894,19 @@ class Dataset:
                 first_vrt = vrt_datasets[0]
                 if isinstance(first_vrt, dict) and "source" in first_vrt:
                     first_vrt_path = first_vrt["source"]
-        # Will have to sign the url for planetary computer
+
+        if not first_vrt_path:
+            raise ValueError("No valid VRT source path found in EDKDataset.")
+
+        # Sign the urls for authentication. Do it only for planetary computer.
+        engine_name = dataset_info.get("EDKDataset", {}).get("engine")
+        if engine_name == "planetary_computer":
+            planetary_computer.PlanetaryComputer.sign_vrt_files(vrt_datasets)
+
         ds = gdal.Open(first_vrt_path)
+        if ds is None:
+            raise RuntimeError(f"Failed to open dataset: {first_vrt_path}")
+
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
 
         # Check if block sizes are powers of 2
