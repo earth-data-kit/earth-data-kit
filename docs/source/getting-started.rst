@@ -1,49 +1,42 @@
 Getting Started
 ===============
 
-Primary Usage: Docker
----------------------
-The recommended and primary way to run Earth Data Kit (EDK) is via Docker. This approach avoids dependency issues and ensures a consistent environment across platforms.
+Primary Usage: edk-cli
+----------------------
+The recommended and primary way to run Earth Data Kit (EDK) is via edk-cli. This approach avoids dependency issues and ensures a consistent environment across platforms.
 
 Quick Start
 -----------
-1. **Clone the repository:**
+1. **Get and install edk-cli:**
 
    .. code-block:: console
 
-      $ git clone https://github.com/earth-data-kit/earth-data-kit.git
-      $ cd earth-data-kit
+      $ pip3 install https://github.com/earth-data-kit/edk-cli/releases/download/0.1.0/edk_cli-0.1.0-py3-none-any.whl
 
-2. **Create your `.env` file:**
+2. **Create your `.env` file using edk configure:**
+   
+   .. code-block:: console
 
-   Set up your environment variables in a `.env` file in the root of the repository. See the "Environment Configuration" section below for details on available options.
+         $ edk configure
 
-3. **Initialize the Docker container:**
+   This will help you create a `.env` file. See the "Environment Configuration" section below for details on available options.
+
+3. **Initialize the EDK container:**
 
    .. code-block:: console
 
-      $ bash init.sh
+      $ edk run
 
    This will build and start the EDK Docker container with all dependencies pre-installed.  
    Additionally, if you have a `requirements.txt` file inside the `workspace` directory, it will be installed automatically inside the container.
 
-4. **Run your Python script inside the container:**
-
-   Place your script (e.g., `my_script.py`) inside the `workspace` directory. Then run:
-
-   .. code-block:: console
-
-      $ bash launcher.sh my_script.py
-
-   This will execute your script using Python 3 inside the running EDK container.
-
-5. **(Optional) SSH into the container:**
+5. **SSH into the container:**
 
    If you want an interactive shell inside the container, run:
 
    .. code-block:: console
 
-      $ bash exec-edk.sh
+      $ edk ssh
 
    This will open a bash shell inside the EDK container, allowing you to run commands interactively.
    
@@ -53,7 +46,7 @@ Quick Start
 
    .. code-block:: console
 
-      $ bash start-notebook.sh
+      $ edk notebook
 
    This will start a JupyterLab server accessible from your browser. By default, it will be available at `http://localhost:8888` on your host machine. You can then open notebooks and interact with your code and data directly within the container environment.
 

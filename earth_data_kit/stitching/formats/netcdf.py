@@ -30,7 +30,7 @@ class NetCDFAdapter:
                 )
 
             for f in tqdm(
-                concurrent.futures.as_completed(futures),
+                futures,
                 total=len(futures),
                 desc="Getting metadata",
             ):

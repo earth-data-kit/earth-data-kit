@@ -61,7 +61,7 @@ class Dataset:
             >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3")
         """
         if engine not in constants.ENGINES_SUPPORTED:
-            raise Exception(f"{engine} not supported")
+            raise Exception(f"{engine} not supported. Should be one of {', '.join(constants.ENGINES_SUPPORTED)}")
 
         self.name = name
         self.time_opts = {}
@@ -85,7 +85,7 @@ class Dataset:
             self.format = NetCDFAdapter()
 
         if self.format is None:
-            raise NotImplementedError(f"Format {format} not supported.")
+            raise NotImplementedError(f"Format {format} not supported. Should be one of geotiff, earth_engine, stac_asset, netcdf")
 
         self.source = source
 
@@ -259,7 +259,7 @@ class Dataset:
 
             results = []
             for future in tqdm(
-                concurrent.futures.as_completed(futures),
+                futures,
                 total=len(futures),
                 desc="Checking tile intersections",
             ):

@@ -18,6 +18,8 @@ def transform_coordinates(x, y, source_epsg, target_epsg):
     Returns:
         tuple: (x_transformed, y_transformed) coordinates in the target projection
     """
+    if source_epsg == target_epsg:
+        return float(x), float(y)
     # Create source and target spatial reference systems
     source_srs = osr.SpatialReference()
     source_srs.ImportFromEPSG(source_epsg)
