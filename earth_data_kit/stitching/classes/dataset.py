@@ -247,21 +247,9 @@ class Dataset:
                 pd.to_datetime(time_opts["end"]),
                 time_opts["resolution"],
             )
-
-        # Creating tiles uses gdal internally. So before running that we sign the urls via sign function.
-        if self.engine.name == "planetary_computer":
-            scan_df = planetary_computer.PlanetaryComputer.sign_stac_items(scan_df, self.__get_ds_tmp_path__())
-
+        
         # Create tiles
         tiles = self.format.create_tiles(scan_df, band_locator)
-
-        # We use the normal urls, i.e. before signing so we don't save tokens anywhere
-        if self.engine.name == "planetary_computer":
-            # Restore unsigned URLs in tiles
-            for tile in tiles:
-                # Remove SAS token from gdal_path by stripping query parameters
-                if "?" in tile.gdal_path:
-                    tile.gdal_path = tile.gdal_path.split("?")[0]
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -446,6 +434,27 @@ class Dataset:
         else:
             return gdal_path
 
+    def _gdal_dtype_from_string(self, dtype_str):
+        """
+        Convert dtype string to GDAL data type constant.
+
+        Args:
+            dtype_str (str): Data type string (e.g., 'Float32', 'Int16', 'Byte')
+
+        Returns:
+            GDAL data type constant
+        """
+        dtype_mapping = {
+            "Byte": gdal.GDT_Byte,
+            "UInt16": gdal.GDT_UInt16,
+            "Int16": gdal.GDT_Int16,
+            "UInt32": gdal.GDT_UInt32,
+            "Int32": gdal.GDT_Int32,
+            "Float32": gdal.GDT_Float32,
+            "Float64": gdal.GDT_Float64,
+        }
+        return dtype_mapping.get(dtype_str, gdal.GDT_Float32)
+
     def __validate_band_properties__(self, tiles_df, resolution, dtype, crs):
         """
         Validates that all tiles in a band have consistent data types, crs, and resolutions.
@@ -507,6 +516,7 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
+        all_warped_vrts = []  # Track all warped VRTs for path conversion
 
         for band_desc in bands:
             # Filter tiles for current band
@@ -532,18 +542,34 @@ class Dataset:
                 for row in current_bands_df.itertuples():
                     # Adding uuid to avoid conflicts
                     warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{row.gdal_path.split('/')[-1].split('.')[0]}-{uuid.uuid4()}-warped.vrt"
-                    options = gdal.WarpOptions(
-                        format="VRT",
-                        xRes=resolution[0],
-                        yRes=resolution[1],
-                        dstSRS=crs,
-                    )
+
+                    # Resolve relative paths to absolute for warping
+                    source_path = row.gdal_path
+                    if not os.path.isabs(source_path) and not source_path.startswith(("/vsi", "http")):
+                        # Relative path - resolve it from pre-processing directory
+                        vrt_dir = os.path.dirname(warped_vrt_path)
+                        source_path = os.path.abspath(os.path.join(vrt_dir, source_path))
+
+                    # Build warp options
+                    warp_kwargs = {
+                        "format": "VRT",
+                        "xRes": resolution[0],
+                        "yRes": resolution[1],
+                        "dstSRS": crs,
+                    }
+
+                    # Add output type if dtype is specified
+                    if dtype is not None:
+                        warp_kwargs["outputType"] = self._gdal_dtype_from_string(dtype)
+
+                    options = gdal.WarpOptions(**warp_kwargs)
                     gdal.Warp(
                         warped_vrt_path,
-                        row.gdal_path,
+                        source_path,
                         options=options,
                     )
                     gdal_paths.append(warped_vrt_path)
+                    all_warped_vrts.append(warped_vrt_path)  # Track for later conversion
             else:
                 gdal_paths = current_bands_df["gdal_path"].tolist()
 
@@ -554,9 +580,23 @@ class Dataset:
                 separate=False,
                 bandList=[current_bands_df.iloc[0]["source_idx"]],
             )
+
+            if ds is None:
+                raise RuntimeError(f"Failed to create VRT mosaic: {band_mosaic_path}. Check that source files are accessible.")
+
             ds.Close()
 
             band_mosaics.append(band_mosaic_path)
+
+        # Convert all VRTs to relative paths after creation
+        # This includes band mosaics and their source warped VRTs
+        if self.engine.name == "planetary_computer":
+            # Convert all warped VRTs first (they contain absolute paths to source files)
+            for vrt_path in all_warped_vrts:
+                geo.convert_vrt_to_relative_paths(vrt_path)
+            # Then convert band mosaics (they contain relative paths to warped VRTs)
+            for vrt_path in band_mosaics:
+                geo.convert_vrt_to_relative_paths(vrt_path)
 
         return band_mosaics
 
@@ -594,6 +634,10 @@ class Dataset:
             projWin=[xmin, ymax, xmax, ymin],
             projWinSRS="EPSG:4326",
         )
+
+        # Convert to relative paths if synced data was used
+        if self.engine.name == "planetary_computer":
+            geo.convert_vrt_to_relative_paths(output_vrt)
 
         return output_vrt
 
@@ -767,14 +811,7 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
-        
-        if self.engine.name == "planetary_computer":
-            # Sign URLs in tiles' gdal_path for GDAL operations
-            def sign_tile_gdal_path(tile):
-                if hasattr(tile, "gdal_path"):
-                    tile.gdal_path = sign_url(tile.gdal_path)
-                return tile
-            df["tile"] = df["tile"].apply(sign_tile_gdal_path)
+
 
         # Filter bands based on the user-supplied list.
         # TODO: May need special handling for non-unique band descriptions in the future
@@ -898,10 +935,6 @@ class Dataset:
         if not first_vrt_path:
             raise ValueError("No valid VRT source path found in EDKDataset.")
 
-        # Sign the urls for authentication. Do it only for planetary computer.
-        engine_name = dataset_info.get("EDKDataset", {}).get("engine")
-        if engine_name == "planetary_computer":
-            planetary_computer.PlanetaryComputer.sign_vrt_files(vrt_datasets)
 
         ds = gdal.Open(first_vrt_path)
         if ds is None:

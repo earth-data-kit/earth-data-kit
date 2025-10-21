@@ -161,3 +161,74 @@ def tile_intersects(tile, bbox):
     return shapely.intersects(
         shapely.geometry.box(*tile.get_wgs_extent(), ccw=True), bbox
     )
+
+
+def convert_vrt_to_relative_paths(vrt_path):
+    """
+    Convert absolute paths in a VRT file to relative paths.
+
+    This ensures VRT files work correctly when moved between environments
+    (e.g., from Docker container to host machine).
+
+    Parameters:
+        vrt_path (str): Path to the VRT file to modify
+
+    Returns:
+        None
+    """
+    from xml.etree import ElementTree as ET
+    import os
+
+    try:
+        tree = ET.parse(vrt_path)
+        root = tree.getroot()
+
+        vrt_dir = os.path.dirname(os.path.abspath(vrt_path))
+
+        # Find all SourceFilename and SourceDataset elements
+        # SourceFilename is used in regular VRTs, SourceDataset is used in warped VRTs
+        for element_name in ["SourceFilename", "SourceDataset"]:
+            for source_elem in root.iter(element_name):
+                if source_elem.text:
+                    source_path = source_elem.text
+
+                    # Only convert if it's an absolute path and a local file (not /vsicurl/, /vsis3/, etc.)
+                    if os.path.isabs(source_path) and not source_path.startswith(("/vsi", "http")):
+                        try:
+                            # If it's a Docker path, we need to work with it specially
+                            # Docker paths won't resolve with os.path.relpath on host
+                            if source_path.startswith("/app/"):
+                                # Extract the relative part after /app/data/tmp/{dataset_name}/
+                                # Example: /app/data/tmp/modis-64A1-test/raw-data/... -> ../raw-data/...
+                                if "/raw-data/" in source_path:
+                                    # Get everything after and including 'raw-data'
+                                    parts = source_path.split("/raw-data/", 1)
+                                    if len(parts) == 2:
+                                        rel_path = f"../raw-data/{parts[1]}"
+                                        source_elem.text = rel_path
+                                        source_elem.set("relativeToVRT", "1")
+                                        logger.debug(f"Converted Docker path {source_path} to {rel_path}")
+                                elif "/app/data/" in source_path:
+                                    # Fallback: Get everything after /app/data/
+                                    rel_from_data = source_path.split("/app/data/", 1)[1]
+                                    rel_path = f"../{rel_from_data}"
+                                    source_elem.text = rel_path
+                                    source_elem.set("relativeToVRT", "1")
+                                    logger.debug(f"Converted Docker path {source_path} to {rel_path}")
+                            else:
+                                # Regular absolute path - calculate relative path
+                                rel_path = os.path.relpath(source_path, vrt_dir)
+                                source_elem.text = rel_path
+                                source_elem.set("relativeToVRT", "1")
+                                logger.debug(f"Converted {source_path} to {rel_path}")
+                        except ValueError:
+                            # Paths on different drives on Windows, keep absolute
+                            logger.warning(f"Cannot create relative path for {source_path}")
+                            pass
+
+        # Write the modified VRT back
+        tree.write(vrt_path, encoding='utf-8', xml_declaration=False)
+        logger.debug(f"Updated VRT file: {vrt_path}")
+
+    except Exception as e:
+        logger.warning(f"Error converting VRT to relative paths {vrt_path}: {e}")

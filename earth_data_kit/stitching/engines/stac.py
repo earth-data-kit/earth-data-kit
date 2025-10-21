@@ -1,10 +1,8 @@
 from pystac_client import Client
 from urllib.parse import urlparse
-from earth_data_kit.stitching.classes.tile import Tile
 import logging
 from osgeo import gdal
 import os
-import earth_data_kit.stitching.engines.commons as commons
 import pandas as pd
 import concurrent.futures
 import earth_data_kit.utilities.helpers as helpers
@@ -28,6 +26,42 @@ class STAC:
 
         return _source, None
 
+    def _search_catalog(self, catalog_url, collection_name, time_opts, space_opts):
+        """
+        Helper method to search STAC catalog with filters.
+
+        Args:
+            catalog_url: STAC catalog URL
+            collection_name: Collection name to search
+            time_opts: Time filter options
+            space_opts: Spatial filter options
+
+        Returns:
+            Search results iterator
+        """
+        # Open STAC catalog
+        logger.info(f"Opening STAC catalog: {catalog_url}")
+        catalog = Client.open(catalog_url)
+
+        # Prepare search parameters
+        search_kwargs = {"collections": [collection_name]}
+
+        # Add time filter if provided
+        if time_opts and "start" in time_opts and "end" in time_opts:
+            search_kwargs["datetime"] = [time_opts["start"], time_opts["end"]]
+            logger.info(f"Time filter: {time_opts['start']} to {time_opts['end']}")
+
+        # Add spatial filter if provided
+        if space_opts and "bbox" in space_opts:
+            bbox = space_opts["bbox"]
+            search_kwargs["bbox"] = bbox
+            logger.info(f"Spatial filter (bbox): {bbox}")
+
+        # Search for items using the collection
+        logger.info(f"Searching collection: {collection_name}")
+        results = catalog.search(**search_kwargs)
+        return results
+
     def scan(self, source, time_opts, space_opts, tmp_path, band_locator):
         catalog_url, collection_name = self._parse_stac_url(source)
 
@@ -35,24 +69,8 @@ class STAC:
             # URL is stac catalog, raise an error for no collection name
             raise ValueError("Collection name is required for STAC catalog")
 
-        # Open STAC catalog
-        catalog = Client.open(catalog_url)
-
-        # Prepare search parameters
-        search_kwargs = {}
-
-        search_kwargs["collections"] = [collection_name]
-        # Add time filter if provided
-        if time_opts and "start" in time_opts and "end" in time_opts:
-            search_kwargs["datetime"] = [time_opts["start"], time_opts["end"]]
-
-        # Add spatial filter if provided
-        if space_opts and "bbox" in space_opts:
-            bbox = space_opts["bbox"]
-            search_kwargs["bbox"] = bbox
-
-        # Search for items using the collection
-        results = catalog.search(**search_kwargs)
+        # Search catalog with filters
+        results = self._search_catalog(catalog_url, collection_name, time_opts, space_opts)
 
         # Need 4 columns date, tile_name, engine_path, gdal_path
         items = []
@@ -134,3 +152,4 @@ class STAC:
             executor.shutdown(wait=True)
 
         return df
+
