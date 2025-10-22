@@ -120,7 +120,7 @@ class EDKAccessor:
         out_ds = None
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(3), reraise=True)
-    def __read_and_write_block__(
+    def __read_block__(
         self, da, band_idx, xoff, yoff, xsize, ysize, out_file
     ):
         data = da.isel(
@@ -158,7 +158,7 @@ class EDKAccessor:
 
                         futures.append(
                             executor.submit(
-                                self.__read_and_write_block__,
+                                self.__read_block__,
                                 da,
                                 band_idx,
                                 xoff,
@@ -279,15 +279,16 @@ class EDKAccessor:
         dims = self.da.dims
         cogs_path = []
         if "time" in dims:
-            for time_idx in range(len(self.da.time)):
-                t = pd.to_datetime(self.da.time[time_idx].values)
-                timestring = t.strftime("%Y-%m-%d-%H:%M:%S")
-                output_file = f"{os.path.join(_output_path, timestring)}.tif"
-                cogs_path.append(
-                    self._export_to_cog(
-                        self.da.isel(time=time_idx), output_file, overwrite
-                    )
-                )
+            with concurrent.futures.ProcessPoolExecutor(max_workers=helpers.get_processpool_workers()) as executor:
+                futures = []
+                for time_idx in range(len(self.da.time)):
+                    t = pd.to_datetime(self.da.time[time_idx].values)
+                    timestring = t.strftime("%Y-%m-%d-%H:%M:%S")
+                    output_file = f"{os.path.join(_output_path, timestring)}.tif"
+                    futures.append(executor.submit(self._export_to_cog, self.da.isel(time=time_idx), output_file, overwrite))
+
+                for time_idx, future in enumerate(tqdm(futures, total=len(futures), desc="Exporting COGs", position=0)):
+                    cogs_path.append(future.result())
         elif "band" in dims:
             self._export_to_cog(self.da, _output_path, overwrite)
             cogs_path.append(_output_path)
