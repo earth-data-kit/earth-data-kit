@@ -145,7 +145,8 @@ class STACAssetAdapter:
             df_row, key, asset = args
             asset_row = [df_row.date, df_row.tile_name, df_row.engine_path]
             try:
-                gdal_path = df_row.gdal_path
+                # Construct GDAL path from asset href
+                gdal_path = STACAssetAdapter.to_vsi(asset.href)
                 asset_row.append(gdal_path)
 
                 drv = gdal.OpenEx(gdal_path, gdal.OF_READONLY)

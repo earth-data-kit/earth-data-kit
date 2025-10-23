@@ -1,6 +1,7 @@
 from pystac_client import Client
 from urllib.parse import urlparse
 import logging
+import json
 from osgeo import gdal
 import os
 import pandas as pd
@@ -62,28 +63,51 @@ class STAC:
         results = catalog.search(**search_kwargs)
         return results
 
-    def scan(self, source, time_opts, space_opts, tmp_path, band_locator):
+    def scan(self, source, time_opts, space_opts, tmp_path, band_locator, url_signer=None):
+        
         catalog_url, collection_name = self._parse_stac_url(source)
 
         if collection_name is None:
-            # URL is stac catalog, raise an error for no collection name
-            raise ValueError("Collection name is required for STAC catalog")
+            raise ValueError(
+                "Collection name is required for STAC catalog. "
+                "Please provide a URL like: https://catalog.com/collections/{collection_id}"
+            )
 
         # Search catalog with filters
         results = self._search_catalog(catalog_url, collection_name, time_opts, space_opts)
 
-        # Need 4 columns date, tile_name, engine_path, gdal_path
+        # Ensure tmp_path directory exists
+        os.makedirs(tmp_path, exist_ok=True)
+
         items = []
-        # Process each item/tile
+        # Process each STAC item and extract assets
         for item in results.items():
-            # gdal.Open takes a remote URL directly without the need for STACIT prefix
-            item_row = [item.datetime, item.id, item.self_href, item.self_href]
+            # Convert pystac Item to dict if we need to sign it
+            item_dict = item.to_dict()
+
+            # Sign the entire item if url_signer is provided (for Planetary Computer)
+            if url_signer is not None:
+                item_dict = url_signer(item_dict)
+
+            # Save item to local file (signed or unsigned)
+            item_path = os.path.join(tmp_path, f"{item.id}.json")
+            with open(item_path, 'w') as f:
+                json.dump(item_dict, f)
+
+            # Add item row - engine_path points to local file
+            item_row = [
+                item.datetime,
+                item.id,
+                item_path,  # Local path to STAC item JSON
+                item_path   # gdal_path same as engine_path for STAC
+            ]
             items.append(item_row)
 
         df = pd.DataFrame(
             items, columns=pd.Index(["date", "tile_name", "engine_path", "gdal_path"])
         )
 
+        logger.info(f"Found {len(df)} STAC items")
         return df
 
     def _sync_s3(self, source, dest):

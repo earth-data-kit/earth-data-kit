@@ -7,6 +7,7 @@ import pandas as pd
 import ast
 import geopandas as gpd
 import logging
+from earth_data_kit.xarray_boosted.commons import get_gdal_dtype
 from osgeo import osr
 import uuid
 import os
@@ -434,27 +435,6 @@ class Dataset:
         else:
             return gdal_path
 
-    def _gdal_dtype_from_string(self, dtype_str):
-        """
-        Convert dtype string to GDAL data type constant.
-
-        Args:
-            dtype_str (str): Data type string (e.g., 'Float32', 'Int16', 'Byte')
-
-        Returns:
-            GDAL data type constant
-        """
-        dtype_mapping = {
-            "Byte": gdal.GDT_Byte,
-            "UInt16": gdal.GDT_UInt16,
-            "Int16": gdal.GDT_Int16,
-            "UInt32": gdal.GDT_UInt32,
-            "Int32": gdal.GDT_Int32,
-            "Float32": gdal.GDT_Float32,
-            "Float64": gdal.GDT_Float64,
-        }
-        return dtype_mapping.get(dtype_str, gdal.GDT_Float32)
-
     def __validate_band_properties__(self, tiles_df, resolution, dtype, crs):
         """
         Validates that all tiles in a band have consistent data types, crs, and resolutions.
@@ -542,15 +522,12 @@ class Dataset:
                 for row in current_bands_df.itertuples():
                     # Adding uuid to avoid conflicts
                     warped_vrt_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{row.gdal_path.split('/')[-1].split('.')[0]}-{uuid.uuid4()}-warped.vrt"
-
-                    # Resolve relative paths to absolute for warping
-                    source_path = row.gdal_path
-                    if not os.path.isabs(source_path) and not source_path.startswith(("/vsi", "http")):
-                        # Relative path - resolve it from pre-processing directory
-                        vrt_dir = os.path.dirname(warped_vrt_path)
-                        source_path = os.path.abspath(os.path.join(vrt_dir, source_path))
-
-                    # Build warp options
+                    options = gdal.WarpOptions(
+                        format="VRT",
+                        xRes=resolution[0],
+                        yRes=resolution[1],
+                        dstSRS=crs,
+                    )
                     warp_kwargs = {
                         "format": "VRT",
                         "xRes": resolution[0],
@@ -560,12 +537,12 @@ class Dataset:
 
                     # Add output type if dtype is specified
                     if dtype is not None:
-                        warp_kwargs["outputType"] = self._gdal_dtype_from_string(dtype)
+                        warp_kwargs["outputType"] = get_gdal_dtype(dtype)
 
                     options = gdal.WarpOptions(**warp_kwargs)
                     gdal.Warp(
                         warped_vrt_path,
-                        source_path,
+                        row.gdal_path,
                         options=options,
                     )
                     gdal_paths.append(warped_vrt_path)
