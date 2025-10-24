@@ -1,4 +1,4 @@
-docker build  -t edk:latest -f Dockerfile.release .
+docker buildx build --platform linux/arm64,linux/amd64 --tag edk:latest -f Dockerfile.release .
 VERSION=$(poetry version -s)
 
 REPO_URL="ghcr.io/earth-data-kit/edk"

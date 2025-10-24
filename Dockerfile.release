@@ -2,6 +2,8 @@ FROM ghcr.io/osgeo/gdal:ubuntu-full-3.10.3
 
 WORKDIR /app
 
+ARG TARGETARCH
+
 # Setup python and poetry
 RUN apt-get update && apt-get install -y \
     python3-pip \
@@ -14,7 +16,13 @@ RUN poetry self add "poetry-plugin-export"
 
 # Getting s5cmd
 RUN apt-get install -y wget
-RUN wget -O s5cmd.tar.gz https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Linux-64bit.tar.gz
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        wget -O s5cmd.tar.gz https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Linux-arm64.tar.gz; \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
+        wget -O s5cmd.tar.gz https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Linux-64bit.tar.gz; \
+    else \
+        exit 1; \
+    fi
 RUN tar -xzf s5cmd.tar.gz -C /bin s5cmd
 
 # Copying EDK requirements and installing the dependencies
@@ -32,7 +40,15 @@ RUN pip install -r /app/edk-requirements.txt
 
 # Installing aws cli
 RUN apt-get install -y unzip
-RUN wget -O "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"
+
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        wget -O "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"; \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
+        wget -O "awscliv2.zip" "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"; \
+    else \
+        exit 1; \
+    fi
+
 RUN unzip awscliv2.zip
 RUN ./aws/install
 
