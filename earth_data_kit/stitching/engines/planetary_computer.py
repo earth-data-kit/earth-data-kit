@@ -3,34 +3,6 @@ from earth_data_kit.stitching.engines.stac import STAC
 
 logger = logging.getLogger(__name__)
 
-
-def sign_url(item_or_url):
-    """
-    Sign URLs using Planetary Computer API.
-    Simple signing using only the planetary_computer library.
-    """
-    try:
-        import planetary_computer
-
-        # Case 1: STAC item dict
-        if isinstance(item_or_url, dict):
-            signed_item = planetary_computer.sign(item_or_url)
-            logger.debug("Signed STAC item")
-            return signed_item
-
-        # Case 2: URL string
-        signed_url = planetary_computer.sign_url(item_or_url)
-        logger.debug("Signed URL")
-        return signed_url
-
-    except ImportError:
-        logger.error("planetary_computer library not available. Install with: pip install planetary-computer")
-        return item_or_url
-    except Exception as e:
-        logger.error(f"Error signing: {e}")
-        return item_or_url
-
-
 class PlanetaryComputer:
     """
     Planetary Computer engine with URL signing capabilities.
@@ -57,7 +29,6 @@ class PlanetaryComputer:
             space_opts=space_opts,
             tmp_path=tmp_path,
             band_locator=band_locator,
-            url_signer=sign_url  # add URL signing
         )
 
     def sync(self, df, tmp_base_dir, overwrite=True):

@@ -31,7 +31,6 @@ from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
 import earth_data_kit.stitching.engines.planetary_computer as planetary_computer
-from earth_data_kit.stitching.engines.planetary_computer import sign_url
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -250,7 +249,7 @@ class Dataset:
             )
         
         # Create tiles
-        tiles = self.format.create_tiles(scan_df, band_locator)
+        tiles = self.format.create_tiles(scan_df, band_locator) # type: ignore
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -579,7 +578,7 @@ class Dataset:
         ds.Close()
 
         # Extract spatial bounds and clip the stacked VRT
-        xmin, ymin, xmax, ymax = self.space_opts["bbox"]
+        xmin, ymin, xmax, ymax = self.space_opts["bbox"] # type: ignore
         gdal.Translate(
             output_vrt,
             tmp_vrt,
@@ -647,12 +646,12 @@ class Dataset:
                 "bbox": self.space_opts.get("bbox"),
                 "timebounds": [
                     (
-                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S")
+                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S") # type: ignore
                         if self.time_opts.get("start")
                         else None
                     ),
                     (
-                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S")
+                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S") # type: ignore
                         if self.time_opts.get("end")
                         else None
                     ),
@@ -768,7 +767,7 @@ class Dataset:
 
         # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
-        df["date"] = df["date"].fillna(epoch_date)
+        df["date"] = df["date"].fillna(epoch_date) # type: ignore
 
         if sync:
             df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)

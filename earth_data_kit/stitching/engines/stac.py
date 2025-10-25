@@ -60,10 +60,10 @@ class STAC:
 
         # Search for items using the collection
         logger.info(f"Searching collection: {collection_name}")
-        results = catalog.search(**search_kwargs)
+        results = catalog.search(**search_kwargs) # type: ignore
         return results
 
-    def scan(self, source, time_opts, space_opts, tmp_path, band_locator, url_signer=None):
+    def scan(self, source, time_opts, space_opts, tmp_path, band_locator):
         
         catalog_url, collection_name = self._parse_stac_url(source)
 

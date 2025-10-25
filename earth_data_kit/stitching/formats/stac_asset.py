@@ -18,7 +18,7 @@ class STACAssetAdapter:
         self.name = "STAC Asset"
 
     @staticmethod
-    def get_bands_from_asset(raster_ext, eo_ext, key):
+    def get_bands_from_asset(drv, raster_ext, eo_ext, key):
         bands = []
 
         # Check if raster_ext is None or if raster_ext.bands is None or empty
@@ -43,6 +43,32 @@ class STACAssetAdapter:
             }
             idx = idx + 1
             bands.append(o)
+
+        
+        if (len(bands) == 0) and (drv is not None):
+            for band_idx in range(1, drv.RasterCount + 1):
+                band = drv.GetRasterBand(band_idx)
+                nodata = band.GetNoDataValue()
+
+                # Map GDAL data type to string
+                gdal_type = band.DataType
+                dtype_mapping = {
+                    gdal.GDT_Byte: "uint8",
+                    gdal.GDT_UInt16: "uint16",
+                    gdal.GDT_Int16: "int16",
+                    gdal.GDT_UInt32: "uint32",
+                    gdal.GDT_Int32: "int32",
+                    gdal.GDT_Float32: "float32",
+                    gdal.GDT_Float64: "float64",
+                }
+                data_type = dtype_mapping.get(gdal_type)
+
+                bands.append({
+                    "nodataval": nodata,
+                    "dtype": data_type,
+                    "source_idx": band_idx,
+                    "description": key,  # Use asset key as description
+                })
 
         return bands
 
@@ -73,7 +99,7 @@ class STACAssetAdapter:
         return metadata
 
     @staticmethod
-    def get_metadata_from_stac_asset(item, asset, key):
+    def get_metadata_from_stac_asset(drv, item, asset, key):
         # geo_transform
         # projection
         # x_size
@@ -109,7 +135,7 @@ class STACAssetAdapter:
 
         # Here the metadata contains pretty much everything except proper band information
         # So we use stac's raster and eo extensions to get band information
-        bands = STACAssetAdapter.get_bands_from_asset(raster_ext, eo_ext, key)
+        bands = STACAssetAdapter.get_bands_from_asset(drv, raster_ext, eo_ext, key)
         metadata["bands"] = bands
 
         return metadata
@@ -158,39 +184,10 @@ class STACAssetAdapter:
                 # Finally getting metadata
                 item = pystac.Item.from_file(df_row.engine_path)
                 metadata = STACAssetAdapter.get_metadata_from_stac_asset(
-                    item, asset, key
+                    drv, item, asset, key
                 )
                 if metadata is None:
                     return None
-
-                # If bands list is empty (because raster extension was missing or had None bands),
-                # extract band information directly from GDAL
-                if not metadata["bands"]:
-                    bands = []
-                    for band_idx in range(1, drv.RasterCount + 1):
-                        band = drv.GetRasterBand(band_idx)
-                        nodata = band.GetNoDataValue()
-
-                        # Map GDAL data type to string
-                        gdal_type = band.DataType
-                        dtype_mapping = {
-                            gdal.GDT_Byte: "uint8",
-                            gdal.GDT_UInt16: "uint16",
-                            gdal.GDT_Int16: "int16",
-                            gdal.GDT_UInt32: "uint32",
-                            gdal.GDT_Int32: "int32",
-                            gdal.GDT_Float32: "float32",
-                            gdal.GDT_Float64: "float64",
-                        }
-                        data_type = dtype_mapping.get(gdal_type, "uint16")
-
-                        bands.append({
-                            "nodataval": nodata,
-                            "dtype": data_type,
-                            "source_idx": band_idx,
-                            "description": key,  # Use asset key as description
-                        })
-                    metadata["bands"] = bands
 
                 asset_row.append(metadata["geo_transform"])
                 asset_row.append(metadata["projection"])
