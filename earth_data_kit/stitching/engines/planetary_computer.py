@@ -36,4 +36,4 @@ class PlanetaryComputer:
         Sync (download) files from Planetary Computer to local storage.
         Delegates to STAC's sync method since the logic is the same.
         """
-        return self._stac.sync(df, tmp_base_dir, overwrite)
+        raise NotImplementedError("Sync is not implemented for Planetary Computer engine.")

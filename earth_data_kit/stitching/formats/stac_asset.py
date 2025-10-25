@@ -218,7 +218,7 @@ class STACAssetAdapter:
             for future in tqdm(
                 future_to_row,
                 total=len(future_to_row),
-                desc="Reading STAC assets",
+                desc="Reading STAC items",
             ):
                 df_row = future_to_row[future]
                 try:

@@ -93,7 +93,7 @@ class EDKDatasetBackendArray(BackendArray):
     @decorators.log_time
     @decorators.log_init
     def _read_band(self, fp, band_num, offsets, buf_sizes):
-        # Using planetary computer's signing function. Can duplicate the function in here.
+        # Planetary computer assets are read using /vsicurl/ prefix and pc signing options
         # That will keep the functionalities separate
         ds = gdal.Open(fp)
 
@@ -251,7 +251,7 @@ def open_edk_dataset(filename_or_obj):
         source_path = df.iloc[0].source
 
         # Open the dataset with GDAL
-        # Using planetary computer's signing function. Can duplicate the function in here.
+        # For planetary computer we add signing options in the source path using /vsicurl options
         # That will keep the functionalities separate
         src_ds = gdal.Open(source_path)
         if src_ds is None:

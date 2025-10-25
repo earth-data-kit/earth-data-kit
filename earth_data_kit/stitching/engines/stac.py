@@ -77,11 +77,8 @@ class STAC:
         # Search catalog with filters
         results = self._search_catalog(catalog_url, collection_name, time_opts, space_opts)
 
-        # Ensure tmp_path directory exists
-        os.makedirs(tmp_path, exist_ok=True)
-
         items = []
-        # Process each STAC item and extract assets
+        # Process each STAC item
         for item in results.items():
             item_row = [item.datetime, item.id, item.self_href, item.self_href]
             items.append(item_row)
