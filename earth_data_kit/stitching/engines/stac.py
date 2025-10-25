@@ -15,14 +15,15 @@ class STAC:
     def __init__(self) -> None:
         self.name = "stac"
 
-    def _parse_stac_url(self, source: str) -> tuple[str, str | None]:
+    @staticmethod
+    def _parse_stac_url(source: str) -> tuple[str, str | None]:
         _source = source.rstrip("/")
 
         if "/collections/" in source:
             parts = _source.split("/collections/")
             if len(parts) == 2:
                 catalog_url = parts[0]
-                collection_name = parts[1]
+                collection_name = parts[1].split('/')[0]
                 return catalog_url, collection_name
 
         return _source, None
@@ -65,7 +66,7 @@ class STAC:
 
     def scan(self, source, time_opts, space_opts, tmp_path, band_locator):
         
-        catalog_url, collection_name = self._parse_stac_url(source)
+        catalog_url, collection_name = STAC._parse_stac_url(source)
 
         if collection_name is None:
             raise ValueError(

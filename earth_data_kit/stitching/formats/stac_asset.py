@@ -8,6 +8,7 @@ from earth_data_kit.stitching.classes.tile import Tile
 import logging
 import json
 import pandas as pd
+from earth_data_kit.stitching.engines.stac import STAC
 import concurrent.futures
 
 logger = logging.getLogger(__name__)
@@ -171,7 +172,11 @@ class STACAssetAdapter:
             asset_row = [df_row.date, df_row.tile_name, df_row.engine_path]
             try:
                 # Construct GDAL path from asset href
-                gdal_path = STACAssetAdapter.to_vsi(asset.href)
+                if df_row.engine_path.startswith("https://planetarycomputer.microsoft.com/api/stac/v1/collections/"):
+                    _, collection_name = STAC._parse_stac_url(df_row.engine_path)
+                    gdal_path = f"/vsicurl?pc_url_signing=yes&pc_collection={collection_name}&url={asset.href}"
+                else:
+                    gdal_path = STACAssetAdapter.to_vsi(asset.href)
                 asset_row.append(gdal_path)
 
                 drv = gdal.OpenEx(gdal_path, gdal.OF_READONLY)
@@ -213,7 +218,7 @@ class STACAssetAdapter:
             for future in tqdm(
                 future_to_row,
                 total=len(future_to_row),
-                desc="Preparing STAC asset jobs",
+                desc="Reading STAC assets",
             ):
                 df_row = future_to_row[future]
                 try:
