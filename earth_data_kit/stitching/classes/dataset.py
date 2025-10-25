@@ -528,25 +528,13 @@ class Dataset:
                         yRes=resolution[1],
                         dstSRS=crs,
                     )
-                    warp_kwargs = {
-                        "format": "VRT",
-                        "xRes": resolution[0],
-                        "yRes": resolution[1],
-                        "dstSRS": crs,
-                    }
 
-                    # Add output type if dtype is specified
-                    if dtype is not None:
-                        warp_kwargs["outputType"] = get_gdal_dtype(dtype)
-
-                    options = gdal.WarpOptions(**warp_kwargs)
                     gdal.Warp(
                         warped_vrt_path,
                         row.gdal_path,
                         options=options,
                     )
                     gdal_paths.append(warped_vrt_path)
-                    all_warped_vrts.append(warped_vrt_path)  # Track for later conversion
             else:
                 gdal_paths = current_bands_df["gdal_path"].tolist()
 
@@ -558,22 +546,10 @@ class Dataset:
                 bandList=[current_bands_df.iloc[0]["source_idx"]],
             )
 
-            if ds is None:
-                raise RuntimeError(f"Failed to create VRT mosaic: {band_mosaic_path}. Check that source files are accessible.")
-
             ds.Close()
 
             band_mosaics.append(band_mosaic_path)
 
-        # Convert all VRTs to relative paths after creation
-        # This includes band mosaics and their source warped VRTs
-        if self.engine.name == "planetary_computer":
-            # Convert all warped VRTs first (they contain absolute paths to source files)
-            for vrt_path in all_warped_vrts:
-                geo.convert_vrt_to_relative_paths(vrt_path)
-            # Then convert band mosaics (they contain relative paths to warped VRTs)
-            for vrt_path in band_mosaics:
-                geo.convert_vrt_to_relative_paths(vrt_path)
 
         return band_mosaics
 
