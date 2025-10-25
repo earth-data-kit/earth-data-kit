@@ -1,10 +1,9 @@
 from pystac_client import Client
 from urllib.parse import urlparse
-from earth_data_kit.stitching.classes.tile import Tile
 import logging
+import json
 from osgeo import gdal
 import os
-import earth_data_kit.stitching.engines.commons as commons
 import pandas as pd
 import concurrent.futures
 import earth_data_kit.utilities.helpers as helpers
@@ -28,44 +27,87 @@ class STAC:
 
         return _source, None
 
-    def scan(self, source, time_opts, space_opts, tmp_path, band_locator):
-        catalog_url, collection_name = self._parse_stac_url(source)
+    def _search_catalog(self, catalog_url, collection_name, time_opts, space_opts):
+        """
+        Helper method to search STAC catalog with filters.
 
-        if collection_name is None:
-            # URL is stac catalog, raise an error for no collection name
-            raise ValueError("Collection name is required for STAC catalog")
+        Args:
+            catalog_url: STAC catalog URL
+            collection_name: Collection name to search
+            time_opts: Time filter options
+            space_opts: Spatial filter options
 
+        Returns:
+            Search results iterator
+        """
         # Open STAC catalog
+        logger.info(f"Opening STAC catalog: {catalog_url}")
         catalog = Client.open(catalog_url)
 
         # Prepare search parameters
-        search_kwargs = {}
+        search_kwargs = {"collections": [collection_name]}
 
-        search_kwargs["collections"] = [collection_name]
         # Add time filter if provided
         if time_opts and "start" in time_opts and "end" in time_opts:
             search_kwargs["datetime"] = [time_opts["start"], time_opts["end"]]
+            logger.info(f"Time filter: {time_opts['start']} to {time_opts['end']}")
 
         # Add spatial filter if provided
         if space_opts and "bbox" in space_opts:
             bbox = space_opts["bbox"]
             search_kwargs["bbox"] = bbox
+            logger.info(f"Spatial filter (bbox): {bbox}")
 
         # Search for items using the collection
+        logger.info(f"Searching collection: {collection_name}")
         results = catalog.search(**search_kwargs)
+        return results
 
-        # Need 4 columns date, tile_name, engine_path, gdal_path
+    def scan(self, source, time_opts, space_opts, tmp_path, band_locator, url_signer=None):
+        
+        catalog_url, collection_name = self._parse_stac_url(source)
+
+        if collection_name is None:
+            raise ValueError(
+                "Collection name is required for STAC catalog. "
+                "Please provide a URL like: https://catalog.com/collections/{collection_id}"
+            )
+
+        # Search catalog with filters
+        results = self._search_catalog(catalog_url, collection_name, time_opts, space_opts)
+
+        # Ensure tmp_path directory exists
+        os.makedirs(tmp_path, exist_ok=True)
+
         items = []
-        # Process each item/tile
+        # Process each STAC item and extract assets
         for item in results.items():
-            # gdal.Open takes a remote URL directly without the need for STACIT prefix
-            item_row = [item.datetime, item.id, item.self_href, item.self_href]
+            # Convert pystac Item to dict if we need to sign it
+            item_dict = item.to_dict()
+
+            # Sign the entire item if url_signer is provided (for Planetary Computer)
+            if url_signer is not None:
+                item_dict = url_signer(item_dict)
+
+            # Save item to local file (signed or unsigned)
+            item_path = os.path.join(tmp_path, f"{item.id}.json")
+            with open(item_path, 'w') as f:
+                json.dump(item_dict, f)
+
+            # Add item row - engine_path points to local file
+            item_row = [
+                item.datetime,
+                item.id,
+                item_path,  # Local path to STAC item JSON
+                item_path   # gdal_path same as engine_path for STAC
+            ]
             items.append(item_row)
 
         df = pd.DataFrame(
             items, columns=pd.Index(["date", "tile_name", "engine_path", "gdal_path"])
         )
 
+        logger.info(f"Found {len(df)} STAC items")
         return df
 
     def _sync_s3(self, source, dest):
@@ -134,3 +176,4 @@ class STAC:
             executor.shutdown(wait=True)
 
         return df
+

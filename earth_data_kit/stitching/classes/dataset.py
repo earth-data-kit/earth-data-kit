@@ -7,6 +7,7 @@ import pandas as pd
 import ast
 import geopandas as gpd
 import logging
+from earth_data_kit.xarray_boosted.commons import get_gdal_dtype
 from osgeo import osr
 import uuid
 import os
@@ -29,6 +30,8 @@ from tqdm import tqdm
 from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
+import earth_data_kit.stitching.engines.planetary_computer as planetary_computer
+from earth_data_kit.stitching.engines.planetary_computer import sign_url
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -74,6 +77,8 @@ class Dataset:
             self.engine = earth_engine.EarthEngine()
         if engine == "stac":
             self.engine = stac.STAC()
+        if engine == "planetary_computer":
+            self.engine = planetary_computer.PlanetaryComputer()
 
         if format == "geotiff":
             self.format = GeoTiffAdapter()
@@ -243,7 +248,7 @@ class Dataset:
                 pd.to_datetime(time_opts["end"]),
                 time_opts["resolution"],
             )
-
+        
         # Create tiles
         tiles = self.format.create_tiles(scan_df, band_locator)
 
@@ -491,6 +496,7 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
+        all_warped_vrts = []  # Track all warped VRTs for path conversion
 
         for band_desc in bands:
             # Filter tiles for current band
@@ -522,12 +528,25 @@ class Dataset:
                         yRes=resolution[1],
                         dstSRS=crs,
                     )
+                    warp_kwargs = {
+                        "format": "VRT",
+                        "xRes": resolution[0],
+                        "yRes": resolution[1],
+                        "dstSRS": crs,
+                    }
+
+                    # Add output type if dtype is specified
+                    if dtype is not None:
+                        warp_kwargs["outputType"] = get_gdal_dtype(dtype)
+
+                    options = gdal.WarpOptions(**warp_kwargs)
                     gdal.Warp(
                         warped_vrt_path,
                         row.gdal_path,
                         options=options,
                     )
                     gdal_paths.append(warped_vrt_path)
+                    all_warped_vrts.append(warped_vrt_path)  # Track for later conversion
             else:
                 gdal_paths = current_bands_df["gdal_path"].tolist()
 
@@ -538,9 +557,23 @@ class Dataset:
                 separate=False,
                 bandList=[current_bands_df.iloc[0]["source_idx"]],
             )
+
+            if ds is None:
+                raise RuntimeError(f"Failed to create VRT mosaic: {band_mosaic_path}. Check that source files are accessible.")
+
             ds.Close()
 
             band_mosaics.append(band_mosaic_path)
+
+        # Convert all VRTs to relative paths after creation
+        # This includes band mosaics and their source warped VRTs
+        if self.engine.name == "planetary_computer":
+            # Convert all warped VRTs first (they contain absolute paths to source files)
+            for vrt_path in all_warped_vrts:
+                geo.convert_vrt_to_relative_paths(vrt_path)
+            # Then convert band mosaics (they contain relative paths to warped VRTs)
+            for vrt_path in band_mosaics:
+                geo.convert_vrt_to_relative_paths(vrt_path)
 
         return band_mosaics
 
@@ -578,6 +611,10 @@ class Dataset:
             projWin=[xmin, ymax, xmax, ymin],
             projWinSRS="EPSG:4326",
         )
+
+        # Convert to relative paths if synced data was used
+        if self.engine.name == "planetary_computer":
+            geo.convert_vrt_to_relative_paths(output_vrt)
 
         return output_vrt
 
@@ -751,6 +788,8 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
+
+
         # Filter bands based on the user-supplied list.
         # TODO: May need special handling for non-unique band descriptions in the future
         df = df[df["description"].isin(bands)]
@@ -870,7 +909,14 @@ class Dataset:
                 if isinstance(first_vrt, dict) and "source" in first_vrt:
                     first_vrt_path = first_vrt["source"]
 
+        if not first_vrt_path:
+            raise ValueError("No valid VRT source path found in EDKDataset.")
+
+
         ds = gdal.Open(first_vrt_path)
+        if ds is None:
+            raise RuntimeError(f"Failed to open dataset: {first_vrt_path}")
+
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
 
         # Check if block sizes are powers of 2
