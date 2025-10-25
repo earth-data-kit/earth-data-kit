@@ -72,6 +72,7 @@ class STACAssetAdapter:
         }
         return metadata
 
+    @staticmethod
     def get_metadata_from_stac_asset(item, asset, key):
         # geo_transform
         # projection

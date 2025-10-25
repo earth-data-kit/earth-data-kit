@@ -82,25 +82,7 @@ class STAC:
         items = []
         # Process each STAC item and extract assets
         for item in results.items():
-            # Convert pystac Item to dict if we need to sign it
-            item_dict = item.to_dict()
-
-            # Sign the entire item if url_signer is provided (for Planetary Computer)
-            if url_signer is not None:
-                item_dict = url_signer(item_dict)
-
-            # Save item to local file (signed or unsigned)
-            item_path = os.path.join(tmp_path, f"{item.id}.json")
-            with open(item_path, 'w') as f:
-                json.dump(item_dict, f)
-
-            # Add item row - engine_path points to local file
-            item_row = [
-                item.datetime,
-                item.id,
-                item_path,  # Local path to STAC item JSON
-                item_path   # gdal_path same as engine_path for STAC
-            ]
+            item_row = [item.datetime, item.id, item.self_href, item.self_href]
             items.append(item_row)
 
         df = pd.DataFrame(
