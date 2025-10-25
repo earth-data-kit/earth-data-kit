@@ -496,7 +496,6 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
-        all_warped_vrts = []  # Track all warped VRTs for path conversion
 
         for band_desc in bands:
             # Filter tiles for current band
@@ -588,9 +587,6 @@ class Dataset:
             projWinSRS="EPSG:4326",
         )
 
-        # Convert to relative paths if synced data was used
-        if self.engine.name == "planetary_computer":
-            geo.convert_vrt_to_relative_paths(output_vrt)
 
         return output_vrt
 
@@ -885,13 +881,8 @@ class Dataset:
                 if isinstance(first_vrt, dict) and "source" in first_vrt:
                     first_vrt_path = first_vrt["source"]
 
-        if not first_vrt_path:
-            raise ValueError("No valid VRT source path found in EDKDataset.")
-
 
         ds = gdal.Open(first_vrt_path)
-        if ds is None:
-            raise RuntimeError(f"Failed to open dataset: {first_vrt_path}")
 
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
 

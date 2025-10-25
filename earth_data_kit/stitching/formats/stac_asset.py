@@ -119,8 +119,6 @@ class STACAssetAdapter:
         # Check that asset has roles and that "data" is in roles
         if not hasattr(asset, "roles") or asset.roles is None:
             return False
-        if "data" not in asset.roles:
-            return False
         # Check if media_type starts with any of the allowed media types
         allowed_media_types = ["image/jp2", "image/tiff"]
         return any(
