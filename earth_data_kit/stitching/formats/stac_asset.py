@@ -10,6 +10,10 @@ import json
 import pandas as pd
 from earth_data_kit.stitching.engines.stac import STAC
 import concurrent.futures
+import earth_data_kit.utilities.geo as geo
+from pystac.extensions.projection import ProjectionExtension
+from pystac.extensions.raster import RasterExtension
+from pystac.extensions.eo import EOExtension
 
 logger = logging.getLogger(__name__)
 
@@ -19,74 +23,60 @@ class STACAssetAdapter:
         self.name = "STAC Asset"
 
     @staticmethod
-    def get_bands_from_asset(drv, raster_ext, eo_ext, key):
+    def get_bands_from_asset(item, asset, key, gdal_path):
         bands = []
+        # Checking raster_ext
+        if RasterExtension.has_extension(item):
+            raster_ext = asset.ext.raster
 
-        # Check if raster_ext is None or if raster_ext.bands is None or empty
-        if raster_ext is None or raster_ext.bands is None:
+            for idx in range(len(raster_ext.bands)):
+                bands.append({
+                    "nodataval": raster_ext.bands[idx].nodata,
+                    "dtype": raster_ext.bands[idx].data_type,
+                    "source_idx": idx + 1,
+                    "description": key,
+                })
+
+        if len(bands) > 0:
+            logger.info("Found in raster_ext")
             return bands
 
-        idx = 0
-        for band in raster_ext.bands:
-            # Try to get band name from eo extension if available
-            description = key
-            if eo_ext is not None:
-                try:
-                    description = eo_ext.bands[idx].name
-                except Exception:
-                    description = key
-
-            o = {
-                "nodataval": band.nodata,
-                "dtype": band.data_type,
-                "source_idx": idx + 1,
-                "description": description,
-            }
-            idx = idx + 1
-            bands.append(o)
-
+        ds = gdal.OpenEx(gdal_path, gdal.OF_READONLY)
+        bands = geo._get_bands(ds)
         
-        if (len(bands) == 0) and (drv is not None):
-            for band_idx in range(1, drv.RasterCount + 1):
-                band = drv.GetRasterBand(band_idx)
-                nodata = band.GetNoDataValue()
+        for idx in range(len(bands)):
+            bands[idx]["description"] = key
 
-                # Map GDAL data type to string
-                gdal_type = band.DataType
-                dtype_mapping = {
-                    gdal.GDT_Byte: "uint8",
-                    gdal.GDT_UInt16: "uint16",
-                    gdal.GDT_Int16: "int16",
-                    gdal.GDT_UInt32: "uint32",
-                    gdal.GDT_Int32: "int32",
-                    gdal.GDT_Float32: "float32",
-                    gdal.GDT_Float64: "float64",
-                }
-                data_type = dtype_mapping.get(gdal_type)
-
-                bands.append({
-                    "nodataval": nodata,
-                    "dtype": data_type,
-                    "source_idx": band_idx,
-                    "description": key,  # Use asset key as description
-                })
+        # Not using eo_ext as of now.
 
         return bands
 
     @staticmethod
-    def get_projection_info(proj_ext):
+    def get_projection_info(item, asset):
+        if ProjectionExtension.has_extension(item):
+            proj_ext = asset.ext.proj
+        else:
+            return None
+
         srs = osr.SpatialReference()
 
         if proj_ext.wkt2:  # WKT2 string available
             srs.ImportFromWkt(proj_ext.wkt2)
         elif proj_ext.epsg:  # EPSG code
             srs.ImportFromEPSG(proj_ext.epsg)
+
         # Convert proj_ext.transform (STAC: [a, b, d, e, x, y]) to GDAL geotransform (GDAL: [x, a, b, y, d, e])
         # STAC: [scale_x, shear_x, shear_y, scale_y, translate_x, translate_y]
         # GDAL: [origin_x, pixel_width, rotation_x, origin_y, rotation_y, pixel_height]
         # STAC order: [a, b, d, e, x, y]
         # GDAL order: [x, a, b, y, d, e]
         stac_transform = proj_ext.transform
+
+        # Sometimes stack gives transform as 9 values - [a, b, d, e, x, y, 0, 0, 1]
+        if len(stac_transform) == 9:
+            stac_transform = stac_transform[:6]
+            
+
         x_res, x_rot, x_ul, y_rot, y_res, y_ul = tuple(stac_transform)
         gdal_transform = (x_ul, x_res, x_rot, y_ul, y_rot, y_res)
         metadata = {
@@ -100,7 +90,7 @@ class STACAssetAdapter:
         return metadata
 
     @staticmethod
-    def get_metadata_from_stac_asset(drv, item, asset, key):
+    def get_metadata_from_stac_asset(item, asset, key, gdal_path):
         # geo_transform
         # projection
         # x_size
@@ -113,30 +103,13 @@ class STACAssetAdapter:
         # band.dtype
         # band.nodataval
         # Helper to get extension from asset, then item
-        raster_ext = None
-        try:
-            raster_ext = asset.ext.raster or item.ext.raster
-        except Exception:
-            pass  # raster extension not available
-
-        # Try to get eo extension, but it may not exist
-        eo_ext = None
-        try:
-            eo_ext = asset.ext.eo or item.ext.eo
-        except Exception:
-            pass  # eo extension not available
-
-        proj_ext = None
-        try:
-            proj_ext = asset.ext.proj or item.ext.proj
-        except Exception:
-            pass  # proj extension not available
-
-        metadata = STACAssetAdapter.get_projection_info(proj_ext)
+        metadata = STACAssetAdapter.get_projection_info(item, asset)
+        if metadata is None:
+            return None
 
         # Here the metadata contains pretty much everything except proper band information
         # So we use stac's raster and eo extensions to get band information
-        bands = STACAssetAdapter.get_bands_from_asset(drv, raster_ext, eo_ext, key)
+        bands = STACAssetAdapter.get_bands_from_asset(item, asset, key, gdal_path)
         metadata["bands"] = bands
 
         return metadata
@@ -179,17 +152,13 @@ class STACAssetAdapter:
                     gdal_path = STACAssetAdapter.to_vsi(asset.href)
                 asset_row.append(gdal_path)
 
-                drv = gdal.OpenEx(gdal_path, gdal.OF_READONLY)
-                if drv is None:
-                    return None
-
                 if not STACAssetAdapter.is_asset_allowed(asset):
                     return None
 
                 # Finally getting metadata
                 item = pystac.Item.from_file(df_row.engine_path)
                 metadata = STACAssetAdapter.get_metadata_from_stac_asset(
-                    drv, item, asset, key
+                    item, asset, key, gdal_path
                 )
                 if metadata is None:
                     return None
@@ -203,7 +172,7 @@ class STACAssetAdapter:
                 asset_row.append(metadata["bands"])
                 return asset_row
             except Exception as e:
-                logger.error(e)
+                logger.exception(e)
                 return None
 
         # Prepare all (df_row, key, asset) tuples to process
