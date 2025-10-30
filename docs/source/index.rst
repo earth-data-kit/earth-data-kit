@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 Earth Data Kit
-=============================
+==============
 
 Today, the GIS world is filled with many great tools and technologies. Each tool is specialized — some offer powerful mapping features, while others excel at data visualization. 
 
