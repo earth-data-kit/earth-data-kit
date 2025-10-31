@@ -57,5 +57,6 @@ Contents
 
    getting-started
    stitching
+   examples
    roadmap
    api-reference
