@@ -31,7 +31,7 @@ The preferred way to install and use Earth Data Kit is via edk-cli.
     ```bash
     edk configure # Helps user create an .env file for edk.
     ```
-    More env options can be found on https://earth-data-kit.github.io/getting-started.html#environment-configuration
+    More env options can be found on https://earthlabs.io/earth-data-kit/getting-started.html#environment-configuration
 
     ```bash
     edk run # Runs edk container
@@ -67,11 +67,11 @@ Earth Data Kit supports several data engines and formats, as summarized below. W
 
 If you need a format or engine not listed here, please [open an issue](https://github.com/earth-data-kit/earth-data-kit/issues) or contact the maintainers.
 
-Checkout the [docs](https://earth-data-kit.github.io/) for more details.
+Checkout the [docs](https://earthlabs.io/earth-data-kit/) for more details.
 
 See the [examples](./examples) in this repository.
 
-Checkout the [roadmap](https://earth-data-kit.github.io/roadmap.html).
+Checkout the [roadmap](https://earthlabs.io/earth-data-kit/roadmap.html).
 
 > **Note:**  
 > 
