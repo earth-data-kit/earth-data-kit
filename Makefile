@@ -11,10 +11,6 @@ DOCS_SOURCE_DIR := docs/source
 DOCS_BUILD_DIR := docs/build
 DOCUMENTATION_SRC := $(DOCS_BUILD_DIR)/html
 TMP_DIR := tmp
-GITHUB_PAGES_REPO := git@github.com:earth-data-kit/earth-data-kit.github.io.git
-GITHUB_PAGES_DIR := build/earth-data-kit.github.io
-DEV_GITHUB_PAGES_REPO := git@github.com:earth-data-kit/dev-docs.git
-DEV_GITHUB_PAGES_DIR := build/dev-docs
 GIT ?= git
 GH ?= gh
 # Prefer using TAG over tag for consistency; fall back to tag if TAG is not set.
