@@ -9,7 +9,7 @@
 project = "Earth Data Kit"
 copyright = "2025, Siddhant Gupta"
 author = "Siddhant Gupta"
-release = "0.1.3.dev20250921"
+release = "0.1.3.dev20251101"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -19,7 +19,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
-    "sphinxcontrib.googleanalytics"
+    "sphinxcontrib.googleanalytics",
 ]
 
 autodoc_member_order = "bysource"
@@ -47,4 +47,4 @@ master_doc = "index"
 copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
 copybutton_prompt_is_regexp = True
 
-googleanalytics_id = 'G-9F0X7Y9CNY'
+googleanalytics_id = "G-FL6PHBVZC2"

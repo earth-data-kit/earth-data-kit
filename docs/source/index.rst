@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 Earth Data Kit
-=============================
+==============
 
 Today, the GIS world is filled with many great tools and technologies. Each tool is specialized — some offer powerful mapping features, while others excel at data visualization. 
 
@@ -15,6 +15,10 @@ EDK is designed to bridge these gaps, helping you connect various parts of the G
 Check out our :ref:`Roadmap <roadmap>` to see what we're working on and what is planned.
 
 Check out the :ref:`Getting Started` to learn how to install and use Earth Data Kit.
+
+For more practical usage, check out the `examples` folder in the repository:  
+https://github.com/earth-data-kit/earth-data-kit/tree/master/examples
+
 
 .. warning::
 
@@ -53,7 +57,6 @@ Contents
 
    getting-started
    stitching
+   examples
    roadmap
-   releases
-   developer-docs
    api-reference

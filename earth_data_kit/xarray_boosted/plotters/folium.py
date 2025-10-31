@@ -3,7 +3,7 @@ import matplotlib as mpl
 from osgeo import gdal
 import numpy as np
 import pandas as pd
-import earth_data_kit as edk
+import earth_data_kit.utilities as utilities
 import branca.colormap as cm
 import logging
 
@@ -28,6 +28,7 @@ class Folium:
         return get_color
 
     def plot(self, colors=None, opacity=1):
+
         crs = self.da.edk._get_epsg_code()
 
         xmin, ymin, xmax, ymax = (
@@ -37,7 +38,7 @@ class Folium:
             self.da.coords["y"].values[-1],
         )
 
-        lng_min, lat_min, lng_max, lat_max = edk.utilities.transform.transform_bbox(
+        lng_min, lat_min, lng_max, lat_max = utilities.transform.transform_bbox(
             xmin, ymin, xmax, ymax, crs, 4326
         )
 

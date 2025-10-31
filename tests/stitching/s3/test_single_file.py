@@ -1,32 +1,28 @@
 import earth_data_kit as edk
 import os
-from tests.fixtures.country_bboxes import country_bounding_boxes
-import datetime
-from dotenv import load_dotenv
+from fixtures.country_bboxes import country_bounding_boxes
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import pytest
+import tarfile
 
-CONFIG_FILE_PATH = "tests/config.env"
-FIXTURES_DIR = "tests/fixtures"
-load_dotenv(CONFIG_FILE_PATH)
+FIXTURES_DIR = "/app/workspace/fixtures"
 
 
 def _test():
-    output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/global-land-cover/pre-processing"
+    output_base_vrt = f"/app/data/tmp/global-land-cover/pre-processing"
 
     output_vrts = [
         f"{output_base_vrt}/1970-01-01-00:00:00.vrt",
     ]
     golden_files = [
-        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/single-file.tar.gz/1970-01-01-00:00:00.vrt",
+        f"/vsitar/{FIXTURES_DIR}/goldens/s3-single-file.tar/s3-single-file/1970-01-01-00:00:00.vrt",
     ]
 
     for output_vrt, golden_file in zip(output_vrts, golden_files):
         print(f"Comparing {output_vrt} with {golden_file}")
         ds = gdal.Open(output_vrt)
         ds_golden = gdal.Open(golden_file)
-
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
 
@@ -41,6 +37,7 @@ def _run():
         source,
         "s3",
         clean=True,
+        format="geotiff",
     )
 
     # Setting spatial extent
@@ -57,11 +54,25 @@ def _run():
     ds.save()
 
 
+def _generated_golden_archives():
+    # Create a tar file
+    with tarfile.open(
+        "/app/workspace/fixtures/goldens/s3-single-file.tar", "w:tar"
+    ) as tar:
+        tar.add(
+            "/app/data/tmp/global-land-cover/pre-processing",
+            arcname="s3-single-file",
+        )
+
+
 @pytest.mark.order(0)
-def test_multiple_files():
+def test_single_file():
     # Setting the region to ap-south-1 as we are using test-land-cover bucket which is in ap-south-1
     os.environ["AWS_REGION"] = "ap-south-1"
     os.environ["AWS_NO_SIGN_REQUEST"] = "NO"
 
     _run()
+    if os.getenv("GENERATE_GOLDEN_ARCHIVES") == "TRUE":
+        _generated_golden_archives()
+
     _test()

@@ -95,8 +95,8 @@ class Tile:
         if vrt is None:
             raise RuntimeError("gdal.Warp failed to create VRT in EPSG:4326.")
 
-        w, h = vrt.RasterXSize, vrt.RasterYSize
-        gt = vrt.GetGeoTransform()
+        w, h = vrt.RasterXSize, vrt.RasterYSize  # type: ignore
+        gt = vrt.GetGeoTransform()  # type: ignore
         if gt is None:
             raise RuntimeError("Warped VRT has no geotransform.")
 
@@ -180,4 +180,6 @@ class Tile:
         return bbox
 
     def get_res(self):
-        return (self.geo_transform[1], self.geo_transform[5])
+        return tuple(
+            round(coord, 6) for coord in (self.geo_transform[1], self.geo_transform[5])
+        )

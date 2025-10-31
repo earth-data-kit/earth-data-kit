@@ -163,7 +163,7 @@ class STACAssetAdapter:
                 for df_row in df.itertuples()
             }
             for future in tqdm(
-                concurrent.futures.as_completed(future_to_row),
+                future_to_row,
                 total=len(future_to_row),
                 desc="Preparing STAC asset jobs",
             ):
@@ -194,19 +194,21 @@ class STACAssetAdapter:
 
         _df = pd.DataFrame(
             rows,
-            columns=[
-                "date",
-                "tile_name",
-                "engine_path",
-                "gdal_path",
-                "geo_transform",
-                "projection",
-                "x_size",
-                "y_size",
-                "crs",
-                "length_unit",
-                "bands",
-            ],
+            columns=pd.Index(
+                [
+                    "date",
+                    "tile_name",
+                    "engine_path",
+                    "gdal_path",
+                    "geo_transform",
+                    "projection",
+                    "x_size",
+                    "y_size",
+                    "crs",
+                    "length_unit",
+                    "bands",
+                ]
+            ),
         )
         _df = _df[_df["geo_transform"].notna()].reset_index(drop=True)
         return _df

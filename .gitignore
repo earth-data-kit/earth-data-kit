@@ -4,6 +4,7 @@ __pycache__
 .tmp
 .venv
 .env
+.token
 tmp
 .DS_Store
 docs/_build

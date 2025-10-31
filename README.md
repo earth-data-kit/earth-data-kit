@@ -6,7 +6,7 @@ EDK is designed to simplify building complete end-to-end data pipeline, helping 
 
 ### This project is under active development
 
-**If you wish to contribute please reach out on <siddhantgupta3@gmail.com>**
+**If you wish to contribute please reach out on <siddhant@earthlabs.io>**
 
 ## Getting Started
 
@@ -20,34 +20,25 @@ Before using Earth Data Kit, ensure that the following are installed:
 
 ### Installation & Usage
 
-To use Earth Data Kit, follow these steps:
+The preferred way to install and use Earth Data Kit is via edk-cli.
 
-1. Clone the repository:
+1. Install edk-cli:
     ```bash
-    git clone https://github.com/earth-data-kit/earth-data-kit.git
-    cd earth-data-kit
+    pip3 install https://github.com/earth-data-kit/edk-cli/releases/download/0.1.0/edk_cli-0.1.0-py3-none-any.whl
     ```
 
-2. Copy the sample environment file and edit as needed:
+2. Now you can use the below commands to configure or run edk containers:
     ```bash
-    cp sample.env .env
-    # Edit .env to set your own values
+    edk configure # Helps user create an .env file for edk.
+    ```
+    More env options can be found on https://earthlabs.io/earth-data-kit/getting-started.html#environment-configuration
+
+    ```bash
+    edk run # Runs edk container
     ```
 
-3. Initialize your environment using the provided script:
     ```bash
-    bash init.sh
-    ```
-    This will build and start a docker container
-
-4. Go inside the docker container:
-    ```bash
-    bash exec-edk.sh
-    ```
-
-5. Run any example or your own script
-    ```bash
-    python3 sentinel2.py
+    edk notebook # Runs a jupyter notebook within edk container
     ```
 
 > There are more example scripts available inside the `examples/` directory of this repository. Explore them to see how to use Earth Data Kit for different geospatial workflows.
@@ -76,11 +67,11 @@ Earth Data Kit supports several data engines and formats, as summarized below. W
 
 If you need a format or engine not listed here, please [open an issue](https://github.com/earth-data-kit/earth-data-kit/issues) or contact the maintainers.
 
-Checkout the [docs](https://earth-data-kit.github.io/) for more details.
+Checkout the [docs](https://earthlabs.io/earth-data-kit/) for more details.
 
 See the [examples](./examples) in this repository.
 
-Checkout the [roadmap](https://earth-data-kit.github.io/roadmap.html).
+Checkout the [roadmap](https://earthlabs.io/earth-data-kit/roadmap.html).
 
 > **Note:**  
 > 

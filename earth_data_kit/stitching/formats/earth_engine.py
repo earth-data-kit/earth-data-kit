@@ -1,7 +1,7 @@
 import pandas as pd
 import earth_data_kit.stitching.engines.commons as commons
 from earth_data_kit.stitching.classes.tile import Tile
-import earth_data_kit.utilities as utilities
+from earth_data_kit.utilities import geo, helpers
 import concurrent.futures
 from tqdm import tqdm
 
@@ -13,10 +13,10 @@ class EarthEngineAdapter:
     def _get_subdatasets(self, df):
         # Get all subdatasets
         with concurrent.futures.ThreadPoolExecutor(
-            max_workers=utilities.helpers.get_threadpool_workers()
+            max_workers=helpers.get_threadpool_workers()
         ) as executor:
             futures = [
-                executor.submit(utilities.geo.get_subdatasets, tile.gdal_path)
+                executor.submit(geo.get_subdatasets, tile.gdal_path)
                 for tile in df.itertuples()
             ]
             subdataset_paths = [

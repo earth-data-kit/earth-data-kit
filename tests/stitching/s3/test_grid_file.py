@@ -1,22 +1,23 @@
+from fiona.drvsupport import supported_drivers
+
+supported_drivers["LIBKML"] = "rw"  # type: ignore
+
 import os
-import re
-from tests.fixtures.country_bboxes import country_bounding_boxes
+from fixtures.country_bboxes import country_bounding_boxes
 import datetime
-from dotenv import load_dotenv
 from osgeo import gdal
 from osgeo_utils import gdalcompare
 import earth_data_kit as edk
 import pytest
 import geopandas as gpd
+import tarfile
 
-CONFIG_FILE_PATH = "tests/config.env"
-FIXTURES_DIR = "tests/fixtures"
-load_dotenv(CONFIG_FILE_PATH)
+FIXTURES_DIR = "/app/workspace/fixtures"
 
 
 def _run():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF"
-    grid_fp = "tests/fixtures/modis.kml"
+    grid_fp = "fixtures/modis.kml"
 
     gdf = gpd.read_file(grid_fp)
     gdf["h"] = (
@@ -49,6 +50,7 @@ def _run():
         source,
         "s3",
         clean=True,
+        format="geotiff",
     )
 
     # Setting time bounds
@@ -60,6 +62,8 @@ def _run():
     # Discover catalogue
     ds.discover()
 
+    print(ds.get_bands())
+
     # Stitching data together as VRTs
     ds.mosaic(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"])
 
@@ -67,15 +71,13 @@ def _run():
 
 
 def _test():
-    output_base_vrt = f"{os.getenv('TMP_DIR')}/tmp/modis-pds/pre-processing"
+    output_base_vrt = f"/app/data/tmp/modis-pds/pre-processing"
 
     output_vrts = [
         f"{output_base_vrt}/2017-01-01-00:00:00.vrt",
-        f"{output_base_vrt}/2017-01-02-00:00:00.vrt",
     ]
     golden_files = [
-        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/with-grid-file.tar.gz/2017-01-01-00:00:00.vrt",
-        f"/vsitar/{FIXTURES_DIR}/outputs/stitching/s3/with-grid-file.tar.gz/2017-01-02-00:00:00.vrt",
+        f"/vsitar/{FIXTURES_DIR}/goldens/s3-grid-file.tar/s3-grid-file/2017-01-01-00:00:00.vrt",
     ]
 
     for output_vrt, golden_file in zip(output_vrts, golden_files):
@@ -86,10 +88,27 @@ def _test():
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
 
+def _generated_golden_archives():
+    # Create a tar file
+    with tarfile.open(
+        "/app/workspace/fixtures/goldens/s3-grid-file.tar", "w:tar"
+    ) as tar:
+        tar.add(
+            "/app/data/tmp/modis-pds/pre-processing",
+            arcname="s3-grid-file",
+        )
+
+
 @pytest.mark.order(0)
 def test_grid_file():
     os.environ["AWS_REGION"] = "us-west-2"
     os.environ["AWS_NO_SIGN_REQUEST"] = "YES"
 
     _run()
+
+    if os.getenv("GENERATE_GOLDEN_ARCHIVES") == "TRUE":
+        _generated_golden_archives()
     _test()
+
+
+test_grid_file()

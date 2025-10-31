@@ -379,7 +379,7 @@ class EDKAccessor:
             ]
 
             for future in tqdm(
-                concurrent.futures.as_completed(futures),
+                futures,
                 total=len(futures),
                 desc="Reading data in chunks",
                 unit="chunk",
