@@ -6,7 +6,7 @@ EDK is designed to simplify building complete end-to-end data pipeline, helping 
 
 ### This project is under active development
 
-**If you wish to contribute please reach out on <siddhantgupta3@gmail.com>**
+**If you wish to contribute please reach out on <siddhant@earthlabs.io>**
 
 ## Getting Started
 
