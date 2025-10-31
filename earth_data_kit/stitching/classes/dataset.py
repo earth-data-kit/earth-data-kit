@@ -48,7 +48,8 @@ class Dataset:
         Args:
             name (str): Unique identifier for the dataset
             source (str): Source identifier (S3 URI or Earth Engine collection ID)
-            engine (str): Data source engine - ``s3`` or ``earth_engine``
+            engine (str): Data source engine - ``s3``, ``earth_engine`` or ``stac``
+            format (str): Data format - ``geotiff``, ``netcdf``, ``earth_engine`` or ``stac_asset``
             clean (bool, optional): Whether to clean temporary files before processing. Defaults to True
 
         Raises:
@@ -56,12 +57,17 @@ class Dataset:
 
         Example:
             >>> from earth_data_kit.stitching.classes.dataset import Dataset
-            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine")
-            >>> # Or with S3
-            >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>> # Earth Engine example
+            >>> ds = Dataset("example_dataset", "LANDSAT/LC08/C01/T1_SR", "earth_engine", "earth_engine")
+            >>> # S3 example
+            >>> ds = Dataset("example_dataset", "s3://your-bucket/path", "s3", "netcdf")
+            >>> # STAC example
+            >>> ds = Dataset("example_dataset", "https://planetarycomputer.microsoft.com/api/stac/v1/collections/sentinel-2-l2a", "stac", "stac_asset")
         """
         if engine not in constants.ENGINES_SUPPORTED:
-            raise Exception(f"{engine} not supported. Should be one of {', '.join(constants.ENGINES_SUPPORTED)}")
+            raise Exception(
+                f"{engine} not supported. Should be one of {', '.join(constants.ENGINES_SUPPORTED)}"
+            )
 
         self.name = name
         self.time_opts = {}
@@ -85,7 +91,9 @@ class Dataset:
             self.format = NetCDFAdapter()
 
         if self.format is None:
-            raise NotImplementedError(f"Format {format} not supported. Should be one of geotiff, earth_engine, stac_asset, netcdf")
+            raise NotImplementedError(
+                f"Format {format} not supported. Should be one of geotiff, earth_engine, stac_asset, netcdf"
+            )
 
         self.source = source
 
@@ -152,7 +160,7 @@ class Dataset:
         Example:
             >>> import earth_data_kit as edk
             >>> import geopandas as gpd
-            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path/{h}/{v}/B01.TIF", "s3")
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path/{h}/{v}/B01.TIF", "s3", "geotiff")
             >>>
             >>> # Setting spatial bounds using a bounding box:
             >>> ds.set_spacebounds((19.3044861183, 39.624997667, 21.0200403175, 42.6882473822))
@@ -175,18 +183,6 @@ class Dataset:
         Scans the dataset source to identify, catalog, and save the intersecting tiles based on
         provided time and spatial constraints.
 
-        This method follows a multi-step workflow:
-          1. Invokes the engine's scan method to retrieve a dataframe of available tile metadata
-             that match the time and spatial options.
-          2. Handles any subdatasets found in the scan results.
-          3. Concurrently retrieves detailed metadata for each tile by constructing Tile objects
-             using a ThreadPoolExecutor.
-          4. Converts the user-specified bounding box into a Shapely polygon (in EPSG:4326) and
-             filters the tiles by comparing each tile's extent (also converted to EPSG:4326) to the
-             bounding box using an intersection test.
-          5. Saves the catalog of the intersecting tiles as a CSV file at the location specified by
-             self.catalog_path.
-
         Args:
             band_locator (str, optional): Specifies how to locate bands in the dataset.
                 Defaults to "description". Valid options are "description", "color_interp", "filename".
@@ -206,6 +202,7 @@ class Dataset:
             ...     "modis-pds",
             ...     "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF",
             ...     "s3",
+            ...     "geotiff",
             ...     True
             ... )
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
@@ -245,7 +242,7 @@ class Dataset:
             )
 
         # Create tiles
-        tiles = self.format.create_tiles(scan_df, band_locator)
+        tiles = self.format.create_tiles(scan_df, band_locator)  # type: ignore
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -307,7 +304,7 @@ class Dataset:
             >>> import earth_data_kit as edk
             >>> import geopandas as gpd
             >>> # Initialize the dataset
-            >>> ds = edk.stitching.Dataset("modis-pds", "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF", "s3", True)
+            >>> ds = edk.stitching.Dataset("modis-pds", "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF", "s3", "geotiff", True)
             >>> ds.set_timebounds(datetime.datetime(2017, 1, 1), datetime.datetime(2017, 1, 2))
             >>> # Load grid dataframe
             >>> gdf = gpd.read_file("tests/fixtures/modis.kml")
@@ -571,7 +568,7 @@ class Dataset:
         ds.Close()
 
         # Extract spatial bounds and clip the stacked VRT
-        xmin, ymin, xmax, ymax = self.space_opts["bbox"]
+        xmin, ymin, xmax, ymax = self.space_opts["bbox"]  # type: ignore
         gdal.Translate(
             output_vrt,
             tmp_vrt,
@@ -638,12 +635,12 @@ class Dataset:
                 "bbox": self.space_opts.get("bbox"),
                 "timebounds": [
                     (
-                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S")
+                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S")  # type: ignore
                         if self.time_opts.get("start")
                         else None
                     ),
                     (
-                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S")
+                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S")  # type: ignore
                         if self.time_opts.get("end")
                         else None
                     ),
@@ -725,15 +722,23 @@ class Dataset:
 
         Args:
             bands (list[string]): Ordered list of band descriptions to output as VRTs.
+            sync (bool, optional): Whether to sync the remote data sources before processing. Default False.
+            overwrite (bool, optional): Whether to overwrite existing synced files. Default False.
+            resolution (float, optional): Desired output resolution in meters. If provided, reprojects all data to
+                this resolution. If not provided, the output resolution is determined by the input data.
+            dtype (str, optional): Desired output data type. If provided, casts all data to this dtype. If not provided,
+                the output dtype is determined by the input data.
+            crs (str, optional): Desired output CRS. If provided, reprojects all data to this CRS. If not provided,
+                the output CRS is determined by the input data.
 
         Example:
             >>> import datetime
             >>> import earth_data_kit as edk
-            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket-name/path/to/data", "s3")
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket-name/path/to/data", "s3", "geotiff")
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()  # Discover available scene files before stitching
             >>> bands = ["red", "green", "blue"]
-            >>> ds.mosaic(bands)  # Use mosaic instead of to_vrts
+            >>> ds.mosaic(bands, sync=True, overwrite=True, resolution=(10, -10), dtype="float32", crs="EPSG:4326")
             >>> ds.save()  # Save the output VRTs to a JSON file
         """
         helpers.delete_dir(f"{self.__get_ds_tmp_path__()}/pre-processing")
@@ -757,7 +762,7 @@ class Dataset:
 
         # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
-        df["date"] = df["date"].fillna(epoch_date)
+        df["date"] = df["date"].fillna(epoch_date)  # type: ignore
 
         if sync:
             df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)
@@ -819,7 +824,7 @@ class Dataset:
         Example:
             >>> import earth_data_kit as edk
             >>> import datetime
-            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3")
+            >>> ds = edk.stitching.Dataset("example_dataset", "s3://your-bucket/path", "s3", "geotiff")
             >>> ds.set_timebounds(datetime.datetime(2020, 1, 1), datetime.datetime(2020, 1, 31))
             >>> ds.discover()
             >>> ds.mosaic(bands=["red", "green", "blue"])

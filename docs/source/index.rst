@@ -16,6 +16,10 @@ Check out our :ref:`Roadmap <roadmap>` to see what we're working on and what is 
 
 Check out the :ref:`Getting Started` to learn how to install and use Earth Data Kit.
 
+For more practical usage, check out the `examples` folder in the repository:  
+https://github.com/earth-data-kit/earth-data-kit/tree/master/examples
+
+
 .. warning::
 
    This project is under active development.
@@ -54,6 +58,4 @@ Contents
    getting-started
    stitching
    roadmap
-   releases
-   developer-docs
    api-reference

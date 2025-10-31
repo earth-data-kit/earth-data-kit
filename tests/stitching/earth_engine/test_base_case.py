@@ -10,6 +10,7 @@ import tarfile
 
 FIXTURES_DIR = "/app/workspace/fixtures"
 
+
 def _run():
     source = "ECMWF/ERA5_LAND/MONTHLY_AGGR"
 
@@ -18,11 +19,7 @@ def _run():
 
     # Creating a dataset
     ds = edk.stitching.Dataset(
-        "surface-temp",
-        source,
-        "earth_engine",
-        clean=True,
-        format="earth_engine"
+        "surface-temp", source, "earth_engine", clean=True, format="earth_engine"
     )
 
     # Setting time bounds
@@ -36,11 +33,11 @@ def _run():
 
     ds.save()
 
+
 def _generated_golden_archives():
     # Create a tar file
     with tarfile.open(
-        "/app/workspace/fixtures/goldens/gee-base-case.tar",
-        "w:tar"
+        "/app/workspace/fixtures/goldens/gee-base-case.tar", "w:tar"
     ) as tar:
         tar.add(
             "/app/data/tmp/surface-temp/pre-processing",
