@@ -23,7 +23,7 @@ class EarthEngine:
         ds = ogr.GetDriverByName("EEDA").Open(
             f"EEDA:projects/earthengine-public/assets/{source}"
         )
-        
+
         layer = ds.GetLayer()
         layer.SetSpatialFilterRect(
             space_opts["bbox"][0],

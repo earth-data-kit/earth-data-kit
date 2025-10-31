@@ -9,6 +9,7 @@ from osgeo_utils import gdalcompare
 
 FIXTURES_DIR = "tests/fixtures"
 
+
 def _test():
     output_base_vrt = (
         f"{os.getenv('TMP_DIR')}/tmp/modis-pds-wo-grid-file/pre-processing"

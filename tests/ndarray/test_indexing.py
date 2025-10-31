@@ -19,6 +19,7 @@ from fixtures.country_bboxes import country_bounding_boxes
 os.environ["AWS_REGION"] = "ap-south-1"
 os.environ["AWS_NO_SIGN_REQUEST"] = "NO"
 
+
 @pytest.mark.order(1)
 def test_label_based_indexing():
     dataarray = edk.stitching.Dataset.dataarray_from_file(
@@ -62,6 +63,7 @@ def test_label_based_indexing():
     assert not multi_sel.isnull().all().any()
 
     assert True
+
 
 @pytest.mark.order(1)
 def position_based_indexing():

@@ -194,19 +194,21 @@ class STACAssetAdapter:
 
         _df = pd.DataFrame(
             rows,
-            columns=pd.Index([
-                "date",
-                "tile_name",
-                "engine_path",
-                "gdal_path",
-                "geo_transform",
-                "projection",
-                "x_size",
-                "y_size",
-                "crs",
-                "length_unit",
-                "bands",
-            ]),
+            columns=pd.Index(
+                [
+                    "date",
+                    "tile_name",
+                    "engine_path",
+                    "gdal_path",
+                    "geo_transform",
+                    "projection",
+                    "x_size",
+                    "y_size",
+                    "crs",
+                    "length_unit",
+                    "bands",
+                ]
+            ),
         )
         _df = _df[_df["geo_transform"].notna()].reset_index(drop=True)
         return _df

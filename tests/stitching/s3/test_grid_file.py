@@ -1,6 +1,6 @@
 from fiona.drvsupport import supported_drivers
 
-supported_drivers["LIBKML"] = "rw" # type: ignore
+supported_drivers["LIBKML"] = "rw"  # type: ignore
 
 import os
 from fixtures.country_bboxes import country_bounding_boxes
@@ -13,6 +13,7 @@ import geopandas as gpd
 import tarfile
 
 FIXTURES_DIR = "/app/workspace/fixtures"
+
 
 def _run():
     source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B0?.TIF"
@@ -61,7 +62,7 @@ def _run():
     # Discover catalogue
     ds.discover()
 
-    print (ds.get_bands())
+    print(ds.get_bands())
 
     # Stitching data together as VRTs
     ds.mosaic(bands=["Nadir_Reflectance_Band3", "Nadir_Reflectance_Band7"])
@@ -86,16 +87,17 @@ def _test():
 
         assert gdalcompare.compare_db(ds_golden, ds) == 0
 
+
 def _generated_golden_archives():
     # Create a tar file
     with tarfile.open(
-        "/app/workspace/fixtures/goldens/s3-grid-file.tar",
-        "w:tar"
+        "/app/workspace/fixtures/goldens/s3-grid-file.tar", "w:tar"
     ) as tar:
         tar.add(
             "/app/data/tmp/modis-pds/pre-processing",
             arcname="s3-grid-file",
         )
+
 
 @pytest.mark.order(0)
 def test_grid_file():
