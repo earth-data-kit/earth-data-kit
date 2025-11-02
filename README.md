@@ -32,6 +32,9 @@ The preferred way to install and use Earth Data Kit is via edk-cli.
     edk configure # Helps user create an .env file for edk.
     ```
     More env options can be found on https://earthlabs.io/earth-data-kit/getting-started.html#environment-configuration
+- Use relative paths (not absolute paths) when specifying directories.
+    - Example: ./workspace
+    - Avoid: /Users/username/earth-data-kit/workspace
 
     ```bash
     edk run # Runs edk container
