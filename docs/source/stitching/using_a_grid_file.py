@@ -8,7 +8,7 @@ source = "s3://modis-pds/MCD43A4.006/{h}/{v}/%Y%j/*_B07.TIF"
 
 # Create a Dataset instance using the S3 engine.
 # "modis-pds" serves as an identifier for the dataset.
-ds = edk.stitching.Dataset("modis-pds", source, "s3")
+ds = edk.stitching.Dataset("modis-pds", source, "s3", "geotiff")
 
 # Specify the path to the grid file. This file (e.g., a KML) maps the provider's grid system
 # to global coordinates, allowing targeted file selection.
@@ -53,4 +53,14 @@ ds.set_spacebounds(bbox, grid_dataframe=gdf)
 ds.discover()
 
 # Stitches the scene files into VRTs using the defined band arrangement.
-ds.to_vrts(bands=["Nadir_Reflectance_Band7"])
+ds.mosaic(
+    bands=["Nadir_Reflectance_Band7"],
+    sync=False,
+    overwrite=True,
+)
+
+# Save the dataset metadata for future use
+ds.save()
+
+# This returns a xarray.DataArray
+da = ds.to_dataarray()

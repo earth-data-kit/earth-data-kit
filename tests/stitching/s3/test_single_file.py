@@ -8,6 +8,7 @@ import tarfile
 
 FIXTURES_DIR = "/app/workspace/fixtures"
 
+
 def _test():
     output_base_vrt = f"/app/data/tmp/global-land-cover/pre-processing"
 
@@ -52,16 +53,17 @@ def _run():
 
     ds.save()
 
+
 def _generated_golden_archives():
     # Create a tar file
     with tarfile.open(
-        "/app/workspace/fixtures/goldens/s3-single-file.tar",
-        "w:tar"
+        "/app/workspace/fixtures/goldens/s3-single-file.tar", "w:tar"
     ) as tar:
         tar.add(
             "/app/data/tmp/global-land-cover/pre-processing",
             arcname="s3-single-file",
         )
+
 
 @pytest.mark.order(0)
 def test_single_file():
@@ -72,5 +74,5 @@ def test_single_file():
     _run()
     if os.getenv("GENERATE_GOLDEN_ARCHIVES") == "TRUE":
         _generated_golden_archives()
-    
+
     _test()

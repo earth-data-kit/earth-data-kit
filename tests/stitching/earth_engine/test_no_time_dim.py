@@ -28,7 +28,7 @@ def _run():
 
     ds.discover()
 
-    print (ds.get_bands())
+    print(ds.get_bands())
     ds.mosaic(bands=["elevation"], resolution=(5, -5), crs="EPSG:3857")
     ds.save()
 
@@ -46,14 +46,14 @@ def _test():
         print(f"Comparing {output_vrt} with {golden_file}")
         ds = gdal.Open(output_vrt)
         ds_golden = gdal.Open(golden_file)
-        
+
         assert gdalcompare.compare_db(ds_golden, ds) == 0
+
 
 def _generated_golden_archives():
     # Create a tar file
     with tarfile.open(
-        "/app/workspace/fixtures/goldens/gee-no-time-dim.tar",
-        "w:tar"
+        "/app/workspace/fixtures/goldens/gee-no-time-dim.tar", "w:tar"
     ) as tar:
         tar.add(
             "/app/data/tmp/nz-dem-5m/pre-processing",

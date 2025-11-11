@@ -5,6 +5,12 @@ Primary Usage: edk-cli
 ----------------------
 The recommended and primary way to run Earth Data Kit (EDK) is via edk-cli. This approach avoids dependency issues and ensures a consistent environment across platforms.
 
+Requirements
+------------
+
+* Python 3.12 or newer
+* Docker
+
 Quick Start
 -----------
 1. **Get and install edk-cli:**
@@ -20,6 +26,13 @@ Quick Start
          $ edk configure
 
    This will help you create a `.env` file. See the "Environment Configuration" section below for details on available options.
+
+   .. note::
+      Use relative paths (not absolute paths) when specifying directories.
+
+      - Example: `./workspace`
+      
+      - Avoid: `/Users/username/earth-data-kit/workspace`
 
 3. **Initialize the EDK container:**
 

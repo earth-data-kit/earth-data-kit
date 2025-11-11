@@ -8,6 +8,7 @@ import tarfile
 
 FIXTURES_DIR = "/app/workspace/fixtures"
 
+
 def _test():
     output_base_vrt = f"/app/data/tmp/global-land-cover/pre-processing"
 
@@ -60,16 +61,17 @@ def _run():
 
     ds.save()
 
+
 def _generated_golden_archives():
     # Create a tar file
     with tarfile.open(
-        "/app/workspace/fixtures/goldens/s3-multiple-files.tar",
-        "w:tar"
+        "/app/workspace/fixtures/goldens/s3-multiple-files.tar", "w:tar"
     ) as tar:
         tar.add(
             "/app/data/tmp/global-land-cover/pre-processing",
             arcname="s3-multiple-files",
         )
+
 
 @pytest.mark.order(1)
 def test_multiple_files():

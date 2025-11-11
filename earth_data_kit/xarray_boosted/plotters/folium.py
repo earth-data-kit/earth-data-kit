@@ -28,7 +28,7 @@ class Folium:
         return get_color
 
     def plot(self, colors=None, opacity=1):
-        
+
         crs = self.da.edk._get_epsg_code()
 
         xmin, ymin, xmax, ymax = (

@@ -7,7 +7,7 @@ source = "s3://modis-pds/MCD43A4.006/*/*/%Y%j/*_B07.TIF"
 
 # Instantiate the Dataset object for the MODIS collection using the S3 engine.
 # The Dataset class handles scanning and filtering of scene files.
-ds = edk.stitching.Dataset("modis-pds", source, "s3")
+ds = edk.stitching.Dataset("modis-pds", source, "s3", "geotiff")
 
 
 # Define the spatial extent (in EPSG:4326) using Albania's bounding box.
@@ -33,4 +33,10 @@ ds.set_spacebounds(bbox)
 ds.discover()
 
 # Generate VRTs files for the discovered scene files.
-ds.to_vrts(bands=["Nadir_Reflectance_Band7"])
+ds.mosaic(bands=["Nadir_Reflectance_Band7"], sync=False, overwrite=True)
+
+# Save the dataset metadata for future use
+ds.save()
+
+# This returns a xarray.DataArray
+da = ds.to_dataarray()
