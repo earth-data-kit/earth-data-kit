@@ -72,6 +72,10 @@ class STACAssetAdapter:
         # GDAL order: [x, a, b, y, d, e]
         stac_transform = proj_ext.transform
 
+        # Check if transform exists and handle None case
+        if stac_transform is None:
+            raise ValueError("STAC transform is None - cannot process asset without projection info")
+        
         # Sometimes stack gives transform as 9 values - [a, b, d, e, x, y, 0, 0, 1]
         if len(stac_transform) == 9:
             stac_transform = stac_transform[:6]
