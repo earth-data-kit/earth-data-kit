@@ -492,7 +492,6 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
-        actual_bands = []  # Track bands that were actually processed
 
         for band_desc in bands:
             # Filter tiles for current band
@@ -551,9 +550,8 @@ class Dataset:
             ds.Close()
 
             band_mosaics.append(band_mosaic_path)
-            actual_bands.append(band_desc)  # Record successful band processing
 
-        return band_mosaics, actual_bands
+        return band_mosaics
 
     @decorators.log_time
     @decorators.log_init
@@ -713,7 +711,7 @@ class Dataset:
         # Create mosaic VRTs for each band by combining single-band VRTs.
         # Note: GDAL Raster Tile Index (GTI) was considered but not used due to metadata
         # preservation limitations (e.g., ColorInterp). VRT format provides better metadata support.
-        band_mosaics, actual_bands = self.__create_band_mosaic__(
+        band_mosaics = self.__create_band_mosaic__(
             _band_tiles, curr_date, bands, resolution, dtype, crs
         )
 
@@ -721,7 +719,7 @@ class Dataset:
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
         # Apply band descriptions only for bands that were actually mosaicked
-        geo.set_band_descriptions(output_vrt, actual_bands)
+        geo.set_band_descriptions(output_vrt,bands)
 
         return output_vrt
 
