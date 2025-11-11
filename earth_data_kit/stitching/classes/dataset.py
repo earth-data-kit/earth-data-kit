@@ -492,6 +492,9 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
+        # Track only bands that were actually found to avoid "Illegal band #" error when setting descriptions on VRT
+        # If some requested bands are missing for this date, the VRT will have fewer bands than requested, causing a mismatch
+        bands_found_per_date = []
 
         for band_desc in bands:
             # Filter tiles for current band
@@ -550,8 +553,9 @@ class Dataset:
             ds.Close()
 
             band_mosaics.append(band_mosaic_path)
+            bands_found_per_date.append(band_desc)  # Record successful band processing
 
-        return band_mosaics
+        return band_mosaics, bands_found_per_date
 
     @decorators.log_time
     @decorators.log_init
@@ -711,7 +715,7 @@ class Dataset:
         # Create mosaic VRTs for each band by combining single-band VRTs.
         # Note: GDAL Raster Tile Index (GTI) was considered but not used due to metadata
         # preservation limitations (e.g., ColorInterp). VRT format provides better metadata support.
-        band_mosaics = self.__create_band_mosaic__(
+        band_mosaics, bands_found_per_date = self.__create_band_mosaic__(
             _band_tiles, curr_date, bands, resolution, dtype, crs
         )
 
@@ -719,7 +723,7 @@ class Dataset:
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
         # Apply band descriptions only for bands that were actually mosaicked
-        geo.set_band_descriptions(output_vrt,bands)
+        geo.set_band_descriptions(output_vrt, bands_found_per_date)
 
         return output_vrt
 
