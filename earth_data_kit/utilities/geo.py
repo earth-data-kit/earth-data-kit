@@ -36,11 +36,11 @@ def warp_and_get_extent(df_row):
     ds = gdal.Warp(
         "/vsimem/reprojected.tif", gdal.Open(df_row.gdal_path), dstSRS="EPSG:4326"
     )
-    geo_transform = ds.GetGeoTransform()
+    geo_transform = ds.GetGeoTransform() # type: ignore
     x_min = geo_transform[0]
     y_max = geo_transform[3]
-    x_max = x_min + geo_transform[1] * ds.RasterXSize
-    y_min = y_max + geo_transform[5] * ds.RasterYSize
+    x_max = x_min + geo_transform[1] * ds.RasterXSize # type: ignore
+    y_min = y_max + geo_transform[5] * ds.RasterYSize # type: ignore
     polygon = shapely.geometry.box(x_min, y_min, x_max, y_max, ccw=True)
     ds = None
     return polygon
@@ -60,7 +60,7 @@ def get_bbox_from_raster(raster_path):
     xmin, ymax, xmax, ymin = ulx, uly, lrx, lry
 
     # TODO: Make the fetching of CRS dynamic instead of hardcoding it to 3857
-    lon_min, lat_min, lon_max, lat_max = edk.utilities.transform.transform_bbox(
+    lon_min, lat_min, lon_max, lat_max = edk.utilities.transform.transform_bbox( # type: ignore
         xmin, ymin, xmax, ymax, 3857, 4326
     )
 

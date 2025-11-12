@@ -1390,13 +1390,13 @@ gcsfuse = ["fusepy"]
 
 [[package]]
 name = "gdal"
-version = "3.10.3"
+version = "3.11.3"
 description = "GDAL: Geospatial Data Abstraction Library"
 optional = false
 python-versions = ">=3.8.0"
 groups = ["main"]
 files = [
-    {file = "gdal-3.10.3.tar.gz", hash = "sha256:b5550650daeeae8e41091581d9aea7d75a9f15b0ebbeb8c96e37458fa02264cd"},
+    {file = "gdal-3.11.3.tar.gz", hash = "sha256:4c3ad0fae393b5ddb093a7e4b890077839b2a6acdbd19202657fe4e881886efa"},
 ]
 
 [package.extras]
@@ -5430,4 +5430,4 @@ jupyter = ["ipytree (>=0.2.2)", "ipywidgets (>=8.0.0)", "notebook"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4"
-content-hash = "0ff35490c833da4f8451a64abe5f16e8a9c92f229afc6e8ef9a9aa3e6988cf64"
+content-hash = "219b0f9b9bebd6bb3e042d5299bd2904b2d2e0ab8a25355006fec7b0f14ca6c6"

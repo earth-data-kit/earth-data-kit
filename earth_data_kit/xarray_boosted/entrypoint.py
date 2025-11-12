@@ -31,10 +31,10 @@ class EDKDatasetBackendArray(BackendArray):
         self.y_block_size = y_block_size
 
     def __getitem__(self, key):
-        return xr.core.indexing.explicit_indexing_adapter(
+        return xr.core.indexing.explicit_indexing_adapter( # type: ignore
             key,
             self.shape,
-            xr.core.indexing.IndexingSupport.BASIC,
+            xr.core.indexing.IndexingSupport.BASIC, # type: ignore
             self._raw_indexing_method,
         )
 
@@ -93,6 +93,8 @@ class EDKDatasetBackendArray(BackendArray):
     @decorators.log_time
     @decorators.log_init
     def _read_band(self, fp, band_num, offsets, buf_sizes):
+        # Planetary computer assets are read using /vsicurl/ prefix and pc signing options
+        # That will keep the functionalities separate
         ds = gdal.Open(fp)
 
         x_size = int(
@@ -224,11 +226,11 @@ def get_spatial_coords(geotransform, width, height):
     transform = transform * affine.Affine.translation(0.5, 0.5)
 
     # Picked from rioxarray
-    if transform.is_rectilinear and (transform.b == 0 and transform.d == 0):
-        x_coords, _ = transform * (np.arange(width), np.zeros(width))
-        _, y_coords = transform * (np.zeros(height), np.arange(height))
-    else:
-        x_coords, y_coords = transform * np.meshgrid(
+    if transform.is_rectilinear and (transform.b == 0 and transform.d == 0): # type: ignore
+        x_coords, _ = transform * (np.arange(width), np.zeros(width)) # type: ignore
+        _, y_coords = transform * (np.zeros(height), np.arange(height)) # type: ignore
+    else: 
+        x_coords, y_coords = transform * np.meshgrid( # type: ignore
             np.arange(width),
             np.arange(height),
         )
@@ -249,6 +251,8 @@ def open_edk_dataset(filename_or_obj):
         source_path = df.iloc[0].source
 
         # Open the dataset with GDAL
+        # For planetary computer we add signing options in the source path using /vsicurl options
+        # That will keep the functionalities separate
         src_ds = gdal.Open(source_path)
         if src_ds is None:
             raise ValueError(f"Could not open raster file: {source_path}")
@@ -283,7 +287,7 @@ def open_edk_dataset(filename_or_obj):
         dims = ("time", "band", "x", "y")
 
         da = xr.DataArray(
-            data=xr.core.indexing.LazilyIndexedArray(
+            data=xr.core.indexing.LazilyIndexedArray( # type: ignore
                 EDKDatasetBackendArray(
                     filename_or_obj,
                     shape=(time_size, num_bands, x_size, y_size),
@@ -319,11 +323,11 @@ class EDKDatasetBackend(BackendEntrypoint):
     ):
         return open_edk_dataset(filename_or_obj)
 
-    open_dataset_parameters = ["filename_or_obj", "drop_variables"]
+    open_dataset_parameters = ["filename_or_obj", "drop_variables"] # type: ignore
 
     def guess_can_open(self, filename_or_obj):
         try:
-            _, ext = os.path.splitext(filename_or_obj)
+            _, ext = os.path.splitext(filename_or_obj) # type: ignore
         except TypeError:
             return False
         return ext in {".my_format", ".my_fmt"}
