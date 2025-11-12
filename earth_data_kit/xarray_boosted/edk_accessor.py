@@ -1,3 +1,4 @@
+from earth_data_kit.xarray_boosted.plotters.datashader import Datashader
 import xarray as xr
 import logging
 import earth_data_kit.stitching.decorators as decorators
@@ -392,29 +393,45 @@ class EDKAccessor:
 
         return result
 
-    def plot(self, colors=None, opacity=1):
+    def _create_lonlat_coords(self, da):
         """
-        Plot the data on an interactive map using folium.
-
-        Note: This implementation currently loads all the data into memory,
-        which may not be suitable for larger datasets. Future optimizations
-        such as tilesets are planned to improve performance with large datasets.
-
+        Create lon/lat coordinates from x/y coordinates using the transform.
         Args:
-            colors (list, optional): A list of colors to use for the colormap.
-                If None, the default viridis colormap will be used.
-            opacity (float, optional): The opacity of the overlay, between 0 and 1.
-                Defaults to 1 (fully opaque).
-
+            da: xarray DataArray with x/y coordinates  
         Returns:
-            folium.Map: An interactive map with the data overlaid on OpenStreetMap.
+            DataArray with lon/lat coordinates added
         """
-        # Check if the DataArray is 2D (excluding time and band dimensions)
-        if len(self.da.dims) != 2 or set(self.da.dims) != {"x", "y"}:
+        import numpy as np
+        
+        # Get transform from rioxarray or attrs
+        transform = da.rio.transform() if hasattr(da, "rio") else da.attrs.get("transform", None)
+        
+        if transform is not None:
+            x = da["x"].values
+            y = da["y"].values 
+            lon, lat = np.meshgrid(x, y)
+            da = da.assign_coords(lon=(("y", "x"), lon), lat=(("y", "x"), lat))
+        else:
+            # Fallback: assume x/y are already in geographic coordinates
+            da = da.rename({"x": "lon", "y": "lat"})
+            
+        return da
+
+    def plot(self, colors=None, opacity=1):
+        
+        # Check if dimensions are valid (2D or 3D with band dimension)
+        valid_2d = len(self.da.dims) == 2 and set(self.da.dims) == {"x", "y"}
+        valid_3d = len(self.da.dims) == 3 and "band" in self.da.dims and {"x", "y"}.issubset(set(self.da.dims))
+        
+        if not (valid_2d or valid_3d):
             raise ValueError(
-                "DataArray must be exactly 2D with 'x' and 'y' dimensions to plot on a map"
+                "DataArray must be 2D with 'x' and 'y' dimensions, or 3D with 'band', 'x', and 'y' dimensions"
             )
 
-        # Import the Folium plotter and create the map
-        o = Folium(self.da)
-        return o.plot(colors=colors, opacity=opacity)
+        # Auto-create lon/lat coordinates if they don't exist
+        da = self.da
+        if "lon" not in da.coords or "lat" not in da.coords:
+            da = self._create_lonlat_coords(da)
+
+        ds_plot = Datashader(da)
+        return ds_plot.plot()
