@@ -42,7 +42,7 @@ dask = "~2025.7.0"
 tqdm = "~4.67.1"
 rio-tiler = "~7.6.0"
 tenacity = "~9.1.2"
-gdal = "==3.10.3"
+gdal = "==3.11.3"
 pystac_client = "~0.8.6"
 scipy = "^1.16.2"
 

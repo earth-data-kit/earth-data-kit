@@ -7,6 +7,7 @@ import pandas as pd
 import ast
 import geopandas as gpd
 import logging
+from earth_data_kit.xarray_boosted.commons import get_gdal_dtype
 from osgeo import osr
 import uuid
 import os
@@ -29,6 +30,7 @@ from tqdm import tqdm
 from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
+import earth_data_kit.stitching.engines.planetary_computer as planetary_computer
 
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
@@ -80,6 +82,8 @@ class Dataset:
             self.engine = earth_engine.EarthEngine()
         if engine == "stac":
             self.engine = stac.STAC()
+        if engine == "planetary_computer":
+            self.engine = planetary_computer.PlanetaryComputer()
 
         if format == "geotiff":
             self.format = GeoTiffAdapter()
@@ -240,9 +244,9 @@ class Dataset:
                 pd.to_datetime(time_opts["end"]),
                 time_opts["resolution"],
             )
-
+        
         # Create tiles
-        tiles = self.format.create_tiles(scan_df, band_locator)  # type: ignore
+        tiles = self.format.create_tiles(scan_df, band_locator) # type: ignore
 
         # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
@@ -488,6 +492,9 @@ class Dataset:
         """
         date_str = date.strftime("%Y-%m-%d-%H:%M:%S")
         band_mosaics = []
+        # Track only bands that were actually found to avoid "Illegal band #" error when setting descriptions on VRT
+        # If some requested bands are missing for this date, the VRT will have fewer bands than requested, causing a mismatch
+        bands_found_per_date = []
 
         for band_desc in bands:
             # Filter tiles for current band
@@ -496,6 +503,12 @@ class Dataset:
                 gdal_path=current_bands_df["tile"].apply(lambda x: x.gdal_path)
             )
 
+            # If no tiles are present for this band on the given date, skip it
+            if current_bands_df.empty:
+                logger.warning(
+                    f"No tiles found for band '{band_desc}' on date {date}. Skipping this band."
+                )
+                continue
             # Set up output path and validate band properties
             band_mosaic_path = f"{self.__get_ds_tmp_path__()}/pre-processing/{date_str}-{band_desc}.vrt"
             self.__validate_band_properties__(current_bands_df, resolution, dtype, crs)
@@ -519,6 +532,7 @@ class Dataset:
                         yRes=resolution[1],
                         dstSRS=crs,
                     )
+
                     gdal.Warp(
                         warped_vrt_path,
                         row.gdal_path,
@@ -535,11 +549,13 @@ class Dataset:
                 separate=False,
                 bandList=[current_bands_df.iloc[0]["source_idx"]],
             )
+
             ds.Close()
 
             band_mosaics.append(band_mosaic_path)
+            bands_found_per_date.append(band_desc)  # Record successful band processing
 
-        return band_mosaics
+        return band_mosaics, bands_found_per_date
 
     @decorators.log_time
     @decorators.log_init
@@ -568,13 +584,14 @@ class Dataset:
         ds.Close()
 
         # Extract spatial bounds and clip the stacked VRT
-        xmin, ymin, xmax, ymax = self.space_opts["bbox"]  # type: ignore
+        xmin, ymin, xmax, ymax = self.space_opts["bbox"] # type: ignore
         gdal.Translate(
             output_vrt,
             tmp_vrt,
             projWin=[xmin, ymax, xmax, ymin],
             projWinSRS="EPSG:4326",
         )
+
 
         return output_vrt
 
@@ -635,12 +652,12 @@ class Dataset:
                 "bbox": self.space_opts.get("bbox"),
                 "timebounds": [
                     (
-                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S")  # type: ignore
+                        self.time_opts.get("start").strftime("%Y-%m-%d-%H:%M:%S") # type: ignore
                         if self.time_opts.get("start")
                         else None
                     ),
                     (
-                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S")  # type: ignore
+                        self.time_opts.get("end").strftime("%Y-%m-%d-%H:%M:%S") # type: ignore
                         if self.time_opts.get("end")
                         else None
                     ),
@@ -698,15 +715,15 @@ class Dataset:
         # Create mosaic VRTs for each band by combining single-band VRTs.
         # Note: GDAL Raster Tile Index (GTI) was considered but not used due to metadata
         # preservation limitations (e.g., ColorInterp). VRT format provides better metadata support.
-        band_mosaics = self.__create_band_mosaic__(
+        band_mosaics, bands_found_per_date = self.__create_band_mosaic__(
             _band_tiles, curr_date, bands, resolution, dtype, crs
         )
 
         # Create multi-band VRT by stacking individual band mosaics
         output_vrt = self.__stack_band_mosaics__(band_mosaics, curr_date)
 
-        # Apply band descriptions to the output VRT
-        geo.set_band_descriptions(output_vrt, bands)
+        # Apply band descriptions only for bands that were actually mosaicked
+        geo.set_band_descriptions(output_vrt, bands_found_per_date)
 
         return output_vrt
 
@@ -756,13 +773,15 @@ class Dataset:
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
+
+
         # Filter bands based on the user-supplied list.
         # TODO: May need special handling for non-unique band descriptions in the future
         df = df[df["description"].isin(bands)]
 
         # Handle non-temporal datasets by filling missing dates with Jan 1, 1970
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
-        df["date"] = df["date"].fillna(epoch_date)  # type: ignore
+        df["date"] = df["date"].fillna(epoch_date) # type: ignore
 
         if sync:
             df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)
@@ -875,7 +894,9 @@ class Dataset:
                 if isinstance(first_vrt, dict) and "source" in first_vrt:
                     first_vrt_path = first_vrt["source"]
 
+
         ds = gdal.Open(first_vrt_path)
+
         x_block_size, y_block_size = ds.GetRasterBand(1).GetBlockSize()
 
         # Check if block sizes are powers of 2
