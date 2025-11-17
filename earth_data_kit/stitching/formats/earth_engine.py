@@ -80,6 +80,8 @@ class EarthEngineAdapter:
             k = 0
             for row in scan_df.itertuples():
                 tile_metadata = parent_tiles_metadata[k]
+                if tile_metadata == None:
+                    continue
                 k += 1
                 catalog_df.append(
                     {
