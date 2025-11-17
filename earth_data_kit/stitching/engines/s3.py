@@ -275,6 +275,10 @@ class S3:
         df = pd.DataFrame(
             files, columns=pd.Index(["engine_path", "gdal_path", "tile_name", "date"])
         )
+
+        if isinstance(df["date"], pd.Series):
+            df["date"] = pd.to_datetime(df["date"])
+        
         df["date"] = df["date"].dt.tz_localize("UTC")
 
         return df
@@ -326,6 +330,7 @@ def create_regex_template(template):
         .replace("%m", r"(?P<month>\d{2})")
         .replace("%j", r"(?P<day_of_year>\d{1,3})")
         .replace("%d", r"(?P<day>\d{2})")
+        .replace("%-d", r"(?P<day>\d{1,2})")
     )
     return mts
 
@@ -336,7 +341,7 @@ def create_parts(path):
 
 
 def contains_time_component(template):
-    comps = ["%Y", "%-m", "%m", "%d"]
+    comps = ["%Y", "%-m", "%m", "%d", "%-d"]
     for c in comps:
         if c in template:
             return True
