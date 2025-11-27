@@ -393,45 +393,33 @@ class EDKAccessor:
 
         return result
 
-    def _create_lonlat_coords(self, da):
-        """
-        Create lon/lat coordinates from x/y coordinates using the transform.
-        Args:
-            da: xarray DataArray with x/y coordinates  
-        Returns:
-            DataArray with lon/lat coordinates added
-        """
-        import numpy as np
-        
-        # Get transform from rioxarray or attrs
-        transform = da.rio.transform() if hasattr(da, "rio") else da.attrs.get("transform", None)
-        
-        if transform is not None:
-            x = da["x"].values
-            y = da["y"].values 
-            lon, lat = np.meshgrid(x, y)
-            da = da.assign_coords(lon=(("y", "x"), lon), lat=(("y", "x"), lat))
-        else:
-            # Fallback: assume x/y are already in geographic coordinates
-            da = da.rename({"x": "lon", "y": "lat"})
-            
-        return da
-
     def plot(self, colors=None, opacity=1):
-        
+        """
+        Plot the DataArray using Datashader.
+
+        Args:
+            colors: Color scheme for the plot
+            opacity: Opacity level for the plot (default: 1)
+
+        Returns:
+            Datashader plot object
+
+        Raises:
+            ValueError: If DataArray doesn't have required dimensions or lon/lat coordinates
+        """
         # Check if dimensions are valid (2D or 3D with band dimension)
-        valid_2d = len(self.da.dims) == 2 and set(self.da.dims) == {"x", "y"}
-        valid_3d = len(self.da.dims) == 3 and "band" in self.da.dims and {"x", "y"}.issubset(set(self.da.dims))
-        
+        valid_2d = len(self.da.dims) == 2 and set(self.da.dims) == {"lon", "lat"}
+        valid_3d = len(self.da.dims) == 3 and "band" in self.da.dims and {"lon", "lat"}.issubset(set(self.da.dims))
+
         if not (valid_2d or valid_3d):
             raise ValueError(
-                "DataArray must be 2D with 'x' and 'y' dimensions, or 3D with 'band', 'x', and 'y' dimensions"
+                "DataArray must be 2D with 'lon' and 'lat' dimensions, or 3D with 'band', 'lon', and 'lat' dimensions"
             )
 
-        # Auto-create lon/lat coordinates if they don't exist
-        da = self.da
-        if "lon" not in da.coords or "lat" not in da.coords:
-            da = self._create_lonlat_coords(da)
+        if "lon" not in self.da.coords or "lat" not in self.da.coords:
+            raise ValueError(
+                "DataArray must have 'lon' and 'lat' coordinates for plotting"
+            )
 
-        ds_plot = Datashader(da)
+        ds_plot = Datashader(self.da)
         return ds_plot.plot()

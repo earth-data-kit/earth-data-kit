@@ -7,12 +7,8 @@ import datashader as ds
 import cartopy.crs as ccrs
 from holoviews.operation.datashader import rasterize, shade
 
-# Optional GDAL import for coordinate transforms
-try:
-    from osgeo import osr
-    GDAL_AVAILABLE = True
-except ImportError:
-    GDAL_AVAILABLE = False
+# GDAL import for coordinate transforms
+from osgeo import osr, gdal
 
 # Initialize extensions
 hv.extension("bokeh")
@@ -20,9 +16,14 @@ gv.extension("bokeh")
 pn.extension()
 
 def mercator_to_latlon(x, y):
-    """Convert Web Mercator (EPSG:3857) to geographic (lat, lon)."""
-    lon = x / 20037508.342789244 * 180.0
-    lat = np.arctan(np.exp(y / 20037508.342789244 * np.pi)) * 360.0 / np.pi - 90.0
+    """Convert Web Mercator (EPSG:3857) to geographic (EPSG:4326) using GDAL/OSR."""
+    srs_3857 = osr.SpatialReference()
+    srs_3857.ImportFromEPSG(3857)
+    srs_4326 = osr.SpatialReference()
+    srs_4326.ImportFromEPSG(4326)
+    srs_4326.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)  # Force lon, lat order
+    transform = osr.CoordinateTransformation(srs_3857, srs_4326)
+    lon, lat, _ = transform.TransformPoint(x, y)
     return lon, lat
 
 class Datashader:
@@ -47,8 +48,10 @@ class Datashader:
             self.num_bands = 1
 
     def _normalize_band(self, band_data):
-        """Normalize band data to 0-1 range for RGB display."""
-        vmin, vmax = np.nanpercentile(band_data, [2, 98])
+        """Normalize band data to 0-1 range for RGB display using min/max values."""
+        vmin, vmax = np.nanmin(band_data), np.nanmax(band_data)
+        if vmin == vmax:
+            return np.zeros_like(band_data)
         normalized = np.clip((band_data - vmin) / (vmax - vmin), 0, 1)
         return normalized
 
@@ -159,14 +162,8 @@ class Datashader:
                 return
 
             try:
-                # Coordinate conversion
-                if GDAL_AVAILABLE:
-                    srs_3857 = osr.SpatialReference(); srs_3857.ImportFromEPSG(3857)
-                    srs_4326 = osr.SpatialReference(); srs_4326.ImportFromEPSG(4326)
-                    trans = osr.CoordinateTransformation(srs_3857, srs_4326)
-                    lat, lon, _ = trans.TransformPoint(x, y)
-                else:
-                    lon, lat = mercator_to_latlon(x, y)
+                # Coordinate conversion from Web Mercator to lat/lon
+                lon, lat = mercator_to_latlon(x, y)
 
                 # Find nearest indices
                 if lon_values.ndim == 2:
@@ -184,7 +181,7 @@ class Datashader:
                     # Show all band values
                     pixel_values = []
                     for i, band_name in enumerate(self.band_names):
-                        selected_data = da.isel(y=lat_idx, x=lon_idx, band=i)
+                        selected_data = da.isel({lat_dim: lat_idx, lon_dim: lon_idx, 'band': i})
                         raw_val = selected_data.values
                         if hasattr(raw_val, 'item'):
                             val = float(raw_val.item())
@@ -197,7 +194,7 @@ class Datashader:
                     
                     values_text = "\n".join(pixel_values)
                 else:
-                    selected_data = da.isel(y=lat_idx, x=lon_idx)
+                    selected_data = da.isel({lat_dim: lat_idx, lon_dim: lon_idx})
                     raw_val = selected_data.values
                     if hasattr(raw_val, 'item'):
                         val = float(raw_val.item())
