@@ -9,8 +9,12 @@ import datetime
 from osgeo import gdal
 import pytest
 import tarfile
+from pathlib import Path
 
-FIXTURES_DIR = "/app/workspace/fixtures"
+# Dynamically determine paths relative to this test file
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+FIXTURES_DIR = str(PROJECT_ROOT / "tests" / "fixtures")
+DEFAULT_TMP_DIR = str(PROJECT_ROOT / "data" / "tmp")
 
 TEST_CONFIG = {
     "collection_id": "sentinel-2-l2a",
@@ -47,7 +51,7 @@ def _run():
 
 def _test():
     import glob
-    tmp_dir = os.getenv('TMP_DIR', '/app/data/tmp')
+    tmp_dir = os.getenv('TMP_DIR', DEFAULT_TMP_DIR)
     output_base_vrt = f"{tmp_dir}/{TEST_CONFIG['dataset_name']}/pre-processing"
 
     output_vrts = sorted([f for f in glob.glob(f"{output_base_vrt}/*.vrt")
@@ -55,7 +59,8 @@ def _test():
 
     assert len(output_vrts) > 0, f"No VRT files found in {output_base_vrt}"
 
-    golden_base = f"/vsitar/{FIXTURES_DIR}/goldens/pc-sentinel2.tar/pc-sentinel2"
+    golden_tar_path = f"{FIXTURES_DIR}/goldens/pc-sentinel2.tar"
+    golden_base = f"/vsitar/{golden_tar_path}/pc-sentinel2"
 
     for output_vrt in output_vrts:
         vrt_filename = os.path.basename(output_vrt)
@@ -74,7 +79,7 @@ def _test():
 
 
 def _generated_golden_archives():
-    tmp_dir = os.getenv('TMP_DIR', '/app/data/tmp')
+    tmp_dir = os.getenv('TMP_DIR', DEFAULT_TMP_DIR)
     with tarfile.open(
         f"{FIXTURES_DIR}/goldens/pc-sentinel2.tar", "w:tar"
     ) as tar:
