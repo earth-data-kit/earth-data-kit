@@ -31,9 +31,9 @@ class PlanetaryComputer:
 
         return df
 
-    def sync(self, df, tmp_base_dir, overwrite=True):
+    def sync(self, df, tmp_base_dir, overwrite=False):
         """
         Sync (download) files from Planetary Computer to local storage.
         Delegates to STAC's sync method since the logic is the same.
         """
-        raise NotImplementedError("Sync is not implemented for Planetary Computer engine.")
+        return self._stac.sync(df, tmp_base_dir, overwrite)
