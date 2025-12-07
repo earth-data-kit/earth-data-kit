@@ -2,15 +2,11 @@ services:
   edk:
     build:
       context: .
-      dockerfile: Dockerfile
-      args:
-        # Needed for requirements.txt to work
-        WORKSPACE_DIR: ${WORKSPACE_DIR}
+      dockerfile: Dockerfile.dev
     security_opt:
       - seccomp:unconfined
     container_name: edk
     tty: true
-    command: /bin/bash -c "pip install -e /app/earth-data-kit && tail -f /dev/null"
     env_file:
       - .env
     ports:
@@ -20,3 +16,4 @@ services:
       - ${DATA_DIR:-./data}:/app/data
       - ${AWS_CONFIG_DIR:-~./aws}:/root/.aws
       - ./earth_data_kit:/app/earth-data-kit/earth_data_kit
+      - ./.venv:/opt/venv
