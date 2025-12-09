@@ -422,4 +422,4 @@ class EDKAccessor:
             )
 
         ds_plot = Datashader(self.da)
-        return ds_plot.plot()
+        return ds_plot.plot(colors=colors, opacity=opacity)

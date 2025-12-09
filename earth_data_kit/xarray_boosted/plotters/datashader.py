@@ -84,7 +84,7 @@ class Datashader:
         
         return rgb
 
-    def _prepare_single_band_image(self, band_idx=0, cmap="gray"):
+    def _prepare_single_band_image(self, band_idx=0, cmap="viridis"):
         """Rasterize single band with colormap."""
         da = self.da
 
@@ -103,7 +103,15 @@ class Datashader:
     def basemap(self):
         return gv.tile_sources.OSM()
 
-    def plot(self):
+    def plot(self, colors=None, opacity=1):
+        """
+        Plot the DataArray using datashader.
+        
+        Args:
+            colors: Colormap name for single-band plots (e.g., 'viridis', 'gray', 'plasma').
+                   Ignored for RGB/RGBA plots. Default is 'viridis' for single-band.
+            opacity: Initial opacity value (0.0 to 1.0). Default is 1.
+        """
         da = self.da
         
         # Enable RGB mode for 3+ bands
@@ -139,8 +147,11 @@ class Datashader:
             start=0.0, 
             end=1.0, 
             step=0.01, 
-            value=0.9
+            value=opacity
         )
+        
+        # Determine colormap for single-band plots
+        cmap = colors if colors else "viridis"
 
         # Info card
         popup_card = pn.Card(
@@ -244,7 +255,7 @@ class Datashader:
             @pn.depends(band_selector.param.value, alpha_slider.param.value)
             def update_plot(selected_band, alpha_val):
                 band_idx = self.band_names.index(selected_band)
-                shaded = self._prepare_single_band_image(band_idx, cmap="viridis")
+                shaded = self._prepare_single_band_image(band_idx, cmap=cmap)
                 shaded_with_alpha = shaded.opts(alpha=alpha_val)
                 tap_stream.source = shaded_with_alpha
                 return (self.basemap() * shaded_with_alpha).opts(
@@ -264,7 +275,7 @@ class Datashader:
 
             @pn.depends(alpha_slider.param.value)
             def update_plot(alpha_val):
-                shaded = self._prepare_single_band_image(0, cmap="viridis")
+                shaded = self._prepare_single_band_image(0, cmap=cmap)
                 shaded_with_alpha = shaded.opts(alpha=alpha_val)
                 tap_stream.source = shaded_with_alpha
                 return (self.basemap() * shaded_with_alpha).opts(
