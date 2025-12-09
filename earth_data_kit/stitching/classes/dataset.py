@@ -31,7 +31,7 @@ from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
 import earth_data_kit.stitching.engines.planetary_computer as planetary_computer
-
+from earth_data_kit.stitching.engines.bhoonidhi import Bhoonidhi
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
 
@@ -50,7 +50,7 @@ class Dataset:
         Args:
             name (str): Unique identifier for the dataset
             source (str): Source identifier (S3 URI or Earth Engine collection ID)
-            engine (str): Data source engine - ``s3``, ``earth_engine`` or ``stac``
+             engine (str): Data source engine - ``s3``, ``earth_engine``, ``stac``, ``planetary_computer``, or ``bhoonidhi``
             format (str): Data format - ``geotiff``, ``netcdf``, ``earth_engine`` or ``stac_asset``
             clean (bool, optional): Whether to clean temporary files before processing. Defaults to True
 
@@ -84,6 +84,8 @@ class Dataset:
             self.engine = stac.STAC()
         if engine == "planetary_computer":
             self.engine = planetary_computer.PlanetaryComputer()
+        if engine == "bhoonidhi":
+            self.engine = Bhoonidhi()
 
         if format == "geotiff":
             self.format = GeoTiffAdapter()
