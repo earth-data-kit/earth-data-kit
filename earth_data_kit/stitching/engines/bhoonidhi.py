@@ -20,8 +20,8 @@ class Bhoonidhi:
 
     def __init__(self, user_id=None, password=None):
         self.name = "bhoonidhi"
-        self.user_id = user_id or os.getenv("USERNAME")
-        self.password = password or os.getenv("PASSWORD")
+        self.user_id = user_id or os.getenv("BHOONIDHI_USERNAME")
+        self.password = password or os.getenv("BHOONIDHI_PASSWORD")
         self.access_token = None
         self.token_expires_at = None
         self._load_cached_token()
@@ -130,17 +130,15 @@ class Bhoonidhi:
         
         if response.status_code == 404:
             logger.warning(f"No results found for collection {collection_id}")
-            return pd.DataFrame()
-        
-        response.raise_for_status()
-        
-        data = response.json()
-        features = data.get('features', [])
+            features = []
+        else:
+            response.raise_for_status()
+            features = response.json().get('features', [])
         
         logger.info(f"Found {len(features)} items")
         
         if not features:
-            return pd.DataFrame()
+            return pd.DataFrame(columns=['date', 'tile_name', 'collection', 'geometry', 'bbox', 'assets', 'properties', '_stac_item', 'engine_path', 'gdal_path'])
         
         # Parse features into DataFrame
         # Note: Bhoonidhi items only have metadata/thumbnail assets, not data files
@@ -157,7 +155,9 @@ class Bhoonidhi:
                 'bbox': feature.get('bbox'),
                 'assets': feature.get('assets', {}),
                 'properties': props,
-                '_stac_item': feature
+                '_stac_item': feature,
+                'engine_path': f"bhoonidhi://{collection_id}/{item_id}",  # Placeholder URI
+                'gdal_path': f"bhoonidhi://{collection_id}/{item_id}"  # Placeholder URI, will be updated during sync()
             })
         
         df = pd.DataFrame(rows)
@@ -167,10 +167,11 @@ class Bhoonidhi:
 
     def sync(self, df, tmp_base_dir, overwrite=True):
         """
-        Download data products from Bhoonidhi.
+        Download data products from Bhoonidhi and update DataFrame with VSI paths.
         
         Only downloads items with 'Online' = 'Y' status.
         Max 3 concurrent downloads per user.
+        Returns DataFrame with updated gdal_path using GDAL VSI /vsizip/ prefix.
         """
         token = self.authenticate()
         os.makedirs(tmp_base_dir, exist_ok=True)
@@ -178,12 +179,24 @@ class Bhoonidhi:
         downloaded = []
         for idx, row in df.iterrows():
             item_id = row['tile_name']
-            collection = row['collection']
+            
+            # Extract collection from row
+            collection = row.get('collection') if 'collection' in row and pd.notna(row.get('collection')) else None
+            if not collection:
+                for key in ['engine_path', 'gdal_path']:
+                    path = row.get(key, '')
+                    if path and path.startswith('bhoonidhi://'):
+                        collection = path.replace('bhoonidhi://', '').split('/')[0]
+                        break
+            
+            if not collection:
+                logger.error(f"Cannot determine collection for item {item_id}")
+                continue
             
             # Check if online
-            online_status = row.get('properties', {}).get('Online', 'Y')
-            if online_status != 'Y':
-                logger.warning(f"Skipping {item_id}: Not online (Online={online_status})")
+            props = row.get('properties', {})
+            if isinstance(props, dict) and props.get('Online') != 'Y' and props.get('Online') is not None:
+                logger.warning(f"Skipping {item_id}: Not online")
                 continue
             
             # Build download URL
@@ -228,3 +241,11 @@ class Bhoonidhi:
                 logger.error(f"Download failed for {item_id}: {e}")
         
         logger.info(f"Downloaded {len(downloaded)} files")
+        
+        # Update DataFrame with VSI paths for downloaded files
+        for idx, row in df.iterrows():
+            zip_file = os.path.join(tmp_base_dir, f"{row['tile_name']}.zip")
+            if os.path.exists(zip_file):
+                df.at[idx, 'gdal_path'] = f"/vsizip/{zip_file}"
+        
+        return df
