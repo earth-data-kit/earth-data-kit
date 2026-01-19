@@ -78,12 +78,7 @@ def _get_bands(ds, band_locator="description"):
         elif band_locator == "color_interp":
             band_name = gdal.GetColorInterpretationName(band.GetColorInterpretation())
         elif band_locator == "filename":
-            # Use GetDescription() instead of GetName() for GDAL 3.x compatibility
-            try:
-                band_name = ds.GetDescription().split("/")[-1]
-            except AttributeError:
-                # Fallback if GetDescription doesn't work
-                band_name = f"Band{i}"
+            band_name = ds.GetName().split("/")[-1]
             if "." in band_name:
                 band_name = band_name.split(".")[0]
         else:

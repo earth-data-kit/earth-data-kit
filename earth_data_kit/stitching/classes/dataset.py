@@ -31,7 +31,7 @@ from datetime import datetime
 from xml.etree import ElementTree as ET
 import earth_data_kit.stitching.engines.stac as stac
 import earth_data_kit.stitching.engines.planetary_computer as planetary_computer
-import earth_data_kit.stitching.engines.bhoonidhi as bhoonidhi
+
 fiona.drvsupport.supported_drivers["kml"] = "rw"  # type: ignore
 fiona.drvsupport.supported_drivers["KML"] = "rw"  # type: ignore
 
@@ -50,7 +50,7 @@ class Dataset:
         Args:
             name (str): Unique identifier for the dataset
             source (str): Source identifier (S3 URI or Earth Engine collection ID)
-             engine (str): Data source engine - ``s3``, ``earth_engine``, ``stac``, ``planetary_computer``, or ``bhoonidhi``
+            engine (str): Data source engine - ``s3``, ``earth_engine`` or ``stac``
             format (str): Data format - ``geotiff``, ``netcdf``, ``earth_engine`` or ``stac_asset``
             clean (bool, optional): Whether to clean temporary files before processing. Defaults to True
 
@@ -84,8 +84,6 @@ class Dataset:
             self.engine = stac.STAC()
         if engine == "planetary_computer":
             self.engine = planetary_computer.PlanetaryComputer()
-        if engine == "bhoonidhi":
-            self.engine = bhoonidhi.Bhoonidhi()
 
         if format == "geotiff":
             self.format = GeoTiffAdapter()
@@ -250,27 +248,30 @@ class Dataset:
         # Create tiles
         tiles = self.format.create_tiles(scan_df, band_locator) # type: ignore
 
-        # Filter tiles by spatial intersection with bounding box
+        # Filter tiles by spatial intersection with bounding box, some engines will handle this in the scan function
         bbox = shapely.geometry.box(*self.space_opts["bbox"], ccw=True)  # type: ignore
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=helpers.get_processpool_workers()
+        ) as executor:
+            futures = []
+            for tile in tiles:
+                futures.append(executor.submit(geo.tile_intersects, tile, bbox))
+
+            results = []
+            for future in tqdm(
+                futures,
+                total=len(futures),
+                desc="Checking tile intersections",
+            ):
+                results.append(future.result())
+
         intersecting_tiles = []
-
-        # Separate tiles: those with metadata need intersection check, those without don't
-        tiles_to_check = [t for t in tiles if t.geo_transform is not None]
-        tiles_no_metadata = [t for t in tiles if t.geo_transform is None]
-
-        # Check intersection for tiles with metadata
-        if tiles_to_check:
-            with concurrent.futures.ProcessPoolExecutor(
-                max_workers=helpers.get_processpool_workers()
-            ) as executor:
-                futures = [executor.submit(geo.tile_intersects, tile, bbox) for tile in tiles_to_check]
-                
-                for idx, future in enumerate(tqdm(futures, desc="Checking tile intersections")):
-                    if future.result():
-                        intersecting_tiles.append(tiles_to_check[idx])
-        
-        # Add tiles without metadata (already spatially filtered by engine)
-        intersecting_tiles.extend(tiles_no_metadata)
+        for idx in range(len(results)):
+            intersects = results[idx]
+            tile = tiles[idx]
+            if intersects:
+                intersecting_tiles.append(tile)
 
         if len(intersecting_tiles) == 0:
             raise Exception("No tiles found for the given time and spatial constraints")
@@ -376,16 +377,8 @@ class Dataset:
             list: List of Tile objects.
         """
         df = pd.read_csv(self.catalog_path)
-        # Only parse bands JSON for rows that have band data
-        # For engines like Bhoonidhi, bands may be NaN until after sync
-        df["bands"] = df["bands"].apply(
-            lambda x: json.loads(x) if pd.notna(x) and x != '' else None
-        )
-        # Only parse geo_transform for rows that have it
-        df["geo_transform"] = df["geo_transform"].apply(
-            lambda x: ast.literal_eval(x) if pd.notna(x) else None
-        )
-        
+        df["bands"] = df["bands"].apply(json.loads)
+        df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
         df["date"] = pd.to_datetime(df["date"], format="ISO8601")
 
         tiles = Tile.from_df(df)
@@ -775,32 +768,12 @@ class Dataset:
                 "This is because warping remote datasets is slow and inefficient. "
                 "Please set sync=True to download the data locally when mosaicing."
             )
-        # Check if we need to sync before discovering bands (Bhoonidhi workflow)
-        tiles = self.__get_tiles__()
-        needs_sync_before_bands = any(tile.bands is None for tile in tiles)
-        
-        if needs_sync_before_bands and sync:
-            logger.info("Syncing data before discovering bands")
-            df = pd.read_csv(self.catalog_path)
-            df["date"] = pd.to_datetime(df["date"], format="ISO8601")
-            df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)
-            
-            # Re-discover bands from downloaded files
-            tiles = self.format.create_tiles(df, "filename")  # type: ignore
-            df_updated = pd.DataFrame([t.__dict__ for t in tiles])
-            df_updated["bands"] = df_updated["bands"].apply(lambda b: json.dumps(b) if b else None)
-            df_updated.to_csv(self.catalog_path, header=True, index=False)
-        
-        # Retrieve all bands from tiles
+        # Retrieve all bands from tiles.
         tile_bands = self.__get_tile_bands__()
         df = pd.DataFrame(tile_bands)
         df["date"] = df.apply(lambda x: x.tile.date, axis=1)
 
 
-        # If bands is None, use all available bands
-        if bands is None:
-            bands = df["description"].unique().tolist()
-            logger.info(f"No bands specified, using all available bands: {bands}")
 
         # Filter bands based on the user-supplied list.
         # TODO: May need special handling for non-unique band descriptions in the future
@@ -810,8 +783,7 @@ class Dataset:
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
         df["date"] = df["date"].fillna(epoch_date) # type: ignore
 
-        if sync and not needs_sync_before_bands:
-            # Normal workflow: sync after getting bands
+        if sync:
             df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)
 
         outputs_by_dates = df.groupby(by=["date"], dropna=False)
