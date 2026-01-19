@@ -18,6 +18,7 @@ import earth_data_kit.stitching.constants as constants
 import earth_data_kit.stitching.decorators as decorators
 import earth_data_kit.stitching.engines.earth_engine as earth_engine
 import earth_data_kit.stitching.engines.s3 as s3
+import earth_data_kit.stitching.engines.bhoonidhi as bhoonidhi
 import concurrent.futures
 from earth_data_kit.stitching.classes.tile import Tile
 import shapely
@@ -84,6 +85,8 @@ class Dataset:
             self.engine = stac.STAC()
         if engine == "planetary_computer":
             self.engine = planetary_computer.PlanetaryComputer()
+        if engine == "bhoonidhi":
+            self.engine = bhoonidhi.Bhoonidhi()
 
         if format == "geotiff":
             self.format = GeoTiffAdapter()
@@ -377,7 +380,8 @@ class Dataset:
             list: List of Tile objects.
         """
         df = pd.read_csv(self.catalog_path)
-        df["bands"] = df["bands"].apply(json.loads)
+        # Handle NaN bands (from Bhoonidhi placeholder tiles)
+        df["bands"] = df["bands"].apply(lambda x: json.loads(x) if pd.notna(x) else None)
         df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
         df["date"] = pd.to_datetime(df["date"], format="ISO8601")
 
