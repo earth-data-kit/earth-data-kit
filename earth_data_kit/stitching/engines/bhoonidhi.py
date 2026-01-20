@@ -71,7 +71,7 @@ class Bhoonidhi:
 
     def _download_and_extract(self, item_id, collection_id, tmp_path, headers):
         """Download and extract a single item."""
-        item_extract_dir = os.path.join(tmp_path, "extracted", item_id)
+        item_extract_dir = os.path.join(tmp_path, "raw-data", item_id)
         
         if os.path.exists(item_extract_dir):
             return item_extract_dir
@@ -91,7 +91,8 @@ class Bhoonidhi:
         os.makedirs(item_extract_dir, exist_ok=True)
         with zipfile.ZipFile(output_file, 'r') as zip_ref:
             zip_ref.extractall(item_extract_dir)
-
+        
+        os.remove(output_file)
         return item_extract_dir
 
     def scan(self, source, time_opts, space_opts, tmp_path, band_locator=None):
