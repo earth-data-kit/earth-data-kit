@@ -380,8 +380,7 @@ class Dataset:
             list: List of Tile objects.
         """
         df = pd.read_csv(self.catalog_path)
-        # Handle NaN bands (from Bhoonidhi placeholder tiles)
-        df["bands"] = df["bands"].apply(lambda x: json.loads(x) if pd.notna(x) else None)
+        df["bands"] = df["bands"].apply(json.loads)
         df["geo_transform"] = df["geo_transform"].apply(ast.literal_eval)
         df["date"] = pd.to_datetime(df["date"], format="ISO8601")
 
@@ -787,7 +786,7 @@ class Dataset:
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
         df["date"] = df["date"].fillna(epoch_date) # type: ignore
 
-        if sync:
+        if sync and self.engine.name != "bhoonidhi":
             df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)
 
         outputs_by_dates = df.groupby(by=["date"], dropna=False)

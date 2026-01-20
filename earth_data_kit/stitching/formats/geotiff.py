@@ -10,40 +10,31 @@ class GeoTiffAdapter:
         self.name = "GeoTiff"
 
     def create_tiles(self, scan_df, band_locator):
-        is_bhoonidhi = scan_df["gdal_path"].apply(
-            lambda x: isinstance(x, str) and x.startswith("bhoonidhi-download://")
-        ).any()
-        
-        if is_bhoonidhi:
-            wgs84_wkt = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]'
-            
-            scan_df["projection"] = wgs84_wkt
-            scan_df["crs"] = "EPSG:4326"
-            scan_df["length_unit"] = "degree"
-            scan_df["bands"] = scan_df.get("_bands_info", None)
-            scan_df["x_size"] = 100
-            scan_df["y_size"] = 100
-            
-            def calc_geo_transform(bbox):
-                if bbox:
-                    minx, miny, maxx, maxy = bbox
-                    return (minx, (maxx - minx) / 100, 0, maxy, 0, -(maxy - miny) / 100)
-                return None
-            
-            scan_df["geo_transform"] = scan_df["bbox"].apply(calc_geo_transform)
-        else:
-            metadata = commons.get_tiles_metadata(scan_df["gdal_path"].tolist(), band_locator)
-            
-            for idx, meta in enumerate(metadata):
-                if meta:
-                    scan_df.at[idx, "geo_transform"] = meta["geo_transform"]
-                    scan_df.at[idx, "projection"] = meta["projection"]
-                    scan_df.at[idx, "x_size"] = meta["x_size"]
-                    scan_df.at[idx, "y_size"] = meta["y_size"]
-                    scan_df.at[idx, "crs"] = meta["crs"]
-                    scan_df.at[idx, "length_unit"] = meta["length_unit"]
-                    scan_df.at[idx, "bands"] = meta["bands"]
-            
-            scan_df = scan_df[scan_df["geo_transform"].notna()].reset_index(drop=True)
+        metadata = commons.get_tiles_metadata(
+            scan_df["gdal_path"].tolist(), band_locator
+        )
 
-        return Tile.from_df(scan_df)
+        # Add new columns to the dataframe
+        scan_df["geo_transform"] = None
+        scan_df["projection"] = None
+        scan_df["x_size"] = None
+        scan_df["y_size"] = None
+        scan_df["crs"] = None
+        scan_df["length_unit"] = None
+        scan_df["bands"] = None
+
+        for idx in range(len(metadata)):
+            if metadata[idx] is None:
+                continue
+            scan_df.at[idx, "geo_transform"] = metadata[idx]["geo_transform"]
+            scan_df.at[idx, "projection"] = metadata[idx]["projection"]
+            scan_df.at[idx, "x_size"] = metadata[idx]["x_size"]
+            scan_df.at[idx, "y_size"] = metadata[idx]["y_size"]
+            scan_df.at[idx, "crs"] = metadata[idx]["crs"]
+            scan_df.at[idx, "length_unit"] = metadata[idx]["length_unit"]
+            # Passing array of jsons in a dataframe "bands" column
+            scan_df.at[idx, "bands"] = metadata[idx]["bands"]
+        scan_df = scan_df[scan_df["geo_transform"].notna()].reset_index(drop=True)
+
+        tiles = Tile.from_df(scan_df)
+        return tiles
