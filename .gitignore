@@ -11,6 +11,7 @@ docs/_build
 .zed
 .vscode
 .benchmarks
+.edk-venv
 
 # Python packaging related
 *.egg-info

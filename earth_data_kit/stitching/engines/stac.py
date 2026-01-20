@@ -1,7 +1,6 @@
 from pystac_client import Client
 from urllib.parse import urlparse
 import logging
-import json
 from osgeo import gdal
 import os
 import pandas as pd
@@ -64,7 +63,7 @@ class STAC:
         results = catalog.search(**search_kwargs) # type: ignore
         return results
 
-    def scan(self, source, time_opts, space_opts, tmp_path, band_locator):
+    def scan(self, source, time_opts, space_opts, tmp_path=None, band_locator=None):
         
         catalog_url, collection_name = STAC._parse_stac_url(source)
 
@@ -94,16 +93,42 @@ class STAC:
         raise NotImplementedError("S3 assets syncing is not yet supported for STAC")
 
     def _sync_http(self, source, dest):
-        # Will have /vsicurl/ in the beginning
-        # Remove the /vsicurl/ prefix to get the actual URL
-        url = source[len("/vsicurl/") :]
+        # Will have /vsicurl in the beginning (either /vsicurl/ or /vsicurl?)
+        # For Planetary Computer URLs with signed access, use GDAL to download
+        # which handles authentication properly
         # Ensure the destination directory exists
         dest_dir = os.path.dirname(dest)
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir, exist_ok=True)
-        # Download the file using wget
-        os.system(f"wget -O '{dest}' '{url}'")
-        return dest
+
+        # Use GDAL to copy the file - this preserves authentication for Planetary Computer
+        # and works for standard URLs too
+        try:
+            src_ds = gdal.Open(source, gdal.GA_ReadOnly)
+            if src_ds is None:
+                logger.error(f"Failed to open source file: {source}")
+                raise RuntimeError(f"Failed to open source file: {source}")
+
+            driver = gdal.GetDriverByName('GTiff')
+            dst_ds = driver.CreateCopy(dest, src_ds, strict=0)
+
+            if dst_ds is None:
+                logger.error(f"Failed to create copy at: {dest}")
+                raise RuntimeError(f"Failed to create copy at: {dest}")
+
+            # Close datasets to flush to disk
+            src_ds = None
+            dst_ds = None
+
+            logger.debug(f"Successfully synced {source} to {dest}")
+            return dest
+
+        except Exception as e:
+            logger.error(f"Failed to sync {source} to {dest}: {str(e)}")
+            # Remove partial file if it exists
+            if os.path.exists(dest):
+                os.remove(dest)
+            raise RuntimeError(f"Failed to sync file: {str(e)}")
 
     def sync(self, df, tmp_base_dir, overwrite=False):
         with concurrent.futures.ThreadPoolExecutor(
@@ -112,9 +137,22 @@ class STAC:
             for band_tile in df.itertuples():
                 local_path = None
                 protocol = None
-                if band_tile.tile.gdal_path.startswith("/vsicurl/"):
+                if band_tile.tile.gdal_path.startswith("/vsicurl"):
+                    # Handle both /vsicurl/ and /vsicurl? (Planetary Computer format)
                     url = band_tile.tile.gdal_path
-                    url_wo_gdal_prefix = url[len("/vsicurl/") :]
+                    # Check if it's Planetary Computer format with query parameters
+                    if "?pc_url_signing=yes" in url:
+                        # Extract the actual URL from query parameters
+                        # Format: /vsicurl?pc_url_signing=yes&pc_collection=xxx&url=https://...
+                        url_param_start = url.find("&url=")
+                        if url_param_start != -1:
+                            url_wo_gdal_prefix = url[url_param_start + 5:]  # Skip "&url="
+                        else:
+                            raise ValueError(f"Could not parse Planetary Computer URL: {url}")
+                    else:
+                        # Standard /vsicurl/ format
+                        url_wo_gdal_prefix = url[len("/vsicurl/") :]
+
                     url_parts = urlparse(url_wo_gdal_prefix)
                     local_path = f"{tmp_base_dir}/raw-data{url_parts.path}"
                     protocol = "http"
@@ -127,7 +165,8 @@ class STAC:
                         "Please raise an issue at https://github.com/earth-data-kit/earth-data-kit/issues with details about the STAC asset."
                     )
                 try:
-                    ds = gdal.Open(local_path)
+                    # Check if file exists and is valid
+                    gdal.Open(local_path)
                     # File exists and is valid, no need to sync, unless overwrite is True
                     if overwrite:
                         if protocol == "http":

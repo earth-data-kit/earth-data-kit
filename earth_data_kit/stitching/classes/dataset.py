@@ -18,6 +18,7 @@ import earth_data_kit.stitching.constants as constants
 import earth_data_kit.stitching.decorators as decorators
 import earth_data_kit.stitching.engines.earth_engine as earth_engine
 import earth_data_kit.stitching.engines.s3 as s3
+import earth_data_kit.stitching.engines.bhoonidhi as bhoonidhi
 import concurrent.futures
 from earth_data_kit.stitching.classes.tile import Tile
 import shapely
@@ -84,6 +85,8 @@ class Dataset:
             self.engine = stac.STAC()
         if engine == "planetary_computer":
             self.engine = planetary_computer.PlanetaryComputer()
+        if engine == "bhoonidhi":
+            self.engine = bhoonidhi.Bhoonidhi()
 
         if format == "geotiff":
             self.format = GeoTiffAdapter()
@@ -783,7 +786,7 @@ class Dataset:
         epoch_date = datetime(1970, 1, 1, 0, 0, 0)
         df["date"] = df["date"].fillna(epoch_date) # type: ignore
 
-        if sync:
+        if sync and self.engine.name != "bhoonidhi":
             df = self.engine.sync(df, self.__get_ds_tmp_path__(), overwrite=overwrite)
 
         outputs_by_dates = df.groupby(by=["date"], dropna=False)
